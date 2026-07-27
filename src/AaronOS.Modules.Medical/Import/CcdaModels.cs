@@ -38,8 +38,17 @@ public record CcdaDocument
     public List<ParsedVisit> Visits { get; init; } = [];
     public List<ParsedLab> Labs { get; init; } = [];
 
+    /// <summary>How many source documents contributed. A single MyChart download holds several.</summary>
+    public int DocumentCount { get; set; } = 1;
+
     /// <summary>Entries present in the document that could not be read, keyed by section name.</summary>
     public Dictionary<string, int> SkippedBySection { get; init; } = [];
+
+    /// <summary>"No known active allergies"-style assertions passed over, keyed by section. Tracked
+    /// separately from skips because nothing failed — they are simply not records.</summary>
+    public Dictionary<string, int> AbsenceStatements { get; init; } = [];
+
+    public int TotalAbsenceStatements => AbsenceStatements.Values.Sum();
 
     /// <summary>Readable notes about anything unusual, surfaced on the review screen.</summary>
     public List<string> Warnings { get; init; } = [];

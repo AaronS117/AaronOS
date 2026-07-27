@@ -53,7 +53,7 @@ public class ImportIntegrationTests : IDisposable
     private ImportViewModel NewViewModel()
     {
         var vm = new ImportViewModel(_factory);
-        vm.SetFile(_xmlPath);
+        vm.SetFiles(_xmlPath);
         return vm;
     }
 
@@ -130,6 +130,49 @@ public class ImportIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task WritesExactlyAsManyRowsAsTheReviewPromised_EvenWhenDocumentsRepeat()
+    {
+        // The invariant that matters most: the number in "NEW RECORDS" is the number of rows created.
+        // A real export repeats the same records across its documents and reuses source ids while
+        // doing so, which once made the commit write 1,215 rows against a review promising 364.
+        var repeated = Path.Combine(Path.GetTempPath(), $"aaronos-ccda-rep-{Guid.NewGuid():N}.xml");
+        var single = CcdaFixtures.Document(
+            CcdaFixtures.ProblemsSection, CcdaFixtures.MedicationsSection,
+            CcdaFixtures.ImmunizationsSection, CcdaFixtures.ResultsSection,
+            CcdaFixtures.ProceduresSection, CcdaFixtures.EncountersSection);
+        await File.WriteAllTextAsync(repeated, single);
+
+        try
+        {
+            // Same content three times over, exactly as a multi-document package presents it.
+            var vm = new ImportViewModel(_factory);
+            vm.SetFiles(repeated, repeated, repeated);
+
+            await vm.ParseCommand.ExecuteAsync(null);
+            var promised = vm.NewCount;
+            Assert.True(promised > 0);
+
+            await vm.CommitCommand.ExecuteAsync(null);
+
+            await using var db = _factory.CreateDbContext();
+            var actual = await db.Set<MedicalCondition>().CountAsync()
+                + await db.Set<Medication>().CountAsync()
+                + await db.Set<Allergy>().CountAsync()
+                + await db.Set<Immunization>().CountAsync()
+                + await db.Set<MedicalProcedure>().CountAsync()
+                + await db.Set<MedicalVisit>().CountAsync()
+                + await db.Set<LabResult>().CountAsync();
+
+            Assert.Equal(promised, actual);
+            Assert.Equal(0, vm.NewCount);          // and the screen no longer invites a second import
+        }
+        finally
+        {
+            File.Delete(repeated);
+        }
+    }
+
+    [Fact]
     public async Task BodyWeightIsNeverImported_BecauseBodyMeasurementsOwnsIt()
     {
         var vm = NewViewModel();
@@ -196,7 +239,7 @@ public class ImportIntegrationTests : IDisposable
         try
         {
             var vm = new ImportViewModel(_factory);
-            vm.SetFile(junk);
+            vm.SetFiles(junk);
 
             await vm.ParseCommand.ExecuteAsync(null);
 

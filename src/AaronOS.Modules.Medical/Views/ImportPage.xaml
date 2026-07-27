@@ -18,7 +18,7 @@
 
         <TextBlock Text="Import" Style="{DynamicResource PageTitleText}" Margin="0,0,0,10" />
         <TextBlock
-            Text="Bring in a record export from MyChart. In MyChart, choose Sharing, then Download My Record, and pick the XML file it produces. Nothing is saved until you have seen what was found and confirmed it."
+            Text="Bring in a record export from MyChart: Sharing Hub, then Download health and visit summary. Keep the .zip exactly as it downloads — it holds several documents and they are all read. Pick more than one file if you have records at more than one health system. Nothing is saved until you have seen what was found and confirmed it."
             Style="{DynamicResource CaptionText}"
             TextWrapping="Wrap"
             Margin="0,0,0,22" />
@@ -42,6 +42,18 @@
                     TextTrimming="CharacterEllipsis"
                     Margin="0,12,0,0"
                     Visibility="{Binding HasFile, Converter={StaticResource BoolToVis}}" />
+                <TextBlock Text="{Binding SourceSummary}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource CaptionText}">
+                            <Setter Property="Margin" Value="0,4,0,0" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SourceSummary}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
             </StackPanel>
         </Border>
 

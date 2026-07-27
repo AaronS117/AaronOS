@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using System.Xml;
 using System.Xml.Linq;
 
@@ -14,7 +15,7 @@ namespace AaronOS.Modules.Medical.Import;
 /// absent data. Each entry is therefore parsed inside a try/catch — one unreadable entry increments a
 /// skip count and records a warning rather than costing the other few hundred good ones.
 /// </summary>
-public static class CcdaParser
+public static partial class CcdaParser
 {
     private static readonly XNamespace V = "urn:hl7-org:v3";
 
@@ -36,6 +37,71 @@ public static class CcdaParser
     /// </summary>
     private static readonly HashSet<string> ExcludedVitalCodes =
         ["29463-7", "3141-9", "8350-1", "8302-2", "3137-7"];
+
+    /// <summary>
+    /// Parses several documents as one result, because a single MyChart download contains a folder of
+    /// them and the user is importing "their record", not "document 4 of 8".
+    ///
+    /// The same records repeat heavily across documents in a real export — 1,302 parsed records
+    /// collapsed to 378 unique ones in testing — so de-duplication is left to ImportPlanner, which
+    /// already keys on the source id with a natural-key fallback. Merging here would duplicate that
+    /// logic in a second place.
+    ///
+    /// One unreadable document does not sink the batch: it is counted and named in the warnings.
+    /// </summary>
+    public static CcdaDocument ParseMany(IEnumerable<string> xmlDocuments)
+    {
+        var merged = new CcdaDocument();
+        var index = 0;
+        var parsed = 0;
+
+        foreach (var xml in xmlDocuments)
+        {
+            index++;
+            CcdaDocument one;
+            try
+            {
+                one = Parse(xml);
+            }
+            catch (FormatException ex)
+            {
+                Skip(merged, "Document", $"document {index} could not be read ({ex.Message})");
+                continue;
+            }
+
+            parsed++;
+            merged.Conditions.AddRange(one.Conditions);
+            merged.Medications.AddRange(one.Medications);
+            merged.Allergies.AddRange(one.Allergies);
+            merged.Immunizations.AddRange(one.Immunizations);
+            merged.Procedures.AddRange(one.Procedures);
+            merged.Visits.AddRange(one.Visits);
+            merged.Labs.AddRange(one.Labs);
+
+            foreach (var (section, count) in one.SkippedBySection)
+            {
+                merged.SkippedBySection[section] = merged.SkippedBySection.GetValueOrDefault(section) + count;
+            }
+
+            foreach (var (section, count) in one.AbsenceStatements)
+            {
+                merged.AbsenceStatements[section] = merged.AbsenceStatements.GetValueOrDefault(section) + count;
+            }
+
+            foreach (var warning in one.Warnings.Where(w => !merged.Warnings.Contains(w)))
+            {
+                merged.Warnings.Add(warning);
+            }
+        }
+
+        if (parsed == 0 && index > 0)
+        {
+            throw new FormatException("None of the documents in that file could be read as health records.");
+        }
+
+        merged.DocumentCount = parsed;
+        return merged;
+    }
 
     public static CcdaDocument Parse(string xml)
     {
@@ -77,39 +143,43 @@ public static class CcdaParser
         CcdaDocument result,
         Action<XElement, Dictionary<string, string>, CcdaDocument> parseEntry)
     {
-        var section = FindSection(doc, templateRoot, loincCode);
-        if (section is null)
+        // Every matching section, not just the first. One document legitimately carries more than one
+        // section under the same template — a real "Active Problems" list alongside Epic's separate
+        // "no known active problems" assertion, or "Encounter Details" next to "Encounters". Taking
+        // only the first silently dropped every genuine diagnosis whenever the negation section
+        // happened to come first.
+        foreach (var section in FindSections(doc, templateRoot, loincCode))
         {
-            return; // An absent section is normal, not an error.
-        }
+            var narrative = BuildNarrativeIndex(section);
 
-        var narrative = BuildNarrativeIndex(section);
-
-        foreach (var entry in section.Elements(V + "entry"))
-        {
-            try
+            foreach (var entry in section.Elements(V + "entry"))
             {
-                parseEntry(entry, narrative, result);
-            }
-            catch (Exception ex)
-            {
-                Skip(result, label, ex.Message);
+                try
+                {
+                    parseEntry(entry, narrative, result);
+                }
+                catch (Exception ex)
+                {
+                    Skip(result, label, ex.Message);
+                }
             }
         }
     }
 
-    private static XElement? FindSection(XDocument doc, string templateRoot, string loincCode)
+    private static List<XElement> FindSections(XDocument doc, string templateRoot, string loincCode)
     {
-        var byTemplate = doc.Descendants(V + "section").FirstOrDefault(
-            s => s.Elements(V + "templateId").Any(t => Attr(t, "root") == templateRoot));
-        if (byTemplate is not null)
+        var byTemplate = doc.Descendants(V + "section")
+            .Where(s => s.Elements(V + "templateId").Any(t => Attr(t, "root") == templateRoot))
+            .ToList();
+        if (byTemplate.Count > 0)
         {
             return byTemplate;
         }
 
         // Fallback on the section's own LOINC code when the templateId is missing or versioned.
         return doc.Descendants(V + "section")
-            .FirstOrDefault(s => Attr(s.Element(V + "code"), "code") == loincCode);
+            .Where(s => Attr(s.Element(V + "code"), "code") == loincCode)
+            .ToList();
     }
 
     /// <summary>
@@ -160,7 +230,7 @@ public static class CcdaParser
         var reference = owner?.Element(V + "text")?.Element(V + "reference");
         var key = Attr(reference, "value")?.TrimStart('#');
 
-        return key is not null && index.TryGetValue(key, out var value) ? value : null;
+        return key is not null && index.TryGetValue(key, out var value) ? Normalize(value) : null;
     }
 
     // ---- per-section entry parsers -----------------------------------------------------------
@@ -175,6 +245,12 @@ public static class CcdaParser
         var name = DisplayName(value)
             ?? Narrative(narrative, observation)
             ?? throw new FormatException("a problem had no readable name");
+
+        if (IsAbsenceStatement(name))
+        {
+            Absence(result, "Problems");
+            return;
+        }
 
         var effective = observation.Element(V + "effectiveTime");
         var onset = Hl7Time.ParseDate(Attr(effective?.Element(V + "low"), "value"));
@@ -198,6 +274,12 @@ public static class CcdaParser
         var name = DisplayName(material?.Element(V + "code"))
             ?? Narrative(narrative, admin)
             ?? throw new FormatException("a medication had no readable name");
+
+        if (IsAbsenceStatement(name))
+        {
+            Absence(result, "Medications");
+            return;
+        }
 
         // Two effectiveTime elements are normal and mean different things: IVL_TS carries the date
         // range, PIVL_TS the dosing frequency. They are told apart by shape rather than by xsi:type,
@@ -236,6 +318,12 @@ public static class CcdaParser
             ?? Narrative(narrative, observation)
             ?? throw new FormatException("an allergy had no readable substance");
 
+        if (IsAbsenceStatement(substance))
+        {
+            Absence(result, "Allergies");
+            return;
+        }
+
         // Reaction and severity are both nested observations; only the severity one is coded SEV.
         var nested = observation.Descendants(V + "observation").ToList();
 
@@ -262,6 +350,14 @@ public static class CcdaParser
         var vaccine = DisplayName(material?.Element(V + "code"))
             ?? Narrative(narrative, admin)
             ?? throw new FormatException("an immunization had no readable vaccine");
+
+        if (IsAbsenceStatement(vaccine))
+        {
+            Absence(result, "Immunizations");
+            return;
+        }
+
+        vaccine = StripNarrativeDates(vaccine);
 
         var effective = admin.Element(V + "effectiveTime");
         var given = Hl7Time.ParseDate(Attr(effective, "value"))
@@ -368,6 +464,58 @@ public static class CcdaParser
     private static string? Attr(XElement? element, string name) =>
         element?.Attribute(name)?.Value is { Length: > 0 } v ? v : null;
 
+    /// <summary>
+    /// True for the "nothing to report" assertions Epic emits as ordinary coded entries — "No known
+    /// active allergies", "No known active problems", "No current medications". They are statements of
+    /// absence, not records, and importing them produces an allergy list whose first row claims there
+    /// are no allergies. Found in real Froedtert exports, where every one of 21 documents carried one.
+    /// </summary>
+    private static bool IsAbsenceStatement(string text) =>
+        NegationPrefixes.Any(p => text.TrimStart().StartsWith(p, StringComparison.OrdinalIgnoreCase));
+
+    private static readonly string[] NegationPrefixes =
+        ["no known", "no active", "none known", "no current", "no reported", "not on file"];
+
+    /// <summary>
+    /// Trims the administration dates that get appended when a vaccine's name comes from the narrative
+    /// table rather than a coded displayName. Different systems in the same export do it differently:
+    /// "DTAP (Infanrix) (Given 3/4/2003, 1/24/2000, …)" from one, and a bare
+    /// "DTAP (Infanrix) 03/04/2003 , 01/24/2000 , …" from another.
+    ///
+    /// The dates belong in the date field, and one narrative cell can list five of them, so they cannot
+    /// be split into separate records reliably. Keeping the clean name is the honest reading — and it
+    /// is what lets the same childhood vaccination from two health systems collapse to one row.
+    /// </summary>
+    private static string StripNarrativeDates(string name)
+    {
+        var marker = name.IndexOf("(Given", StringComparison.OrdinalIgnoreCase);
+        if (marker > 0)
+        {
+            name = name[..marker];
+        }
+
+        var date = FirstDateInText().Match(name);
+        if (date.Success && date.Index > 0)
+        {
+            name = name[..date.Index];
+        }
+
+        return name.TrimEnd(' ', ',', ';', '-', '(').TrimEnd();
+    }
+
+    [GeneratedRegex(@"\d{1,2}/\d{1,2}/\d{2,4}")]
+    private static partial Regex FirstDateInText();
+
+    /// <summary>
+    /// Collapses whitespace runs and trims. Narrative cells arrive with newlines and padding, and
+    /// without this "Influenza Vaccine, Multidose Vial" and the same value with a trailing space count
+    /// as two different records for de-duplication.
+    /// </summary>
+    private static string Normalize(string value) => WhitespaceRuns().Replace(value, " ").Trim();
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceRuns();
+
     /// <summary>A coded element's human-readable text, respecting nullFlavor.</summary>
     private static string? DisplayName(XElement? coded)
     {
@@ -378,11 +526,11 @@ public static class CcdaParser
 
         if (Attr(coded, "displayName") is { } display)
         {
-            return display;
+            return Normalize(display);
         }
 
-        var original = coded.Element(V + "originalText")?.Value.Trim();
-        return string.IsNullOrWhiteSpace(original) ? null : original;
+        var original = coded.Element(V + "originalText")?.Value;
+        return string.IsNullOrWhiteSpace(original) ? null : Normalize(original);
     }
 
     private static string? ExternalId(XElement? owner)
@@ -408,6 +556,16 @@ public static class CcdaParser
 
     private static decimal? ParseDecimal(string? value) =>
         decimal.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var d) ? d : null;
+
+    /// <summary>
+    /// Records that an absence statement was passed over. Counted separately from Skip: nothing failed
+    /// to parse, so calling it "unreadable" would be misleading — but dropping it with no trace at all
+    /// would hide a decision from the user.
+    /// </summary>
+    private static void Absence(CcdaDocument result, string section)
+    {
+        result.AbsenceStatements[section] = result.AbsenceStatements.GetValueOrDefault(section) + 1;
+    }
 
     private static void Skip(CcdaDocument result, string section, string reason)
     {
