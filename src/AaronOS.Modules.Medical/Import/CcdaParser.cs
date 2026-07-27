@@ -232,13 +232,26 @@ public static partial class CcdaParser
                 .Where(t => t.Length > 0))
             .Trim();
 
+    /// <summary>
+    /// Follows a narrative pointer to its text. Checks both places the standard puts one:
+    /// <c>text/reference</c> on an entry, and <c>originalText/reference</c> inside a coded element
+    /// whose own code is nullFlavor. They can point at different cells — in a real medications table
+    /// the coded element points at the drug name while the entry points at the dosing instructions.
+    /// </summary>
     private static string? Narrative(Dictionary<string, string> index, XElement? owner)
     {
-        var reference = owner?.Element(V + "text")?.Element(V + "reference");
+        var reference = owner?.Element(V + "text")?.Element(V + "reference")
+            ?? owner?.Element(V + "originalText")?.Element(V + "reference");
         var key = Attr(reference, "value")?.TrimStart('#');
 
         return key is not null && index.TryGetValue(key, out var value) ? Normalize(value) : null;
     }
+
+    /// <summary>
+    /// The standard's own "this did not happen / none of these" flag. Far more reliable than matching
+    /// wording, and it is what Epic sets on its "No known medications" entries.
+    /// </summary>
+    private static bool IsNegated(XElement? element) => Attr(element, "negationInd") == "true";
 
     // ---- per-section entry parsers -----------------------------------------------------------
 
@@ -247,6 +260,12 @@ public static partial class CcdaParser
         var act = entry.Element(V + "act");
         var observation = (act ?? entry).Descendants(V + "observation").FirstOrDefault()
             ?? throw new FormatException("a problem entry contained no observation");
+
+        if (IsNegated(observation) || IsNegated(act))
+        {
+            Absence(result, "Problems");
+            return;
+        }
 
         var value = observation.Element(V + "value");
         var name = DisplayName(value)
@@ -277,9 +296,22 @@ public static partial class CcdaParser
         var admin = entry.Descendants(V + "substanceAdministration").FirstOrDefault()
             ?? throw new FormatException("a medication entry contained no substanceAdministration");
 
+        if (IsNegated(admin))
+        {
+            Absence(result, "Medications");   // "No known medications", flagged by the document itself
+            return;
+        }
+
         var material = admin.Descendants(V + "manufacturedMaterial").FirstOrDefault();
-        var name = DisplayName(material?.Element(V + "code"))
-            ?? Narrative(narrative, admin)
+        var coded = material?.Element(V + "code");
+
+        // Order matters. The coded element's own narrative pointer is the drug name; the entry's
+        // pointer is the dosing instructions. Reading the entry first produced a medication list of
+        // "Take 1 Capsule by mouth every morning" with no drug names in it at all.
+        var instructions = Narrative(narrative, admin);
+        var name = DisplayName(coded)
+            ?? Narrative(narrative, coded)
+            ?? instructions
             ?? throw new FormatException("a medication had no readable name");
 
         if (IsAbsenceStatement(name))
@@ -302,9 +334,13 @@ public static partial class CcdaParser
             ? $"{dv} {Attr(dose, "unit")}".Trim()
             : null;
 
-        var frequency = Attr(period, "value") is { } pv
-            ? $"every {pv} {Attr(period, "unit")}".Trim()
-            : null;
+        // Prefer the human Sig over a reconstructed "every 1 d" — it carries timing and food rules
+        // that the coded period cannot express. Only used when it is not just the name repeated.
+        var frequency = instructions is not null && instructions != name
+            ? instructions
+            : Attr(period, "value") is { } pv
+                ? $"every {pv} {Attr(period, "unit")}".Trim()
+                : null;
 
         result.Medications.Add(new ParsedMedication(
             name,
