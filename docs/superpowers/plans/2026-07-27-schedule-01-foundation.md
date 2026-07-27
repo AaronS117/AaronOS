@@ -348,6 +348,8 @@ git commit -m "Scaffold AaronOS.Modules.Schedule module"
 
 Create `src/AaronOS.Modules.Schedule.Tests/ScheduleSchemaTests.cs`. This uses a real temp-file SQLite database, matching `AccountTotalsTests` in the Finance test project — the only way to catch a mapping that EF cannot translate.
 
+> ⚠️ **The test code below uses one `db` for both the write and the read. That is stale — restructure it before running.** EF Core's identity resolution returns the already-tracked entity, so asserting through the context that performed the insert checks the object the test constructed, not what SQLite stored: a broken value converter would pass. Write in one context, dispose it, then verify through a fresh `CreateContext()` against the same `_dbPath`. And where a test deletes to prove a cascade, the deleting context must not load or track the children — otherwise it proves EF's client-side cascade rather than the database foreign key. Use `ExecuteDeleteAsync` or a key-only attached stub there.
+
 ```csharp
 using AaronOS.Core;
 using AaronOS.Core.Data;
@@ -552,6 +554,8 @@ git commit -m "Add Schedule module enums and ScheduleBlock entity"
 - [ ] **Step 1: Write the failing test**
 
 Add to `ScheduleSchemaTests`:
+
+> ⚠️ **The test code below uses one `db` for both the write and the read. That is stale — restructure it before running.** EF Core's identity resolution returns the already-tracked entity, so asserting through the context that performed the insert checks the object the test constructed, not what SQLite stored: a broken value converter would pass. Write in one context, dispose it, then verify through a fresh `CreateContext()` against the same `_dbPath`. And where a test deletes to prove a cascade, the deleting context must not load or track the children — otherwise it proves EF's client-side cascade rather than the database foreign key. Use `ExecuteDeleteAsync` or a key-only attached stub there.
 
 ```csharp
     [Fact]
@@ -1366,6 +1370,8 @@ git commit -m "Split midnight-wrapping blocks and compute free gaps"
 - [ ] **Step 1: Write the failing test**
 
 Add to `ScheduleSchemaTests`:
+
+> ⚠️ **The test code below uses one `db` for both the write and the read. That is stale — restructure it before running.** EF Core's identity resolution returns the already-tracked entity, so asserting through the context that performed the insert checks the object the test constructed, not what SQLite stored: a broken value converter would pass. Write in one context, dispose it, then verify through a fresh `CreateContext()` against the same `_dbPath`. And where a test deletes to prove a cascade, the deleting context must not load or track the children — otherwise it proves EF's client-side cascade rather than the database foreign key. Use `ExecuteDeleteAsync` or a key-only attached stub there.
 
 ```csharp
     [Fact]
