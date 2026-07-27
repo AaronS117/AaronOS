@@ -22,5 +22,6 @@
     <ProjectReference Include="..\AaronOS.Modules.BodyMeasurements\AaronOS.Modules.BodyMeasurements.csproj" />
     <ProjectReference Include="..\AaronOS.Modules.Finance\AaronOS.Modules.Finance.csproj" />
     <ProjectReference Include="..\AaronOS.Modules.Nutrition\AaronOS.Modules.Nutrition.csproj" />
+    <ProjectReference Include="..\AaronOS.Modules.Medical\AaronOS.Modules.Medical.csproj" />
   </ItemGroup>
 </Project>
