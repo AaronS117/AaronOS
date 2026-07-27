@@ -6,5 +6,50 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
     mc:Ignorable="d">
-    <ui:TextBlock Margin="16" Text="Today" FontTypography="Subtitle" />
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="16">
+            <ui:TextBlock Text="{Binding DateHeading}" FontTypography="Subtitle" Margin="0,0,0,12" />
+
+            <ui:Card Margin="0,0,0,12">
+                <StackPanel>
+                    <ui:TextBlock Text="Schedule" FontTypography="BodyStrong" Margin="0,0,0,8" />
+                    <ItemsControl ItemsSource="{Binding Entries}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding Start, StringFormat='{}{0:hh\\:mm}'}" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Label}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ui:Card>
+
+            <ui:Card>
+                <StackPanel>
+                    <ui:TextBlock Text="Free time" FontTypography="BodyStrong" Margin="0,0,0,8" />
+                    <ItemsControl ItemsSource="{Binding FreeGaps}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Margin="0,2">
+                                    <!-- ponytail: Run.Text binds TwoWay by default (unlike TextBlock.Text), which
+                                         throws at runtime against these read-only record properties. Mode=OneWay fixes it. -->
+                                    <Run Text="{Binding Start, StringFormat='{}{0:hh\\:mm}', Mode=OneWay}" />
+                                    <Run Text="–" />
+                                    <Run Text="{Binding End, StringFormat='{}{0:hh\\:mm}', Mode=OneWay}" />
+                                    <Run Text=" (" /><Run Text="{Binding Minutes, Mode=OneWay}" /><Run Text=" min)" />
+                                </TextBlock>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ui:Card>
+        </StackPanel>
+    </ScrollViewer>
 </Page>

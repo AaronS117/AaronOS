@@ -1,4 +1,5 @@
 using AaronOS.Core;
+using AaronOS.Modules.Schedule.ViewModels;
 using AaronOS.Modules.Schedule.Views;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -13,6 +14,6 @@ public class ScheduleModule : IAppModule
 
     public void RegisterServices(IServiceCollection services)
     {
-        // ViewModels are added by later tasks as their pages land.
+        services.AddTransient<TodayViewModel>();
     }
 }
