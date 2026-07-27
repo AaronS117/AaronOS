@@ -1,0 +1,261 @@
+<Page
+    x:Class="AaronOS.Modules.Medical.Views.SleepPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:data="clr-namespace:AaronOS.Modules.Medical.Data"
+    mc:Ignorable="d">
+
+    <Page.Resources>
+        <Style x:Key="FieldLabel" TargetType="TextBlock" BasedOn="{StaticResource EyebrowText}">
+            <Setter Property="Margin" Value="0,0,0,6" />
+        </Style>
+        <Style x:Key="StepNumber" TargetType="TextBlock" BasedOn="{StaticResource NumericText}">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{DynamicResource ReactorGlow}" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+        </Style>
+    </Page.Resources>
+
+    <StackPanel MaxWidth="780" HorizontalAlignment="Left" Margin="28,20,28,32">
+
+        <TextBlock Text="Sleep" Style="{DynamicResource PageTitleText}" Margin="0,0,0,10" />
+        <TextBlock
+            Text="Measured sleep from the Withings pad under the mattress. These are readings from a device rather than a self-report, so they are kept separate from what you type on the Mood page and never overwrite it. Nights are filed under the morning you woke up."
+            Style="{DynamicResource CaptionText}"
+            TextWrapping="Wrap"
+            Margin="0,0,0,22" />
+
+        <!-- Connection -->
+        <TextBlock Text="WITHINGS CONNECTION" Style="{DynamicResource EyebrowText}" />
+        <Border Style="{DynamicResource SurfaceCard}" Padding="18,16" Margin="0,0,0,26">
+            <StackPanel>
+                <TextBlock Text="{Binding ConnectionStatus}" Style="{DynamicResource BodyText}" TextWrapping="Wrap" />
+
+                <!-- Step 1: app credentials. Withings has no public app, so this needs a free
+                     developer registration of your own; there is no way around asking for these. -->
+                <Border Style="{DynamicResource RowDivider}" Margin="0,14,0,14" />
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="1" Style="{StaticResource StepNumber}" />
+                    <TextBlock
+                        Text="Register a free app at developer.withings.com, using https://wbsapi.withings.net/v2/oauth2 as the callback URL, then paste its client ID and secret here."
+                        Style="{DynamicResource CaptionText}"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+
+                <Grid Margin="0,12,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                        <TextBlock Text="CLIENT ID" Style="{StaticResource FieldLabel}" />
+                        <ui:TextBox Text="{Binding ClientId, Mode=TwoWay}" PlaceholderText="Client ID" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Margin="0,0,12,0">
+                        <TextBlock Text="CLIENT SECRET" Style="{StaticResource FieldLabel}" />
+                        <!-- PasswordBox rather than TextBox: this is a real secret, and it is cleared
+                             from the form once saved. -->
+                        <PasswordBox x:Name="SecretBox" PasswordChanged="SecretBox_PasswordChanged" />
+                    </StackPanel>
+
+                    <ui:Button
+                        Grid.Column="2"
+                        Content="Save"
+                        Command="{Binding SaveAppCredentialsCommand}"
+                        VerticalAlignment="Bottom"
+                        MinWidth="80" />
+                </Grid>
+
+                <TextBlock
+                    Text="Stored encrypted for your Windows account only, in the same way the bank connection is. The secret never goes into the database."
+                    Style="{DynamicResource CaptionText}"
+                    Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                    TextWrapping="Wrap"
+                    Margin="0,8,0,0" />
+
+                <!-- Step 2: authorize -->
+                <Border Style="{DynamicResource RowDivider}" Margin="0,16,0,14" />
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="2" Style="{StaticResource StepNumber}" />
+                    <TextBlock
+                        Text="Authorize opens Withings in your browser. After you approve, the page you land on will have code=… in its address bar — paste the whole address here."
+                        Style="{DynamicResource CaptionText}"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+
+                <Grid Margin="0,12,0,0" IsEnabled="{Binding HasAppCredentials}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <ui:Button
+                        Grid.Column="0"
+                        Content="Authorize"
+                        Command="{Binding AuthorizeCommand}"
+                        MinWidth="94"
+                        Margin="0,0,12,0" />
+
+                    <ui:TextBox
+                        Grid.Column="1"
+                        Text="{Binding AuthorizationCode, Mode=TwoWay}"
+                        PlaceholderText="Paste the redirect address or just the code"
+                        Margin="0,0,12,0" />
+
+                    <ui:Button
+                        Grid.Column="2"
+                        Content="Connect"
+                        Command="{Binding ConnectCommand}"
+                        Appearance="Primary"
+                        MinWidth="88" />
+                </Grid>
+
+                <!-- Step 3: sync -->
+                <Border Style="{DynamicResource RowDivider}" Margin="0,16,0,14" />
+                <StackPanel Orientation="Horizontal" IsEnabled="{Binding IsConnected}">
+                    <ui:Button Content="Sync new nights" Command="{Binding SyncCommand}" Appearance="Primary" MinWidth="130" />
+                    <ui:Button Content="Backfill 120 days" Command="{Binding BackfillCommand}" Margin="10,0,0,0" MinWidth="130" />
+                    <ui:Button Content="Disconnect" Command="{Binding DisconnectCommand}" Margin="10,0,0,0" MinWidth="100" />
+                </StackPanel>
+
+                <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource CaptionText}">
+                            <Setter Property="Margin" Value="0,14,0,0" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding StatusMessage}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+
+        <!-- Summary -->
+        <StackPanel Visibility="{Binding HasNights, Converter={StaticResource BoolToVis}}">
+            <TextBlock Text="RECORDED NIGHTS" Style="{DynamicResource EyebrowText}" />
+            <Border Style="{DynamicResource SurfaceCard}" Padding="22,18" Margin="0,0,0,26">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="NIGHTS" Style="{DynamicResource EyebrowText}" />
+                        <TextBlock Text="{Binding NightsRecorded}" Style="{DynamicResource HeroMetricText}" FontSize="26" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="AVERAGE" Style="{DynamicResource EyebrowText}" />
+                        <TextBlock Text="{Binding AverageHours}" Style="{DynamicResource HeroMetricText}" FontSize="26" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="SLEEP SCORE" Style="{DynamicResource EyebrowText}" />
+                        <TextBlock Text="{Binding AverageScore}" Style="{DynamicResource HeroMetricText}" FontSize="26" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="3">
+                        <TextBlock Text="EFFICIENCY" Style="{DynamicResource EyebrowText}" />
+                        <TextBlock Text="{Binding AverageEfficiency}" Style="{DynamicResource HeroMetricText}" FontSize="26" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Nightly ledger -->
+            <TextBlock Text="NIGHT BY NIGHT" Style="{DynamicResource EyebrowText}" />
+            <Border Style="{DynamicResource SurfaceCard}" Padding="14,10" Margin="0,0,0,26">
+                <StackPanel>
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="104" />
+                            <ColumnDefinition Width="66" />
+                            <ColumnDefinition Width="120" />
+                            <ColumnDefinition Width="*" MinWidth="150" />
+                            <ColumnDefinition Width="70" />
+                            <ColumnDefinition Width="64" />
+                            <ColumnDefinition Width="70" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="NIGHT" Style="{DynamicResource EyebrowText}" />
+                        <TextBlock Grid.Column="1" Text="ASLEEP" Style="{DynamicResource EyebrowText}" />
+                        <TextBlock Grid.Column="2" Text="IN BED" Style="{DynamicResource EyebrowText}" />
+                        <TextBlock Grid.Column="3" Text="STAGES (H)" Style="{DynamicResource EyebrowText}" />
+                        <TextBlock Grid.Column="4" Text="HEART" Style="{DynamicResource EyebrowText}" />
+                        <TextBlock Grid.Column="5" Text="SCORE" Style="{DynamicResource EyebrowText}" />
+                        <TextBlock Grid.Column="6" Text="BREATH" Style="{DynamicResource EyebrowText}" />
+                    </Grid>
+
+                    <ItemsControl ItemsSource="{Binding Nights}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type data:SleepNight}">
+                                <Grid Height="30">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="104" />
+                                        <ColumnDefinition Width="66" />
+                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="*" MinWidth="150" />
+                                        <ColumnDefinition Width="70" />
+                                        <ColumnDefinition Width="64" />
+                                        <ColumnDefinition Width="70" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Column="0" Text="{Binding DateDisplay}" Style="{DynamicResource BodyText}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding HoursDisplay}" Style="{DynamicResource NumericText}" FontSize="12" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2" Text="{Binding WindowDisplay}" Style="{DynamicResource CaptionText}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="3" Text="{Binding StagesDisplay}" Style="{DynamicResource CaptionText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="4" Text="{Binding HeartRateDisplay}" Style="{DynamicResource NumericText}" FontSize="12" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="5" Text="{Binding ScoreDisplay}" Style="{DynamicResource NumericText}" FontSize="12" VerticalAlignment="Center" />
+
+                                    <StackPanel Grid.Column="6" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding BreathingDisplay}" Style="{DynamicResource NumericText}" FontSize="12" />
+                                        <!-- Surfaced rather than hidden: more than one period means a
+                                             fragmented night or a nap folded into the total. -->
+                                        <TextBlock
+                                            Text="{Binding FragmentNote}"
+                                            Style="{DynamicResource CaptionText}"
+                                            Foreground="{DynamicResource ExpirySoon}"
+                                            Margin="6,0,0,0"
+                                            Visibility="{Binding IsFragmented, Converter={StaticResource BoolToVis}}" />
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock
+                        Text="Breath is Withings' raw breathing disturbances index. It is shown as the number they report, not a rating — the thresholds behind their few/moderate/high wording are not published."
+                        Style="{DynamicResource CaptionText}"
+                        Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                        TextWrapping="Wrap"
+                        Margin="0,10,0,0" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <TextBlock
+            Text="No nights recorded yet. Once the pad is under the mattress and connected above, each morning's sleep arrives here and on the Mood chart."
+            TextWrapping="Wrap"
+            Margin="2,0,0,0">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock" BasedOn="{StaticResource CaptionText}">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasNights}" Value="False">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
+
+    </StackPanel>
+</Page>

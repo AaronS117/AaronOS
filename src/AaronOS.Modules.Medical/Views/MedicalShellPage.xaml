@@ -20,6 +20,7 @@
             <ui:Button Content="Visits" Click="Visits_Click" Margin="0,0,8,0" />
             <ui:Button Content="Labs" Click="Labs_Click" Margin="0,0,8,0" />
             <ui:Button Content="Mood" Click="Mood_Click" Margin="0,0,8,0" />
+            <ui:Button Content="Sleep" Click="Sleep_Click" Margin="0,0,8,0" />
             <ui:Button Content="Import" Click="Import_Click" />
         </StackPanel>
 

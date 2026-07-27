@@ -18,6 +18,9 @@ public partial class MoodViewModel(IDbContextFactory<AaronOsDbContext> dbContext
 {
     private List<MoodEntry> _all = [];
 
+    /// <summary>Measured hours by night, keyed on the wake date, so it lines up with a mood entry's date.</summary>
+    private Dictionary<DateOnly, decimal> _measuredSleep = [];
+
     // Same paints as the other charts in the app: LiveCharts draws its own Skia surface and knows
     // nothing about the dark theme.
     private static readonly SKColor ReactorCyan = new(0x4C, 0xC2, 0xFF);
@@ -94,6 +97,10 @@ public partial class MoodViewModel(IDbContextFactory<AaronOsDbContext> dbContext
             await using var db = await dbContextFactory.CreateDbContextAsync();
             _all = await db.Set<MoodEntry>().AsNoTracking().OrderBy(e => e.Date).ToListAsync();
 
+            _measuredSleep = await db.Set<SleepNight>()
+                .AsNoTracking()
+                .ToDictionaryAsync(s => s.Date, s => s.Hours);
+
             Entries.Clear();
             foreach (var e in _all.OrderByDescending(e => e.Date).Take(60))
             {
@@ -102,14 +109,16 @@ public partial class MoodViewModel(IDbContextFactory<AaronOsDbContext> dbContext
             HasEntries = _all.Count > 0;
 
             var today = DateOnly.FromDateTime(DateTime.Now);
-            var summary = MoodStatistics.Summarise(_all, today);
+            var summary = MoodStatistics.Summarise(_all, today, measuredSleep: _measuredSleep);
             DaysLogged = summary.DaysLogged;
             AverageMood = summary.AverageMood;
             Swing = summary.Swing;
             LowDays = summary.LowDays;
             ElevatedDays = summary.ElevatedDays;
             SwingDescription = summary.SwingDescription;
-            SleepSummary = summary.AverageSleepHours is { } s ? $"{s:0.#} h average" : "not recorded";
+            SleepSummary = summary.AverageSleepHours is { } s
+                ? $"{s:0.#} h average{(_measuredSleep.Count > 0 ? " (measured)" : "")}"
+                : "not recorded";
 
             Months.Clear();
             foreach (var m in MoodStatistics.ByMonth(_all))
@@ -155,11 +164,18 @@ public partial class MoodViewModel(IDbContextFactory<AaronOsDbContext> dbContext
         });
 
         // Sleep on its own axis: the two do not share a scale, and seeing them together is the point.
-        if (points.Any(p => p.SleepHours is not null))
+        // Measured nights win over typed ones, which is where the pad earns its keep — the line stops
+        // depending on whether anyone remembered to fill the field in.
+        var sleepPoints = points
+            .Select(p => MoodStatistics.SleepFor(p, _measuredSleep))
+            .Select(h => h is { } v ? (double?)v : null)
+            .ToArray();
+
+        if (sleepPoints.Any(h => h is not null))
         {
             TrendSeries.Add(new LineSeries<double?>
             {
-                Values = points.Select(p => p.SleepHours is { } h ? (double?)h : null).ToArray(),
+                Values = sleepPoints,
                 Name = "Sleep (h)",
                 Stroke = new SolidColorPaint(SleepAmber) { StrokeThickness = 1.8f },
                 GeometryStroke = new SolidColorPaint(SleepAmber) { StrokeThickness = 1.8f },

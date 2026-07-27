@@ -131,6 +131,37 @@ public class MoodStatisticsTests
     }
 
     [Fact]
+    public void MeasuredSleepWinsOverTheTypedFigure()
+    {
+        // The pad is the better witness. It does not overwrite the entry, only what gets displayed.
+        var entry = Day(0, 0, sleep: 6m);
+        var measured = new Dictionary<DateOnly, decimal> { [entry.Date] = 7.4m };
+
+        Assert.Equal(7.4m, MoodStatistics.SleepFor(entry, measured));
+        Assert.Equal(6m, entry.SleepHours);
+    }
+
+    [Fact]
+    public void TypedSleepSurvivesWhereNoMeasurementExists()
+    {
+        var entry = Day(0, 0, sleep: 6m);
+
+        Assert.Equal(6m, MoodStatistics.SleepFor(entry, new Dictionary<DateOnly, decimal>()));
+        Assert.Equal(6m, MoodStatistics.SleepFor(entry, null));
+    }
+
+    [Fact]
+    public void MeasuredNightsCanSupplySleepForADayNothingWasTypedOn()
+    {
+        var entry = Day(0, 2);   // mood logged, sleep left blank
+        var measured = new Dictionary<DateOnly, decimal> { [entry.Date] = 8m };
+
+        var s = MoodStatistics.Summarise([entry], Today, measuredSleep: measured);
+
+        Assert.Equal(8.0, s.AverageSleepHours);
+    }
+
+    [Fact]
     public void EvenLowAndElevatedAreMutuallyExclusive()
     {
         foreach (var mood in Enumerable.Range(MoodEntry.MoodFloor, MoodEntry.MoodCeiling - MoodEntry.MoodFloor + 1))

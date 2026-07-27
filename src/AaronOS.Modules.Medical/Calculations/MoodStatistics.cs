@@ -38,7 +38,19 @@ public record MonthlyMood(int Year, int Month, double AverageMood, int DaysLogge
 /// </summary>
 public static class MoodStatistics
 {
-    public static MoodSummary Summarise(IEnumerable<MoodEntry> entries, DateOnly today, int windowDays = 30)
+    /// <summary>
+    /// Measured sleep from the pad takes precedence over a typed figure for the same date, falling
+    /// back to what was typed when no measurement exists. Resolved in one place so the summary, the
+    /// chart and the ledger cannot disagree about which number is authoritative.
+    /// </summary>
+    public static decimal? SleepFor(MoodEntry entry, IReadOnlyDictionary<DateOnly, decimal>? measured) =>
+        measured is not null && measured.TryGetValue(entry.Date, out var hours) ? hours : entry.SleepHours;
+
+    public static MoodSummary Summarise(
+        IEnumerable<MoodEntry> entries,
+        DateOnly today,
+        int windowDays = 30,
+        IReadOnlyDictionary<DateOnly, decimal>? measuredSleep = null)
     {
         var cutoff = today.AddDays(-(windowDays - 1));
         var window = entries.Where(e => e.Date >= cutoff && e.Date <= today).ToList();
@@ -49,7 +61,11 @@ public static class MoodStatistics
         }
 
         var moods = window.Select(e => e.Mood).ToList();
-        var sleeps = window.Where(e => e.SleepHours is not null).Select(e => (double)e.SleepHours!.Value).ToList();
+        var sleeps = window
+            .Select(e => SleepFor(e, measuredSleep))
+            .Where(h => h is not null)
+            .Select(h => (double)h!.Value)
+            .ToList();
 
         return new MoodSummary(
             DaysLogged: window.Count,
