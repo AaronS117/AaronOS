@@ -113,7 +113,7 @@ public partial class ImportViewModel(IDbContextFactory<AaronOsDbContext> dbConte
             CanCommit = NewCount > 0;
 
             var absences = _parsed.TotalAbsenceStatements;
-            var absenceNote = absences > 0 ? $" · {absences} \"none recorded\" statements ignored" : "";
+            var absenceNote = absences > 0 ? $" · {absences} non-result entries ignored" : "";
             SummaryText = NewCount > 0
                 ? $"{NewCount} new · {AlreadyImportedCount} already held · {SkippedCount} unreadable{absenceNote}"
                 : $"Nothing new to import · {AlreadyImportedCount} already held · {SkippedCount} unreadable{absenceNote}";

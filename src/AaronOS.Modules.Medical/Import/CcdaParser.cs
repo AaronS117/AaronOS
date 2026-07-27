@@ -207,7 +207,14 @@ public static partial class CcdaParser
                 continue;
             }
 
-            var value = Flatten(element);
+            // When the id sits on a table *row* rather than a cell, flattening the whole element
+            // returns every column at once — "WBC 4.8 4.0-10.0^4.0^10.0 thou/mcL LAB_CONV" instead of
+            // "WBC". That affected 51 of 267 lab results in a real export, leaving names that could
+            // never group for a trend. The first cell is the label in every C-CDA narrative table, so
+            // prefer it whenever cells are present; a cell-level id has none and behaves as before.
+            var firstCell = element.Descendants(V + "td").FirstOrDefault();
+            var value = Flatten(firstCell ?? element);
+
             if (!string.IsNullOrWhiteSpace(value))
             {
                 index[id] = value;
@@ -401,6 +408,15 @@ public static partial class CcdaParser
             if (numeric is null)
             {
                 text = DisplayName(value) ?? (value?.Value.Trim() is { Length: > 0 } v ? v : null);
+            }
+
+            // A result with neither a number nor a text value is not a result. Real reports carry
+            // footnotes as observations — "Testing performed via FDA-approved…", "A culture is
+            // indicated in the following:…" — and one ran to 658 characters. Counted, not hidden.
+            if (numeric is null && string.IsNullOrWhiteSpace(text))
+            {
+                Absence(result, "Report comments");
+                continue;
             }
 
             var range = observation.Descendants(V + "observationRange")
