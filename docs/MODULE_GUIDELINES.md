@@ -125,12 +125,21 @@ work normally against it. Real migrations haven't been added back yet simply bec
 done as part of the WPF migration; it's a reasonable near-term follow-up, not a hard problem
 anymore.
 
-**Consequence while this stands:** `EnsureCreatedAsync()` creates the full current schema from
-`OnModelCreating` on first launch, but it does **not** support evolving an existing database's
-schema — if you change an entity later, `EnsureCreatedAsync()` won't alter the existing tables.
-Evolving the schema during development means deleting the local db file
-(`%LocalAppData%\AaronOS\aaronos.db`) and letting it get recreated. That's fine while iterating,
-but not once real check-in history exists that you don't want to lose.
+**Adding a new module to an existing database is handled.** `AaronOS.Core.Data.SchemaBootstrapper`
+runs at startup instead of a bare `EnsureCreatedAsync()`. Plain `EnsureCreatedAsync()` is
+all-or-nothing — it builds the whole schema when the file is absent and does nothing when it is
+present — so registering a new module against an existing database used to leave its tables
+missing and crash on the first query (`no such table: X`). The bootstrapper compares the model's
+tables against `sqlite_master` and creates only the missing ones, so **you never need to delete the
+database just because you added a module.** That matters: the db holds linked bank connections that
+can only be re-established by redoing an OAuth flow.
+
+**What is still not handled:** changing an *existing* entity's columns. The bootstrapper adds
+missing tables; it does not alter tables that already exist. If you rename or retype a column on an
+entity that's already in the database, you either hand-write the `ALTER TABLE` or delete the local
+db file (`%LocalAppData%\AaronOS\aaronos.db`) and accept losing its data. Real EF migrations remain
+the proper long-term answer, and are now technically possible since `AaronOS.Core` has no
+UI-framework dependency.
 
 ## Database access
 

@@ -4,57 +4,274 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
     xmlns:data="clr-namespace:AaronOS.Modules.Finance.Data"
+    xmlns:vm="clr-namespace:AaronOS.Modules.Finance.ViewModels"
     mc:Ignorable="d">
 
-    <ScrollViewer Padding="24">
-        <StackPanel MaxWidth="720" HorizontalAlignment="Left">
-            <TextBlock Text="Finance" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,16" />
+    <Page.Resources>
+        <!-- Shown only when its collection is empty. Uses a DataTrigger rather than an inverting
+             converter, since WPF's built-in BooleanToVisibilityConverter cannot invert. -->
+        <Style x:Key="EmptyStateText" TargetType="TextBlock" BasedOn="{StaticResource CaptionText}">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Setter Property="Margin" Value="14,12" />
+        </Style>
+    </Page.Resources>
 
-            <TextBlock Text="Total balance" Opacity="0.7" />
-            <TextBlock Text="{Binding TotalBalance, StringFormat=C}" FontSize="24" FontWeight="SemiBold" Margin="0,0,0,16" />
+    <!--
+        No ScrollViewer here on purpose: WPF-UI's NavigationView already hosts page content inside
+        its own DynamicScrollViewer. Nesting another one gave the inner scroller unbounded height
+        (so it could never scroll) while it still swallowed the mouse wheel, which is what broke
+        scrolling entirely. Let the page grow and let the shell scroll it.
+    -->
+    <StackPanel MaxWidth="780" HorizontalAlignment="Left" Margin="28,20,28,32">
 
-            <ui:Button Content="Sync Now" Command="{Binding SyncNowCommand}" Appearance="Primary" Margin="0,0,0,4" />
-            <TextBlock Text="{Binding ErrorMessage}" Foreground="Red" Margin="0,0,0,16" />
+        <!-- Title row -->
+        <Grid Margin="0,0,0,22">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="Finance" Style="{DynamicResource PageTitleText}" VerticalAlignment="Center" />
+            <ui:Button
+                Grid.Column="1"
+                Content="Sync now"
+                Command="{Binding SyncNowCommand}"
+                Appearance="Primary"
+                VerticalAlignment="Center" />
+        </Grid>
 
-            <TextBlock Text="Accounts" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,8" />
-            <ItemsControl ItemsSource="{Binding Accounts}" Margin="0,0,0,16">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="{x:Type data:FinanceAccount}">
-                        <Grid Margin="0,4">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="{Binding Name}" />
-                            <TextBlock Grid.Column="1" Text="{Binding CurrentBalance, StringFormat=C}" />
-                        </Grid>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+        <!-- Hero: net position, with the month's daily spend as a segmented strip beneath it. -->
+        <Border Style="{DynamicResource SurfaceCard}" Padding="22,18" Margin="0,0,0,14">
+            <StackPanel>
+                <TextBlock Text="NET POSITION" Style="{DynamicResource EyebrowText}" Margin="0,0,0,4" />
+                <TextBlock Text="{Binding NetTotal, StringFormat=C}" Style="{DynamicResource HeroMetricText}" />
 
-            <TextBlock Text="Spend by category (this month)" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,8" />
-            <lvc:PieChart Series="{Binding SpendByCategorySeries}" Height="240" Margin="0,0,0,16" />
+                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                    <TextBlock Text="{Binding AssetTotal, StringFormat='Cash {0:C}'}" Style="{DynamicResource CaptionText}" />
+                    <TextBlock Text="  ·  " Style="{DynamicResource CaptionText}" />
+                    <TextBlock Text="{Binding LiabilityTotal, StringFormat='Owed {0:C}'}" Style="{DynamicResource CaptionText}" />
+                    <TextBlock Text="  ·  " Style="{DynamicResource CaptionText}" />
+                    <TextBlock Text="{Binding AccountSummary}" Style="{DynamicResource CaptionText}" />
+                </StackPanel>
 
-            <TextBlock Text="Recent transactions (30 days)" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,8" />
-            <ItemsControl ItemsSource="{Binding RecentTransactions}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="{x:Type data:FinanceTransaction}">
-                        <Grid Margin="0,4">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="100" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="{Binding Date}" />
-                            <TextBlock Grid.Column="1" Text="{Binding Name}" Margin="8,0" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Grid.Column="2" Text="{Binding Amount, StringFormat=C}" />
-                        </Grid>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </StackPanel>
-    </ScrollViewer>
+                <!-- One tick per day of the current month, height scaled to that day's spend. -->
+                <ItemsControl
+                    ItemsSource="{Binding DailyTicks}"
+                    Height="30"
+                    Margin="0,18,0,6"
+                    HorizontalAlignment="Left"
+                    Visibility="{Binding HasCategoryData, Converter={StaticResource BoolToVis}}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:DailySpendTick}">
+                            <Rectangle
+                                Width="6"
+                                Height="{Binding Height}"
+                                Opacity="{Binding Opacity}"
+                                Fill="{DynamicResource ReactorGlow}"
+                                RadiusX="1.5" RadiusY="1.5"
+                                Margin="0,0,2,0"
+                                VerticalAlignment="Bottom"
+                                ToolTip="{Binding Tooltip}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock
+                    Text="Daily spend, this month"
+                    Style="{DynamicResource CaptionText}"
+                    Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                    Visibility="{Binding HasCategoryData, Converter={StaticResource BoolToVis}}" />
+            </StackPanel>
+        </Border>
+
+        <!-- Sync error, only when there is one -->
+        <Border
+            Background="#2A1416"
+            BorderBrush="#7A2E33"
+            BorderThickness="1"
+            CornerRadius="6"
+            Padding="14,10"
+            Margin="0,0,0,12"
+            Visibility="{Binding HasError, Converter={StaticResource BoolToVis}}">
+            <TextBlock Text="{Binding ErrorMessage}" Style="{DynamicResource BodyText}" FontSize="13" TextWrapping="Wrap" />
+        </Border>
+
+        <!-- Accounts -->
+        <TextBlock Text="ACCOUNTS" Style="{DynamicResource EyebrowText}" Margin="0,12,0,10" />
+        <Border Style="{DynamicResource SurfaceCard}" Padding="4,2" Margin="0,0,0,26">
+            <StackPanel>
+                <ItemsControl ItemsSource="{Binding Accounts}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type data:FinanceAccount}">
+                            <Grid Margin="14,11">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                                    <TextBlock Text="{Binding Name}" Style="{DynamicResource BodyText}" />
+                                    <TextBlock Text="{Binding DetailDisplay}" Style="{DynamicResource CaptionText}" Margin="0,2,0,0" />
+                                </StackPanel>
+                                <TextBlock Grid.Column="1" Text="{Binding SignedBalance, StringFormat=C}" VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource NumericText}">
+                                            <Setter Property="FontSize" Value="15" />
+                                            <Style.Triggers>
+                                                <!-- Money owed reads quieter than money held. -->
+                                                <DataTrigger Binding="{Binding IsLiability}" Value="True">
+                                                    <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="No accounts linked yet. Open Link Account to connect a bank.">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource EmptyStateText}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasAccounts}" Value="False">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+
+        <!-- Spend by category: ranked bars answer "what is taking the most money" directly. -->
+        <Grid Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="SPEND BY CATEGORY · THIS MONTH" Style="{DynamicResource EyebrowText}" Margin="0" />
+            <TextBlock
+                Grid.Column="1"
+                Text="{Binding MonthSpendTotal, StringFormat=C}"
+                Style="{DynamicResource NumericText}"
+                FontSize="12"
+                Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+        </Grid>
+        <Border Style="{DynamicResource SurfaceCard}" Padding="18,16" Margin="0,0,0,26">
+            <StackPanel>
+                <ItemsControl ItemsSource="{Binding CategoryRows}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:CategorySpendRow}">
+                            <Grid Margin="0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="180" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="88" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    Text="{Binding Label}"
+                                    Style="{DynamicResource BodyText}"
+                                    FontSize="13"
+                                    VerticalAlignment="Center"
+                                    Margin="0,0,12,0" />
+                                <Rectangle
+                                    Grid.Column="1"
+                                    Width="{Binding BarWidth}"
+                                    Height="8"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center"
+                                    Fill="{DynamicResource ReactorGlow}"
+                                    RadiusX="4" RadiusY="4" />
+                                <TextBlock
+                                    Grid.Column="2"
+                                    Text="{Binding Amount, StringFormat=C}"
+                                    Style="{DynamicResource NumericText}"
+                                    VerticalAlignment="Center" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="No spending recorded this month yet." Margin="0">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource EmptyStateText}">
+                            <Setter Property="Margin" Value="0" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasCategoryData}" Value="False">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+
+        <!-- Recent activity -->
+        <TextBlock Text="RECENT · LAST 30 DAYS" Style="{DynamicResource EyebrowText}" />
+        <Border Style="{DynamicResource SurfaceCard}" Padding="4,2">
+            <StackPanel>
+                <ItemsControl ItemsSource="{Binding RecentTransactions}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type data:FinanceTransaction}">
+                            <Grid Margin="14,9">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="58" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="92" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    Text="{Binding DateDisplay}"
+                                    Style="{DynamicResource CaptionText}"
+                                    VerticalAlignment="Center" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Text="{Binding Name}"
+                                    Style="{DynamicResource BodyText}"
+                                    FontSize="13"
+                                    VerticalAlignment="Center"
+                                    Margin="8,0,12,0" />
+                                <TextBlock
+                                    Grid.Column="2"
+                                    Text="{Binding CategoryDisplay}"
+                                    Style="{DynamicResource CaptionText}"
+                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                    VerticalAlignment="Center"
+                                    Margin="0,0,12,0" />
+                                <TextBlock Grid.Column="3" Text="{Binding AmountDisplay}" VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource NumericText}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsInflow}" Value="True">
+                                                    <Setter Property="Foreground" Value="{DynamicResource MoneyIn}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="Nothing in the last 30 days. Run Sync now to pull recent activity.">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource EmptyStateText}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasRecentTransactions}" Value="False">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+    </StackPanel>
 </Page>

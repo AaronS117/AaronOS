@@ -9,6 +9,104 @@
                 <ui:ThemesDictionary Theme="Dark" />
                 <ui:ControlsDictionary />
             </ResourceDictionary.MergedDictionaries>
+
+            <!--
+                AaronOS design system.
+
+                Surfaces and text deliberately reuse WPF-UI's own theme brushes rather than
+                hardcoded hex, so module pages sit seamlessly against the themed nav pane and
+                title bar (and follow the theme if it ever changes). WPF-UI's dark accent is
+                already #4CC2FF, the same cyan as the app's reactor icon, so the accent needs no
+                rival blue introduced alongside it.
+            -->
+
+            <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+            <!-- Reactor identity: the core glow from the app icon. -->
+            <SolidColorBrush x:Key="ReactorGlow" Color="#4CC2FF" />
+            <SolidColorBrush x:Key="ReactorGlowDim" Color="#2C6E8C" />
+            <SolidColorBrush x:Key="MoneyIn" Color="#5FD98C" />
+
+            <!--
+                WPF-UI themes the controls it ships (Button, TextBox, ListView, …) but NOT a plain
+                Page, so a Page falls back to WPF's raw defaults — Foreground black, which is why
+                text was invisible on a dark backdrop. Background stays Transparent so the window's
+                Mica backdrop shows through instead of a flat rectangle sitting on top of it.
+            -->
+            <Style TargetType="Page">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
+                <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
+            </Style>
+
+            <!-- Type scale -->
+
+            <Style x:Key="PageTitleText" TargetType="TextBlock">
+                <Setter Property="FontFamily" Value="Segoe UI Variable Display, Segoe UI" />
+                <Setter Property="FontSize" Value="28" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            </Style>
+
+            <!--
+                Section eyebrow: uppercase + small + tertiary. WPF has no letter-spacing property,
+                so the tracking that would normally carry an eyebrow is replaced by case, weight
+                and colour contrast instead.
+            -->
+            <Style x:Key="EyebrowText" TargetType="TextBlock">
+                <Setter Property="FontFamily" Value="Segoe UI Variable Small, Segoe UI" />
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+                <Setter Property="Margin" Value="0,0,0,10" />
+            </Style>
+
+            <!--
+                Numeric readouts use Cascadia Mono: digits share a fixed advance width, so figures
+                line up column-to-column when scanning a ledger, and it reads like an instrument
+                readout rather than prose.
+            -->
+            <Style x:Key="HeroMetricText" TargetType="TextBlock">
+                <Setter Property="FontFamily" Value="Cascadia Mono, Consolas" />
+                <Setter Property="FontSize" Value="42" />
+                <Setter Property="FontWeight" Value="Light" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            </Style>
+
+            <Style x:Key="NumericText" TargetType="TextBlock">
+                <Setter Property="FontFamily" Value="Cascadia Mono, Consolas" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="HorizontalAlignment" Value="Right" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            </Style>
+
+            <Style x:Key="BodyText" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            </Style>
+
+            <Style x:Key="CaptionText" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            </Style>
+
+            <!-- Surfaces -->
+
+            <Style x:Key="SurfaceCard" TargetType="Border">
+                <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Padding" Value="16,12" />
+            </Style>
+
+            <Style x:Key="RowDivider" TargetType="Border">
+                <Setter Property="BorderBrush" Value="{DynamicResource DividerStrokeColorDefaultBrush}" />
+                <Setter Property="BorderThickness" Value="0,0,0,1" />
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

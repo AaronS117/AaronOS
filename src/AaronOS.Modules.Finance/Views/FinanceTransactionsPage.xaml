@@ -32,7 +32,7 @@
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Text="{Binding Date}" />
                             <TextBlock Grid.Column="1" Text="{Binding Name}" Margin="8,0" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Grid.Column="2" Text="{Binding CategoryPrimary}" Opacity="0.7" />
+                            <TextBlock Grid.Column="2" Text="{Binding CategoryDisplay}" Opacity="0.7" />
                             <TextBlock Grid.Column="3" Text="{Binding Amount, StringFormat=C}" />
                         </Grid>
                     </DataTemplate>

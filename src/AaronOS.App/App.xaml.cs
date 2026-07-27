@@ -26,6 +26,19 @@ public partial class App : Application
     {
         InitializeComponent();
 
+        // A modular app should not die because one module threw. Without this, an exception in any
+        // page's load path silently closed the whole window with no message, which is very hard to
+        // diagnose from the outside. Show what happened and keep running where possible.
+        DispatcherUnhandledException += (_, args) =>
+        {
+            MessageBox.Show(
+                args.Exception.ToString(),
+                "AaronOS hit an unexpected error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            args.Handled = true;
+        };
+
         var dbPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "AaronOS", "aaronos.db");
@@ -61,7 +74,9 @@ public partial class App : Application
         {
             var dbContextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AaronOsDbContext>>();
             await using var db = await dbContextFactory.CreateDbContextAsync();
-            await db.Database.EnsureCreatedAsync();
+            // Creates the database on first run AND adds tables for modules registered after it
+            // already existed — EnsureCreatedAsync alone silently skips those. See SchemaBootstrapper.
+            await SchemaBootstrapper.EnsureSchemaAsync(db);
         }
 
         _window = new MainWindow(Services.GetServices<IAppModule>());

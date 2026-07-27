@@ -40,8 +40,6 @@ public sealed partial class LinkAccountPage : Page
         WebView.CoreWebView2.WebMessageReceived += CoreWebView2_WebMessageReceived;
         WebView.CoreWebView2.NewWindowRequested -= CoreWebView2_NewWindowRequested;
         WebView.CoreWebView2.NewWindowRequested += CoreWebView2_NewWindowRequested;
-        // ponytail: temporary diagnostics — remove once Link is confirmed working end-to-end.
-        WebView.CoreWebView2.OpenDevToolsWindow();
         Console.WriteLine("[LinkDiag] LoadPlaidLinkAsync starting, token=" + linkToken[..Math.Min(12, linkToken.Length)] + "...");
 
         // Plaid Link's own iframe uses postMessage internally and expects a real origin —
@@ -113,8 +111,8 @@ public sealed partial class LinkAccountPage : Page
 
     // ponytail: Plaid Link has no native WPF host — this is the documented pattern (a WebView2
     // loaded with Plaid's own link-initialize.js), not a workaround we chose over something simpler.
-    // The window.onerror + try/catch reporting is a temporary diagnostic while we're bringing this
-    // page up for the first time — remove once Link is confirmed working end-to-end.
+    // The window.onerror / try-catch reporting stays: a failure inside Plaid's own script is
+    // otherwise completely silent from C#'s side, which cost a long time to diagnose once already.
     private static string BuildPlaidLinkHtml(string linkToken) => $$"""
         <!DOCTYPE html>
         <html>
