@@ -5,6 +5,7 @@ using AaronOS.Modules.BodyMeasurements;
 using AaronOS.Modules.Finance;
 using AaronOS.Modules.Medical;
 using AaronOS.Modules.Nutrition;
+using AaronOS.Modules.Schedule;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -47,7 +48,7 @@ public partial class App : Application
 
         // The full list of registered modules. Adding a module means adding a project
         // reference plus one line here — see docs/MODULE_GUIDELINES.md.
-        IAppModule[] modules = [new BodyMeasurementsModule(), new FinanceModule(), new NutritionModule(), new MedicalModule()];
+        IAppModule[] modules = [new BodyMeasurementsModule(), new FinanceModule(), new NutritionModule(), new MedicalModule(), new ScheduleModule()];
 
         _host = Host.CreateDefaultBuilder()
             .ConfigureServices(services =>

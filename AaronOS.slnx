@@ -10,5 +10,7 @@
     <Project Path="src/AaronOS.Modules.Nutrition/AaronOS.Modules.Nutrition.csproj" />
     <Project Path="src/AaronOS.Modules.Medical.Tests/AaronOS.Modules.Medical.Tests.csproj" />
     <Project Path="src/AaronOS.Modules.Medical/AaronOS.Modules.Medical.csproj" />
+    <Project Path="src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj" />
+    <Project Path="src/AaronOS.Modules.Schedule/AaronOS.Modules.Schedule.csproj" />
   </Folder>
 </Solution>
