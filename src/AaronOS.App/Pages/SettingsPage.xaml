@@ -8,7 +8,7 @@
     xmlns:local="clr-namespace:AaronOS_App.Pages"
     mc:Ignorable="d">
 
-    <StackPanel MaxWidth="780" HorizontalAlignment="Left" Margin="28,20,28,32">
+    <StackPanel HorizontalAlignment="Stretch" Margin="28,20,28,32">
 
         <TextBlock Text="Settings" Style="{DynamicResource PageTitleText}" Margin="0,0,0,22" />
 

@@ -16,18 +16,34 @@
     </Page.Resources>
 
     <!-- No ScrollViewer: the shell scrolls the page (see FinanceDashboardPage.xaml). -->
-    <StackPanel MaxWidth="720" HorizontalAlignment="Left" Margin="28,20,28,32">
+    <StackPanel HorizontalAlignment="Stretch" Margin="28,20,28,32">
 
         <TextBlock Text="Check In" Style="{DynamicResource PageTitleText}" Margin="0,0,0,22" />
 
         <!--
-            Weight leads, as a scroll wheel: logging a weight is the thing done most often, so the
-            quickest path through this page is open, flick, save. Everything else is optional and
-            sits below.
+            Weight leads: it is the thing logged most often, so the quickest path through this page is
+            open, type, save. Everything else is optional and sits below.
         -->
         <TextBlock Text="WEIGHT" Style="{DynamicResource EyebrowText}" />
         <Border Style="{DynamicResource SurfaceCard}" Padding="18,18" Margin="0,0,0,14">
-            <views:WeightPicker x:Name="Picker" Weight="{Binding WeightLb, Mode=TwoWay}" />
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <ui:NumberBox
+                    x:Name="WeightBox"
+                    Value="{Binding WeightLb, Mode=TwoWay}"
+                    Width="180"
+                    FontFamily="Cascadia Mono, Consolas"
+                    FontSize="30"
+                    Minimum="0"
+                    Maximum="1200"
+                    MaxDecimalPlaces="1"
+                    SpinButtonPlacementMode="Hidden" />
+                <TextBlock
+                    Text="lb"
+                    Style="{DynamicResource CaptionText}"
+                    FontSize="16"
+                    VerticalAlignment="Bottom"
+                    Margin="10,0,0,12" />
+            </StackPanel>
         </Border>
 
         <Grid Margin="0,0,0,26">

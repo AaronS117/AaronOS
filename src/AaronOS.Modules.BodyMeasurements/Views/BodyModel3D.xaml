@@ -1,0 +1,64 @@
+<UserControl
+    x:Class="AaronOS.Modules.BodyMeasurements.Views.BodyModel3D"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    mc:Ignorable="d"
+    ClipToBounds="True">
+
+    <Grid>
+        <!-- Sits behind the figure so the silhouette has something to read against, in the same
+             cyan family as the app icon's core glow. -->
+        <Border CornerRadius="6">
+            <Border.Background>
+                <RadialGradientBrush GradientOrigin="0.5,0.42" Center="0.5,0.42" RadiusX="0.72" RadiusY="0.72">
+                    <GradientStop Color="#16283A" Offset="0" />
+                    <GradientStop Color="#0C1219" Offset="1" />
+                </RadialGradientBrush>
+            </Border.Background>
+        </Border>
+
+        <Viewport3D x:Name="Viewport" ClipToBounds="True">
+            <Viewport3D.Camera>
+                <PerspectiveCamera x:Name="Camera" FieldOfView="38" UpDirection="0,1,0" />
+            </Viewport3D.Camera>
+
+            <ModelVisual3D x:Name="FigureVisual" />
+
+            <ModelVisual3D>
+                <ModelVisual3D.Content>
+                    <Model3DGroup>
+                        <!-- Three-point setup: a cool key light for form, a cyan fill on the opposite
+                             side to tie the model to the app's accent, and a dim ambient so shadowed
+                             sides never go fully black. -->
+                        <AmbientLight Color="#333C48" />
+                        <DirectionalLight Color="#DCE8F2" Direction="-0.45,-0.42,-0.79" />
+                        <DirectionalLight Color="#2E7FA8" Direction="0.82,-0.12,-0.56" />
+                        <DirectionalLight Color="#1B4C66" Direction="0.1,0.25,0.96" />
+                    </Model3DGroup>
+                </ModelVisual3D.Content>
+            </ModelVisual3D>
+        </Viewport3D>
+
+        <TextBlock
+            x:Name="NoDataLabel"
+            Text="No measurements yet — showing average proportions"
+            Style="{DynamicResource CaptionText}"
+            Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+            TextWrapping="Wrap"
+            TextAlignment="Center"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Bottom"
+            Margin="12,0,12,8" />
+
+        <TextBlock
+            Text="Drag to rotate"
+            Style="{DynamicResource CaptionText}"
+            Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+            Opacity="0.7"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Top"
+            Margin="0,8,10,0" />
+    </Grid>
+</UserControl>

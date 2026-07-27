@@ -51,8 +51,11 @@ public partial class DashboardViewModel(IDbContextFactory<AaronOsDbContext> dbCo
     private static readonly SKColor AxisLabel = new(0x9A, 0xA3, 0xB2);
     private static readonly SKColor Separator = new(0x2A, 0x2A, 0x30);
 
-    /// <summary>Most recent check-in, handed to the silhouette control so it can size its segments.</summary>
+    /// <summary>Most recent check-in, handed to the 3D figure so it can size its segments.</summary>
     public BodyCheckIn? LatestCheckIn { get; private set; }
+
+    /// <summary>Profile height, so the figure is scaled to the right build rather than a generic one.</summary>
+    public decimal? HeightInches { get; private set; }
 
     public List<GoalProgress> ActiveGoals { get; } = [];
     public List<ISeries> WeightSeries { get; } = [];
@@ -78,6 +81,7 @@ public partial class DashboardViewModel(IDbContextFactory<AaronOsDbContext> dbCo
             BuildMeasurementRows(latest);
 
             var profile = await db.UserProfiles.FirstOrDefaultAsync();
+            HeightInches = profile?.HeightInches;
             Bmi = BmiCalculator.Calculate(LatestWeightLb, profile?.HeightInches);
 
             ActiveGoals.Clear();

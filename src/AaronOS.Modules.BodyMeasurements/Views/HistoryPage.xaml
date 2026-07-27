@@ -16,7 +16,7 @@
 
             <TextBlock Text="History" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,16" />
 
-            <ListView Grid.Row="1" ItemsSource="{Binding CheckIns}" MaxWidth="720" HorizontalAlignment="Left">
+            <ListView Grid.Row="1" ItemsSource="{Binding CheckIns}" HorizontalAlignment="Stretch">
                 <ListView.ItemTemplate>
                     <DataTemplate DataType="{x:Type data:BodyCheckIn}">
                         <Grid Margin="0,8">

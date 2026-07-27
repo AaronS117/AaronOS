@@ -24,7 +24,7 @@
         (so it could never scroll) while it still swallowed the mouse wheel, which is what broke
         scrolling entirely. Let the page grow and let the shell scroll it.
     -->
-    <StackPanel MaxWidth="780" HorizontalAlignment="Left" Margin="28,20,28,32">
+    <StackPanel HorizontalAlignment="Stretch" Margin="28,20,28,32">
 
         <!-- Title row -->
         <Grid Margin="0,0,0,22">

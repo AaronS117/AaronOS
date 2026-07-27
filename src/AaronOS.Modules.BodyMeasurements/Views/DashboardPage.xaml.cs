@@ -17,9 +17,9 @@ public sealed partial class DashboardPage : Page
         Loaded += async (_, _) =>
         {
             await ViewModel.LoadCommand.ExecuteAsync(null);
-            // Pushed in rather than bound: the silhouette redraws imperatively from a whole
-            // check-in, which is far simpler than ten dependency properties.
-            Silhouette.Apply(ViewModel.LatestCheckIn);
+            // Pushed in rather than bound: the figure rebuilds its whole mesh from one check-in,
+            // which is far simpler than ten dependency properties each triggering a rebuild.
+            BodyModel.Apply(ViewModel.LatestCheckIn, ViewModel.HeightInches);
         };
     }
 }

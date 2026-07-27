@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/AaronOS.App/AaronOS.App.csproj" />
     <Project Path="src/AaronOS.Core/AaronOS.Core.csproj" />
+    <Project Path="src/AaronOS.Modules.BodyMeasurements.Tests/AaronOS.Modules.BodyMeasurements.Tests.csproj" />
     <Project Path="src/AaronOS.Modules.BodyMeasurements/AaronOS.Modules.BodyMeasurements.csproj" />
     <Project Path="src/AaronOS.Modules.Finance.Tests/AaronOS.Modules.Finance.Tests.csproj" />
     <Project Path="src/AaronOS.Modules.Finance/AaronOS.Modules.Finance.csproj" />
