@@ -5,5 +5,6 @@
     <Project Path="src/AaronOS.Modules.BodyMeasurements/AaronOS.Modules.BodyMeasurements.csproj" />
     <Project Path="src/AaronOS.Modules.Finance.Tests/AaronOS.Modules.Finance.Tests.csproj" />
     <Project Path="src/AaronOS.Modules.Finance/AaronOS.Modules.Finance.csproj" />
+    <Project Path="src/AaronOS.Modules.Nutrition/AaronOS.Modules.Nutrition.csproj" />
   </Folder>
 </Solution>
