@@ -101,6 +101,11 @@ public static class AgendaBuilder
         string label,
         AgendaEntrySource source)
     {
+        // A zero-duration commitment is meaningless, and it is NOT a wrap — ScheduleBlock.WrapsMidnight
+        // uses strict `<`, so treating equal times as wrapping would fabricate a near-full-day entry
+        // plus a phantom tail on the next day.
+        if (end == start) return;
+
         if (end > start)
         {
             today.Add(new AgendaEntry(start, end, kind, label, source));

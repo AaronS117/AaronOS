@@ -206,6 +206,27 @@ public class AgendaBuilderTests
     }
 
     [Fact]
+    public void FreeGaps_EnclosedEntryDoesNotOpenASpuriousGap()
+    {
+        var outer = Work(DayOfWeekFlags.EveryDay);
+        outer.EndTime = new TimeSpan(19, 0, 0);            // 08:00-19:00
+
+        var enclosed = Work(DayOfWeekFlags.EveryDay);
+        enclosed.Id = 2;
+        enclosed.Label = "Enclosed";
+        enclosed.StartTime = new TimeSpan(16, 0, 0);
+        enclosed.EndTime = new TimeSpan(18, 0, 0);         // wholly inside 08:00-19:00
+
+        var days = AgendaBuilder.Build(Monday, Monday, [outer, enclosed], [], []);
+
+        // The enclosed entry must not move the union frontier: the afternoon gap starts at
+        // 19:00 (the outer entry's end), not 18:00.
+        Assert.Equal(
+            [(TimeSpan.Zero, new TimeSpan(8, 0, 0)), (new TimeSpan(19, 0, 0), new TimeSpan(24, 0, 0))],
+            days[0].FreeGaps.Select(g => (g.Start, g.End)));
+    }
+
+    [Fact]
     public void EmptyDay_IsOneFullDayGap()
     {
         var days = AgendaBuilder.Build(Monday, Monday, [Work(DayOfWeekFlags.Weekend)], [], []);
@@ -228,10 +249,31 @@ public class AgendaBuilderTests
     }
 
     [Fact]
-    public void FirstCommitment_SkipsSleep()
+    public void FirstCommitment_SkipsTheCarriedSleepTail()
     {
         var days = AgendaBuilder.Build(Monday, Monday, [Sleep(), Work(DayOfWeekFlags.Weekdays)], [], []);
 
+        // Depends on the split: without it, Entries[0] would be Work at 08:00 rather than the
+        // previous night's sleep tail opening the day at 00:00.
+        Assert.Equal(ScheduleBlockKind.Sleep, days[0].Entries[0].Kind);
+        Assert.Equal(TimeSpan.Zero, days[0].Entries[0].Start);
         Assert.Equal("Core hours", days[0].FirstCommitment!.Label);
+    }
+
+    [Fact]
+    public void ZeroDurationSpan_IsSkippedRatherThanTreatedAsAWrap()
+    {
+        ScheduleException zeroLength = new()
+        {
+            Id = 1, Date = Monday, Kind = ScheduleBlockKind.Personal, Label = "Mis-entered",
+            StartTime = new TimeSpan(9, 0, 0), EndTime = new TimeSpan(9, 0, 0),
+        };
+
+        var days = AgendaBuilder.Build(Monday, Monday.AddDays(1), [], [zeroLength], []);
+
+        // Not a wrap: no entry at all, and no phantom tail carried onto the following day.
+        Assert.Empty(days[0].Entries);
+        Assert.Empty(days[1].Entries);
+        Assert.All(days, d => Assert.All(d.Entries, e => Assert.True(e.End > e.Start)));
     }
 }
