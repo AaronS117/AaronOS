@@ -1,4 +1,5 @@
 using AaronOS.Core;
+using AaronOS.Modules.Nutrition.ShelfLife;
 using AaronOS.Modules.Nutrition.Usda;
 using AaronOS.Modules.Nutrition.ViewModels;
 using AaronOS.Modules.Nutrition.Views;
@@ -17,7 +18,9 @@ public class NutritionModule : IAppModule
     {
         services.AddSingleton<UsdaCredentialStore>();
         services.AddSingleton<UsdaApiClient>();
+        services.AddSingleton(_ => ShelfLifeEstimator.LoadFromEmbeddedResource());
         services.AddTransient<IngredientsViewModel>();
         services.AddTransient<RecipeEditViewModel>();
+        services.AddTransient<InventoryViewModel>();
     }
 }

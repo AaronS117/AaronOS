@@ -1,0 +1,70 @@
+<Page
+    x:Class="AaronOS.Modules.Nutrition.Views.InventoryPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:data="clr-namespace:AaronOS.Modules.Nutrition.Data"
+    xmlns:views="clr-namespace:AaronOS.Modules.Nutrition.Views"
+    mc:Ignorable="d">
+
+    <Page.Resources>
+        <views:ExpirationBrushConverter x:Key="ExpirationBrushConverter" />
+    </Page.Resources>
+
+    <Grid Margin="24">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="320" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Column="0" Margin="0,0,32,0">
+            <TextBlock Text="Add to Inventory" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,12" />
+
+            <TextBlock Text="Ingredient" Margin="0,0,0,4" />
+            <ComboBox ItemsSource="{Binding AvailableIngredients}" DisplayMemberPath="Name"
+                      SelectedItem="{Binding NewIngredient, Mode=TwoWay}"
+                      IsEditable="True" IsTextSearchEnabled="True" Margin="0,0,0,12" />
+
+            <TextBlock Text="Storage location" Margin="0,0,0,4" />
+            <ComboBox ItemsSource="{Binding StorageLocations}" SelectedItem="{Binding NewStorageLocation, Mode=TwoWay}" Margin="0,0,0,12" />
+
+            <TextBlock Text="Date acquired" Margin="0,0,0,4" />
+            <DatePicker SelectedDate="{Binding NewDateAcquired, Mode=TwoWay}" Margin="0,0,0,12" />
+
+            <TextBlock Text="Expires on (suggested, editable)" Margin="0,0,0,4" />
+            <DatePicker SelectedDate="{Binding NewExpiresOn, Mode=TwoWay}" Margin="0,0,0,12" />
+
+            <TextBlock Text="Quantity (optional)" Margin="0,0,0,4" />
+            <ui:TextBox Text="{Binding NewQuantityLabel, Mode=TwoWay}" PlaceholderText="e.g. 1 lb" Margin="0,0,0,12" />
+
+            <ui:Button Content="Add" Command="{Binding AddCommand}" Appearance="Primary" />
+            <TextBlock Text="{Binding StatusMessage}" Opacity="0.7" Margin="0,8,0,0" />
+        </StackPanel>
+
+        <ListView Grid.Column="1" ItemsSource="{Binding Items}">
+            <ListView.ItemTemplate>
+                <DataTemplate DataType="{x:Type data:InventoryItem}">
+                    <Grid Margin="0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="200" />
+                            <ColumnDefinition Width="100" />
+                            <ColumnDefinition Width="100" />
+                            <ColumnDefinition Width="100" />
+                            <ColumnDefinition Width="120" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{Binding Ingredient.Name}" FontWeight="SemiBold" />
+                        <TextBlock Grid.Column="1" Text="{Binding StorageLocation}" Opacity="0.7" />
+                        <TextBlock Grid.Column="2" Text="{Binding DateAcquired}" Opacity="0.7" />
+                        <TextBlock Grid.Column="3" Text="{Binding ExpiresOn, TargetNullValue='—'}"
+                                   Foreground="{Binding ExpiresOn, Converter={StaticResource ExpirationBrushConverter}}" />
+                        <TextBlock Grid.Column="4" Text="{Binding QuantityLabel}" Opacity="0.7" />
+                        <Button Grid.Column="5" Content="Delete" Click="DeleteButton_Click" />
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+    </Grid>
+</Page>
