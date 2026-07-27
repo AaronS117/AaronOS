@@ -3,7 +3,11 @@ namespace AaronOS.Modules.Medical.Import;
 public enum ImportStatus { New, AlreadyImported }
 
 /// <summary>One line of the review table: what would be imported, and whether it is already held.</summary>
-public record ImportRow(string Section, string Description, string Key, ImportStatus Status);
+public record ImportRow(string Section, string Description, string Key, ImportStatus Status)
+{
+    /// <summary>Wording for the review table — the raw enum name reads like code on screen.</summary>
+    public string StatusDisplay => Status == ImportStatus.New ? "New" : "Already held";
+}
 
 /// <summary>
 /// A snapshot of the keys already in the database, per record type. Passed in by the ViewModel so the

@@ -7,13 +7,22 @@ using CommunityToolkit.Mvvm.Input;
 using LiveChartsCore;
 using LiveChartsCore.Kernel.Sketches;
 using LiveChartsCore.SkiaSharpView;
+using LiveChartsCore.SkiaSharpView.Painting;
 using Microsoft.EntityFrameworkCore;
+using SkiaSharp;
 
 namespace AaronOS.Modules.Medical.ViewModels;
 
 public partial class LabsViewModel(IDbContextFactory<AaronOsDbContext> dbContextFactory) : ViewModelBase
 {
     private List<LabResult> _all = [];
+
+    // LiveCharts2 draws on its own SkiaSharp surface and knows nothing about the app's dark theme, so
+    // every paint has to be set explicitly or it falls back to near-black on a dark background —
+    // same reason and same colours as the weight trend in BodyMeasurements.
+    private static readonly SKColor ReactorCyan = new(0x4C, 0xC2, 0xFF);
+    private static readonly SKColor AxisLabel = new(0x9A, 0xA3, 0xB2);
+    private static readonly SKColor Separator = new(0x2A, 0x2A, 0x30);
 
     public ObservableCollection<LabResult> Results { get; } = [];
     public ObservableCollection<string> TestNames { get; } = [];
@@ -111,11 +120,26 @@ public partial class LabsViewModel(IDbContextFactory<AaronOsDbContext> dbContext
         TrendSeries.Add(new LineSeries<double>
         {
             Values = points.Select(p => (double)p.Value!.Value).ToArray(),
-            Name = SelectedTestName
+            Name = SelectedTestName,
+            Stroke = new SolidColorPaint(ReactorCyan) { StrokeThickness = 2.5f },
+            GeometryStroke = new SolidColorPaint(ReactorCyan) { StrokeThickness = 2.5f },
+            GeometryFill = new SolidColorPaint(new SKColor(0x20, 0x20, 0x24)),
+            GeometrySize = 8,
+            Fill = new LinearGradientPaint(
+                [ReactorCyan.WithAlpha(70), ReactorCyan.WithAlpha(0)],
+                new SKPoint(0.5f, 0f),
+                new SKPoint(0.5f, 1f)),
+            LineSmoothness = 0.35
         });
         TrendAxes.Add(new Axis
         {
-            Labels = points.Select(p => p.TakenOn!.Value.ToString("MMM yy")).ToArray()
+            // Full year rather than "MMM yy": the short form renders as "Jan 26", which reads like a
+            // day of the month. (An apostrophe is not the fix — in a .NET custom format string '' is
+            // an empty literal, so "MMM ''yy" also produces "Jan 26".)
+            Labels = points.Select(p => p.TakenOn!.Value.ToString("MMM yyyy")).ToArray(),
+            LabelsPaint = new SolidColorPaint(AxisLabel),
+            TextSize = 12,
+            SeparatorsPaint = new SolidColorPaint(Separator) { StrokeThickness = 1 }
         });
 
         HasTrend = true;

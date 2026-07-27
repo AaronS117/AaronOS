@@ -63,11 +63,13 @@
                         Margin="12,0,0,0" />
                 </Grid>
 
+                <!-- Transparent so the card behind it shows through instead of LiveCharts' own white. -->
                 <lvc:CartesianChart
                     Height="260"
                     Margin="0,14,0,0"
                     Series="{Binding TrendSeries}"
                     XAxes="{Binding TrendAxes}"
+                    Background="Transparent"
                     Visibility="{Binding HasTrend, Converter={StaticResource BoolToVis}}" />
 
                 <TextBlock Text="Add at least one dated numeric result to see a trend.">
@@ -92,10 +94,10 @@
             <StackPanel>
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" MinWidth="190" />
-                        <ColumnDefinition Width="110" />
-                        <ColumnDefinition Width="130" />
-                        <ColumnDefinition Width="100" />
+                        <ColumnDefinition Width="*" MinWidth="180" />
+                        <ColumnDefinition Width="140" />
+                        <ColumnDefinition Width="140" />
+                        <ColumnDefinition Width="90" />
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0" Margin="0,0,12,0">
                         <TextBlock Text="TEST" Style="{DynamicResource FieldLabel}" />
@@ -116,9 +118,9 @@
                 </Grid>
                 <Grid Margin="0,14,0,0">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="110" />
-                        <ColumnDefinition Width="110" />
-                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="140" />
+                        <ColumnDefinition Width="140" />
+                        <ColumnDefinition Width="200" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
