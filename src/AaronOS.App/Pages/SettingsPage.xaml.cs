@@ -1,7 +1,6 @@
 using AaronOS_App.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Navigation;
+using System.Windows.Controls;
 
 namespace AaronOS_App.Pages;
 
@@ -12,12 +11,8 @@ public sealed partial class SettingsPage : Page
     public SettingsPage()
     {
         ViewModel = App.Services.GetRequiredService<SettingsViewModel>();
+        DataContext = ViewModel;
         InitializeComponent();
-    }
-
-    protected override async void OnNavigatedTo(NavigationEventArgs e)
-    {
-        base.OnNavigatedTo(e);
-        await ViewModel.LoadCommand.ExecuteAsync(null);
+        Loaded += async (_, _) => await ViewModel.LoadCommand.ExecuteAsync(null);
     }
 }

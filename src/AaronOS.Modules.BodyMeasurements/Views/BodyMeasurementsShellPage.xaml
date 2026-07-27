@@ -1,10 +1,10 @@
-<?xml version="1.0" encoding="utf-8" ?>
 <Page
     x:Class="AaronOS.Modules.BodyMeasurements.Views.BodyMeasurementsShellPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
     mc:Ignorable="d">
 
     <Grid>
@@ -13,14 +13,14 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <CommandBar Grid.Row="0" DefaultLabelPosition="Right" IsOpen="False" HorizontalAlignment="Left">
-            <AppBarButton Icon="Home" Label="Dashboard" Click="Dashboard_Click" />
-            <AppBarButton Icon="Add" Label="Check In" Click="CheckIn_Click" />
-            <AppBarButton Icon="List" Label="History" Click="History_Click" />
-            <AppBarButton Icon="Shop" Label="Clothing Sizes" Click="ClothingSizes_Click" />
-            <AppBarButton Icon="Flag" Label="Goals" Click="Goals_Click" />
-        </CommandBar>
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="12,8" HorizontalAlignment="Left">
+            <ui:Button Content="Dashboard" Click="Dashboard_Click" Margin="0,0,8,0" />
+            <ui:Button Content="Check In" Click="CheckIn_Click" Margin="0,0,8,0" />
+            <ui:Button Content="History" Click="History_Click" Margin="0,0,8,0" />
+            <ui:Button Content="Clothing Sizes" Click="ClothingSizes_Click" Margin="0,0,8,0" />
+            <ui:Button Content="Goals" Click="Goals_Click" />
+        </StackPanel>
 
-        <Frame x:Name="ContentFrame" Grid.Row="1" />
+        <Frame x:Name="ContentFrame" Grid.Row="1" NavigationUIVisibility="Hidden" />
     </Grid>
 </Page>

@@ -1,8 +1,7 @@
 using AaronOS.Core;
 using AaronOS.Modules.BodyMeasurements.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Navigation;
+using System.Windows.Controls;
 
 namespace AaronOS.Modules.BodyMeasurements.Views;
 
@@ -13,12 +12,8 @@ public sealed partial class DashboardPage : Page
     public DashboardPage()
     {
         ViewModel = AppServices.Provider.GetRequiredService<DashboardViewModel>();
+        DataContext = ViewModel;
         InitializeComponent();
-    }
-
-    protected override async void OnNavigatedTo(NavigationEventArgs e)
-    {
-        base.OnNavigatedTo(e);
-        await ViewModel.LoadCommand.ExecuteAsync(null);
+        Loaded += async (_, _) => await ViewModel.LoadCommand.ExecuteAsync(null);
     }
 }

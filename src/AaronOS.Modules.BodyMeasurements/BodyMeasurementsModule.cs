@@ -2,7 +2,6 @@ using AaronOS.Core;
 using AaronOS.Modules.BodyMeasurements.ViewModels;
 using AaronOS.Modules.BodyMeasurements.Views;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.UI.Xaml.Controls;
 
 namespace AaronOS.Modules.BodyMeasurements;
 
@@ -10,7 +9,7 @@ public class BodyMeasurementsModule : IAppModule
 {
     public string Id => "body-measurements";
     public string DisplayName => "Body Measurements";
-    public IconElement Icon => new FontIcon { Glyph = "" };
+    public string IconGlyph => "Person24";
     public Type HomePageType => typeof(BodyMeasurementsShellPage);
 
     public void RegisterServices(IServiceCollection services)

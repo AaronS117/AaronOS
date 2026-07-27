@@ -5,7 +5,8 @@ using AaronOS.Modules.BodyMeasurements;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.UI.Xaml;
+using System.IO;
+using System.Windows;
 
 namespace AaronOS_App;
 
@@ -50,8 +51,10 @@ public partial class App : Application
         AppServices.Provider = _host.Services;
     }
 
-    protected override async void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
+    protected override async void OnStartup(StartupEventArgs e)
     {
+        base.OnStartup(e);
+
         using (var scope = Services.CreateScope())
         {
             var dbContextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AaronOsDbContext>>();
@@ -60,6 +63,6 @@ public partial class App : Application
         }
 
         _window = new MainWindow(Services.GetServices<IAppModule>());
-        _window.Activate();
+        _window.Show();
     }
 }

@@ -12,7 +12,7 @@ public partial class CheckInViewModel(IDbContextFactory<AaronOsDbContext> dbCont
     // ponytail: NumberBox reports an empty/cleared field as NaN, not null — using that directly
     // as the "not measured" sentinel avoids a value converter for every field.
     [ObservableProperty]
-    private DateTimeOffset _date = DateTimeOffset.Now;
+    private DateTime? _date = DateTime.Now;
 
     [ObservableProperty]
     private double _weightLb = double.NaN;
@@ -64,7 +64,7 @@ public partial class CheckInViewModel(IDbContextFactory<AaronOsDbContext> dbCont
             await using var db = await dbContextFactory.CreateDbContextAsync();
             db.Add(new BodyCheckIn
             {
-                Date = DateOnly.FromDateTime(Date.Date),
+                Date = DateOnly.FromDateTime(Date?.Date ?? DateTime.Now.Date),
                 WeightLb = ToEntry(WeightLb),
                 NeckIn = ToEntry(NeckIn),
                 ChestIn = ToEntry(ChestIn),

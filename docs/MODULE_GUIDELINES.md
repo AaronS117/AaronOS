@@ -4,6 +4,11 @@ AaronOS is built to take an open-ended series of feature modules. This document 
 every module follows so they compose cleanly under one shell, one database, and one navigation
 pane. Read this before adding a new module.
 
+The app is a WPF desktop app (migrated from WinUI 3 — WinUI 3 has no design-time XAML canvas in
+Visual Studio, which made visual design work impractical). Styling comes from the `WPF-UI`
+NuGet package (`Wpf.Ui.Controls`, namespace `http://schemas.lepo.co/wpfui/2022/xaml`, conventionally
+aliased `ui:`), which brings Fluent/Mica styling and a `NavigationView` control to WPF.
+
 ## Architecture in one paragraph
 
 Modules are compiled-in class library projects, not runtime-loaded plugins. The shell
@@ -13,13 +18,14 @@ composition root. No reflection scanning, no dynamic assembly loading.
 
 ## Adding a new module: checklist
 
-1. Create a new WinUI class library project named `AaronOS.Modules.<Name>`:
+1. Create a new class library project named `AaronOS.Modules.<Name>`:
    ```
-   dotnet new winui-lib -n AaronOS.Modules.<Name> -tfm net8.0
+   dotnet new classlib -n AaronOS.Modules.<Name> -f net8.0-windows
    ```
-2. Add project references: `AaronOS.Core`. Add package references your module actually needs
-   (CommunityToolkit.Mvvm and EF Core come transitively through Core).
-3. Copy the property block below into the new csproj (see "Required csproj properties").
+2. Copy the property block below into the new csproj (see "Required csproj properties").
+3. Add project reference: `AaronOS.Core`. Add package references your module actually needs
+   (CommunityToolkit.Mvvm and EF Core come transitively through Core; add `WPF-UI` yourself if
+   your views use its controls).
 4. Implement `IAppModule` (see "The module contract").
 5. Define your entities and their `IEntityTypeConfiguration<T>` classes under `Data/`.
 6. Build your ViewModels under `ViewModels/`, deriving from `AaronOS.Core.ViewModelBase`.
@@ -36,15 +42,20 @@ public interface IAppModule
 {
     string Id { get; }
     string DisplayName { get; }
-    IconElement Icon { get; }
+    string IconGlyph { get; }
     Type HomePageType { get; }
     void RegisterServices(IServiceCollection services);
 }
 ```
 
 - `Id`: a short, stable, unique slug (e.g. `"body-measurements"`). Never reuse another module's id.
-- `DisplayName` / `Icon`: what shows up in the shell's `NavigationView`.
-- `HomePageType`: the `Page` type the shell navigates to when your nav item is selected.
+- `DisplayName`: what shows up in the shell's `NavigationView`.
+- `IconGlyph`: the name of a `Wpf.Ui.Controls.SymbolRegular` enum member (e.g. `"Person24"`), kept
+  as a plain string so this contract has no compile-time dependency on the UI framework's icon
+  type. The shell parses it via `Enum.Parse<SymbolRegular>(module.IconGlyph)`.
+- `HomePageType`: the `Page` type the shell navigates to when your nav item is selected. Must have
+  a public parameterless constructor — `Wpf.Ui`'s `NavigationView` instantiates it via
+  `TargetPageType`, the same way WPF's own `Frame.Navigate(Type)` would.
 - `RegisterServices`: register your ViewModels and any module-specific services into the shared
   `IServiceCollection`. Register ViewModels as **transient** (a fresh instance per navigation),
   not singleton — pages new one up each time they're navigated to.
@@ -56,7 +67,7 @@ public class WidgetsModule : IAppModule
 {
     public string Id => "widgets";
     public string DisplayName => "Widgets";
-    public IconElement Icon => new FontIcon { Glyph = "" };
+    public string IconGlyph => "Grid24";
     public Type HomePageType => typeof(WidgetsDashboardPage);
 
     public void RegisterServices(IServiceCollection services)
@@ -68,26 +79,25 @@ public class WidgetsModule : IAppModule
 
 ## Required csproj properties
 
-Every module project needs these three settings, in addition to the standard `winui-lib`
-template output. Without them the project either won't compile against WinUI types standalone,
-or the CommunityToolkit.Mvvm source generator produces incomplete code:
+Every module project needs:
 
 ```xml
+<TargetFramework>net8.0-windows</TargetFramework>
+<UseWPF>true</UseWPF>
 <LangVersion>13.0</LangVersion>
-<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
 <Nullable>enable</Nullable>
 ```
-(the `winui-lib` template doesn't turn on nullable reference types by default; every other project in the solution does, so match it.)
-plus a direct `PackageReference` to `Microsoft.WindowsAppSDK` (same version as the other
-projects) — the `winui-lib` template sets `WinUISDKReferences=false`, which assumes the app
-project supplies the WinUI reference, but each project still compiles independently, so it needs
-its own reference to resolve `Microsoft.UI.Xaml.*` types.
 
-**Known gotcha:** even with `EnforceExtendedAnalyzerRules` set, the CommunityToolkit.Mvvm
-partial-property generator (`public partial bool X { get; set; }`) does not reliably run in
-these WinUI/CsWinRT projects. Use the classic field-backed form instead —
-`[ObservableProperty] private bool _x;` — and ignore the `MVVMTK0045` AOT-compatibility warning
-it produces; this app is never published as Native AOT.
+`LangVersion 13.0` is needed for pattern-matching syntax used across the codebase (e.g.
+`sender is FrameworkElement { DataContext: MyEntity item }`) — it isn't tied to any UI framework,
+just to using a modern enough C# version against a `net8.0` target.
+
+**Known gotcha:** the CommunityToolkit.Mvvm partial-property generator
+(`public partial bool X { get; set; }`) does not reliably run in this environment — confirmed to
+fail identically in a plain `net8.0` class library, so it isn't WPF- or WinUI-specific, just an
+environment/tooling quirk. Use the classic field-backed form instead —
+`[ObservableProperty] private bool _x;` — and ignore the `MVVMTK0045` AOT-compatibility warning it
+produces; this app is never published as Native AOT.
 
 ## Data ownership rules
 
@@ -102,36 +112,25 @@ it produces; this app is never published as Native AOT.
   accident (EF Core's default pluralized-DbSet naming is normally enough, given entity names are
   already domain-specific).
 
-## Schema creation (no EF migrations, deliberately)
+## Schema creation (no EF migrations, for now)
 
 App startup calls `Database.EnsureCreatedAsync()`, not `Database.MigrateAsync()`, and there are
-no `dotnet ef migrations` in this repo.
+no `dotnet ef migrations` in this repo yet.
 
-**Why:** `dotnet-ef` design-time tooling loads the DbContext's assembly (and the startup
-project's assembly) into its own process to construct a `DbContext` instance. Any assembly that
-references `Microsoft.WindowsAppSDK` — which is every project in this solution, since `IAppModule`
-and every module's Pages need WinUI types — throws inside a WinRT/CsWinRT module initializer when
-loaded outside a real packaged/unpackaged app launch. `dotnet ef migrations add` fails with
-`"The type initializer for '<Module>' threw an exception"` no matter which project it targets, and
-a design-time `IDesignTimeDbContextFactory` doesn't help, because the crash happens on assembly
-load, before the factory ever runs.
+**Why it's like this:** under WinUI 3, `dotnet-ef` design-time tooling couldn't load any project
+in this solution at all (every project referenced `Microsoft.WindowsAppSDK`, which throws inside a
+WinRT module initializer when loaded outside a real app launch). That specific blocker is gone now
+that the solution is WPF — `AaronOS.Core` has zero UI-framework dependency, so `dotnet ef` should
+work normally against it. Real migrations haven't been added back yet simply because it wasn't
+done as part of the WPF migration; it's a reasonable near-term follow-up, not a hard problem
+anymore.
 
-**Consequence:** `EnsureCreatedAsync()` creates the full current schema from
+**Consequence while this stands:** `EnsureCreatedAsync()` creates the full current schema from
 `OnModelCreating` on first launch, but it does **not** support evolving an existing database's
 schema — if you change an entity later, `EnsureCreatedAsync()` won't alter the existing tables.
-For now, evolving the schema during development means deleting the local db file
-(`%LocalAppData%\AaronOS\aaronos.db`) and letting it get recreated. That's an acceptable cost
-while iterating on the schema, but not once real check-in history exists that you don't want to
-lose.
-
-**Upgrade path, if you need real migrations later:** move `AaronOsDbContext` and every entity out
-of the WinUI-dependent projects into a new plain class library (`net8.0`, no `UseWinUI`, no
-`Microsoft.WindowsAppSDK` reference) that only the WinUI projects reference. `dotnet ef` can load
-a plain assembly like that without hitting the WinRT initializer problem, and `IAppModule.Icon`
-would need to become a glyph string (or similar WinUI-free representation) rather than
-`IconElement` so modules stay WinUI-free at the point EF needs to enumerate their entity
-assemblies. This is a real restructuring, not a quick flag — don't attempt it speculatively;
-do it when migrations actually become necessary.
+Evolving the schema during development means deleting the local db file
+(`%LocalAppData%\AaronOS\aaronos.db`) and letting it get recreated. That's fine while iterating,
+but not once real check-in history exists that you don't want to lose.
 
 ## Database access
 
@@ -146,35 +145,44 @@ await using var db = await _dbContextFactory.CreateDbContextAsync();
 ## MVVM conventions
 
 - One ViewModel per Page. ViewModel constructors take their dependencies (DbContext factory,
-  other services) via DI. Because `Frame.Navigate` requires a parameterless Page constructor,
-  and a module can't reference `AaronOS.App` (that would be circular), resolve the ViewModel in
-  the Page's constructor via `AaronOS.Core.AppServices.Provider.GetRequiredService<T>()` —
-  the shell sets `AppServices.Provider` once at startup.
+  other services) via DI. Because a module can't reference `AaronOS.App` (that would be
+  circular), resolve the ViewModel in the Page's constructor via
+  `AaronOS.Core.AppServices.Provider.GetRequiredService<T>()` — the shell sets
+  `AppServices.Provider` once at startup. Then set `DataContext = ViewModel;` explicitly (WPF's
+  classic `{Binding}` resolves against `DataContext`, unlike WinUI's compiled `x:Bind`).
 - Use `CommunityToolkit.Mvvm`'s `[ObservableProperty]` (field-backed, see gotcha above) and
   `[RelayCommand]`. No code-behind logic beyond wiring the Page to its ViewModel and handling
   purely visual concerns (animations, focus).
 - Derive every ViewModel from `AaronOS.Core.ViewModelBase`, which carries `IsBusy` — set it around
   async DB work so pages can show a loading state consistently.
-
-**Known gotcha:** inside a `ListView`/`ItemsControl` `DataTemplate`, do not `x:Bind` a button's
-`Command` back to a named element outside the template (e.g. `x:Bind Root.ViewModel.DeleteCommand`
-on a Page named `x:Name="Root"`). In this WinAppSDK version it fails the XAML compiler with an
-opaque `WMC9999 "Xaml Internal Error"` that gives no line number or real cause. Use a plain
-`Click` handler in code-behind instead, reading the item off `DataContext`:
-
-```csharp
-private void DeleteButton_Click(object sender, RoutedEventArgs e)
-{
-    if (sender is FrameworkElement { DataContext: MyEntity item })
-    {
-        _ = ViewModel.DeleteCommand.ExecuteAsync(item);
-    }
-}
-```
-
-If you ever hit `WMC9999` again, don't chase the message — it's misleading. Bisect by swapping
-suspect XAML files for a trivial stub one at a time until the build succeeds, then reintroduce
-the removed markup piece by piece to find the real cause.
+- Since each `Page` is freshly constructed on every navigation (never reused), do "on navigated to"
+  work in the constructor via the `Loaded` event, rather than overriding any navigation-lifecycle
+  method:
+  ```csharp
+  public DashboardPage()
+  {
+      ViewModel = AppServices.Provider.GetRequiredService<DashboardViewModel>();
+      DataContext = ViewModel;
+      InitializeComponent();
+      Loaded += async (_, _) => await ViewModel.LoadCommand.ExecuteAsync(null);
+  }
+  ```
+- For a `ListView`/`ItemsControl` item's Delete/Action buttons, use a plain `Click` handler in
+  code-behind reading the item off `DataContext`, rather than binding `Command` back to a named
+  element outside the `DataTemplate`:
+  ```csharp
+  private void DeleteButton_Click(object sender, RoutedEventArgs e)
+  {
+      if (sender is FrameworkElement { DataContext: MyEntity item })
+      {
+          _ = ViewModel.DeleteCommand.ExecuteAsync(item);
+      }
+  }
+  ```
+  (WPF's classic binding model *can* reach an outer `DataContext` from inside a template via
+  `RelativeSource AncestorType`, unlike WinUI's compiled `x:Bind`, so this is now a style choice
+  rather than a forced workaround — but it's what the existing pages do, so match it for
+  consistency unless you have a specific reason not to.)
 
 ## Units convention
 
@@ -184,10 +192,32 @@ the point to add a shared conversion/preference service in `AaronOS.Core`, not b
 
 ## Navigation
 
-Each module owns only its own pages. The shell's `NavigationView` gets exactly one top-level item
-per registered `IAppModule` (`DisplayName` + `Icon`), pointing at `HomePageType` — the shell never
-knows about a module's other pages. If your module has more than one page, follow the pattern in
+Each module owns only its own pages. The shell's `ui:NavigationView` gets exactly one top-level
+item per registered `IAppModule` (`DisplayName` + `IconGlyph`, built dynamically in
+`MainWindow.xaml.cs`), with `TargetPageType` set to `HomePageType` — the shell never knows about
+a module's other pages. If your module has more than one page, follow the pattern in
 `AaronOS.Modules.BodyMeasurements`: make `HomePageType` a small shell page of your own
-(`BodyMeasurementsShellPage`) containing a `CommandBar` and an internal `Frame`, and have that
-page's buttons navigate the internal Frame between your module's real pages (Dashboard, Check-In,
-etc.). This keeps a module's internal navigation entirely self-contained.
+(`BodyMeasurementsShellPage`) containing a row of buttons and an internal `Frame`, and have those
+buttons navigate the internal Frame between your module's real pages (Dashboard, Check-In, etc.)
+via `Frame.Navigate(new SomePage())` — note WPF's `Frame.Navigate` takes an *instance*, not a
+`Type`, unlike `ui:NavigationView.Navigate`/WinUI's `Frame.Navigate`. This keeps a module's
+internal navigation entirely self-contained.
+
+## WPF-specific control notes
+
+A few stock WPF gaps that `Wpf.Ui.Controls` fills, used throughout this codebase:
+
+- `ui:NumberBox` — numeric input; bind its `Value` (a `double`) two-way. The existing ViewModels
+  use `double.NaN` as the "not entered" sentinel (a cleared `NumberBox` reports `NaN`, not
+  `null`), converting to `decimal?` at save time — keep that pattern rather than introducing a
+  value converter.
+- `ui:TextBox` — adds `PlaceholderText`, which stock WPF's `TextBox` lacks.
+- `ui:Button` with `Appearance="Primary"` — the accent-styled button, replacing WinUI's
+  `AccentButtonStyle`.
+- `ui:Card` — a simple elevated surface, useful anywhere you'd have reached for a `Border` with a
+  theme background brush.
+- Stock WPF's `DatePicker.SelectedDate` is `DateTime?` (not `DateTimeOffset` like WinUI's
+  `DatePicker.Date`) — ViewModel date properties are typed accordingly.
+- Stock WPF's `Grid`/`StackPanel` have no `ColumnSpacing`/`RowSpacing`/`Spacing`/`Padding`
+  properties (WinUI-only conveniences) — use explicit `Margin` on children, or wrap a `Grid` in a
+  `Border` when you need padding.

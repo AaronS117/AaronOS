@@ -1,54 +1,51 @@
-<?xml version="1.0" encoding="utf-8" ?>
 <Page
     x:Class="AaronOS.Modules.BodyMeasurements.Views.DashboardPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:lvc="using:LiveChartsCore.SkiaSharpView.WinUI"
-    xmlns:vm="using:AaronOS.Modules.BodyMeasurements.ViewModels"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:vm="clr-namespace:AaronOS.Modules.BodyMeasurements.ViewModels"
     mc:Ignorable="d">
 
     <ScrollViewer Padding="24">
-        <StackPanel Spacing="20" MaxWidth="720" HorizontalAlignment="Left">
-            <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Body Measurements" />
+        <StackPanel MaxWidth="720" HorizontalAlignment="Left">
+            <TextBlock Text="Body Measurements" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,20" />
 
-            <StackPanel Orientation="Horizontal" Spacing="32">
-                <StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
+                <StackPanel Margin="0,0,32,0">
                     <TextBlock Text="Latest weight" Opacity="0.7" />
-                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}"
-                               Text="{x:Bind ViewModel.LatestWeightLb, Mode=OneWay, TargetNullValue='—'}" />
+                    <TextBlock Text="{Binding LatestWeightLb, TargetNullValue='—'}" FontSize="20" FontWeight="SemiBold" />
                 </StackPanel>
-                <StackPanel>
+                <StackPanel Margin="0,0,32,0">
                     <TextBlock Text="BMI" Opacity="0.7" />
-                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}"
-                               Text="{x:Bind ViewModel.Bmi, Mode=OneWay, TargetNullValue='Set height in Settings'}" />
+                    <TextBlock Text="{Binding Bmi, TargetNullValue='Set height in Settings'}" FontSize="20" FontWeight="SemiBold" />
                 </StackPanel>
                 <StackPanel>
                     <TextBlock Text="Last check-in" Opacity="0.7" />
-                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}"
-                               Text="{x:Bind ViewModel.LatestCheckInDate, Mode=OneWay, TargetNullValue='No check-ins yet'}" />
+                    <TextBlock Text="{Binding LatestCheckInDate, TargetNullValue='No check-ins yet'}" FontSize="20" FontWeight="SemiBold" />
                 </StackPanel>
             </StackPanel>
 
-            <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Weight trend" />
+            <TextBlock Text="Weight trend" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,8" />
             <lvc:CartesianChart
                 Height="260"
-                Series="{x:Bind ViewModel.WeightSeries}"
-                XAxes="{x:Bind ViewModel.WeightAxes}" />
+                Series="{Binding WeightSeries}"
+                XAxes="{Binding WeightAxes}"
+                Margin="0,0,0,20" />
 
-            <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="Active goals" />
-            <ItemsControl ItemsSource="{x:Bind ViewModel.ActiveGoals}">
+            <TextBlock Text="Active goals" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,8" />
+            <ItemsControl ItemsSource="{Binding ActiveGoals}">
                 <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:GoalProgress">
-                        <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                CornerRadius="4" Padding="12" Margin="0,0,0,8">
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="{x:Bind Label}" FontWeight="SemiBold" />
-                                <ProgressBar Value="{x:Bind ProgressFraction}" Maximum="1" />
-                                <TextBlock Text="{x:Bind ProgressText}" Opacity="0.7" FontSize="12" />
+                    <DataTemplate DataType="{x:Type vm:GoalProgress}">
+                        <ui:Card Margin="0,0,0,8">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Label}" FontWeight="SemiBold" />
+                                <ProgressBar Value="{Binding ProgressFraction}" Maximum="1" Margin="0,4" />
+                                <TextBlock Text="{Binding ProgressText}" Opacity="0.7" FontSize="12" />
                             </StackPanel>
-                        </Border>
+                        </ui:Card>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>

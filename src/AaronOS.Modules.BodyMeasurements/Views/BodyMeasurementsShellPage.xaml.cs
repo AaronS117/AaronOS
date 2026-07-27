@@ -1,6 +1,5 @@
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Navigation;
+using System.Windows;
+using System.Windows.Controls;
 
 namespace AaronOS.Modules.BodyMeasurements.Views;
 
@@ -14,12 +13,12 @@ public sealed partial class BodyMeasurementsShellPage : Page
     public BodyMeasurementsShellPage()
     {
         InitializeComponent();
-        Loaded += (_, _) => ContentFrame.Navigate(typeof(DashboardPage));
+        Loaded += (_, _) => ContentFrame.Navigate(new DashboardPage());
     }
 
-    private void Dashboard_Click(object sender, RoutedEventArgs e) => ContentFrame.Navigate(typeof(DashboardPage));
-    private void CheckIn_Click(object sender, RoutedEventArgs e) => ContentFrame.Navigate(typeof(CheckInPage));
-    private void History_Click(object sender, RoutedEventArgs e) => ContentFrame.Navigate(typeof(HistoryPage));
-    private void ClothingSizes_Click(object sender, RoutedEventArgs e) => ContentFrame.Navigate(typeof(ClothingSizesPage));
-    private void Goals_Click(object sender, RoutedEventArgs e) => ContentFrame.Navigate(typeof(GoalsPage));
+    private void Dashboard_Click(object sender, RoutedEventArgs e) => ContentFrame.Navigate(new DashboardPage());
+    private void CheckIn_Click(object sender, RoutedEventArgs e) => ContentFrame.Navigate(new CheckInPage());
+    private void History_Click(object sender, RoutedEventArgs e) => ContentFrame.Navigate(new HistoryPage());
+    private void ClothingSizes_Click(object sender, RoutedEventArgs e) => ContentFrame.Navigate(new ClothingSizesPage());
+    private void Goals_Click(object sender, RoutedEventArgs e) => ContentFrame.Navigate(new GoalsPage());
 }
