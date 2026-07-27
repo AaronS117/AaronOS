@@ -17,6 +17,18 @@ public class AgendaBuilderTests
         IsActive = true,
     };
 
+    private static ScheduleBlock Sleep() => new()
+    {
+        Id = 10,
+        Kind = ScheduleBlockKind.Sleep,
+        Label = "Sleep",
+        DaysOfWeek = DayOfWeekFlags.EveryDay,
+        StartTime = new TimeSpan(23, 0, 0),
+        EndTime = new TimeSpan(7, 0, 0),   // wraps midnight
+        EffectiveFrom = new DateOnly(2026, 1, 1),
+        IsActive = true,
+    };
+
     // Mon 2026-07-06 .. Sun 2026-07-12
     private static readonly DateOnly Monday = new(2026, 7, 6);
     private static readonly DateOnly Sunday = new(2026, 7, 12);
@@ -148,5 +160,78 @@ public class AgendaBuilderTests
         Assert.Equal(["Call", "Core hours", "Standup"], days[0].Entries.Select(e => e.Label));
         Assert.Equal(AgendaEntrySource.External, days[0].Entries[0].Source);
         Assert.Equal(ScheduleBlockKind.Personal, days[0].Entries[0].Kind);
+    }
+
+    [Fact]
+    public void WrappingBlock_IsSplitAcrossTheDayBoundary()
+    {
+        var days = AgendaBuilder.Build(Monday, Monday.AddDays(1), [Sleep()], [], []);
+
+        // Monday carries the tail of Sunday night plus Monday night's opening segment.
+        Assert.Equal(
+            [(TimeSpan.Zero, new TimeSpan(7, 0, 0)), (new TimeSpan(23, 0, 0), new TimeSpan(24, 0, 0))],
+            days[0].Entries.Select(e => (e.Start, e.End)));
+        // No entry may wrap: every End is after its Start.
+        Assert.All(days[0].Entries, e => Assert.True(e.End > e.Start));
+    }
+
+    [Fact]
+    public void FreeGaps_AreTheSpansBetweenCommittedEntries()
+    {
+        var days = AgendaBuilder.Build(Monday, Monday, [Sleep(), Work(DayOfWeekFlags.Weekdays)], [], []);
+
+        // Sleep 00:00-07:00 and 23:00-24:00, work 08:00-17:00.
+        Assert.Equal(
+            [(new TimeSpan(7, 0, 0), new TimeSpan(8, 0, 0)), (new TimeSpan(17, 0, 0), new TimeSpan(23, 0, 0))],
+            days[0].FreeGaps.Select(g => (g.Start, g.End)));
+        Assert.Equal(60, days[0].FreeGaps[0].Minutes);
+        Assert.Equal(360, days[0].FreeGaps[1].Minutes);
+    }
+
+    [Fact]
+    public void FreeGaps_MergeOverlappingEntriesBeforeMeasuring()
+    {
+        var overlapping = Work(DayOfWeekFlags.EveryDay);
+        overlapping.Id = 2;
+        overlapping.Label = "Overlapping";
+        overlapping.StartTime = new TimeSpan(16, 0, 0);
+        overlapping.EndTime = new TimeSpan(18, 0, 0);
+
+        var days = AgendaBuilder.Build(Monday, Monday, [Work(DayOfWeekFlags.EveryDay), overlapping], [], []);
+
+        // 08:00-17:00 and 16:00-18:00 union to 08:00-18:00, so exactly two gaps, not three.
+        Assert.Equal(
+            [(TimeSpan.Zero, new TimeSpan(8, 0, 0)), (new TimeSpan(18, 0, 0), new TimeSpan(24, 0, 0))],
+            days[0].FreeGaps.Select(g => (g.Start, g.End)));
+    }
+
+    [Fact]
+    public void EmptyDay_IsOneFullDayGap()
+    {
+        var days = AgendaBuilder.Build(Monday, Monday, [Work(DayOfWeekFlags.Weekend)], [], []);
+
+        var gap = Assert.Single(days[0].FreeGaps);
+        Assert.Equal(TimeSpan.Zero, gap.Start);
+        Assert.Equal(new TimeSpan(24, 0, 0), gap.End);
+    }
+
+    [Fact]
+    public void FullyBookedDay_HasNoGaps()
+    {
+        var allDay = Work(DayOfWeekFlags.EveryDay);
+        allDay.StartTime = TimeSpan.Zero;
+        allDay.EndTime = new TimeSpan(24, 0, 0);
+
+        var days = AgendaBuilder.Build(Monday, Monday, [allDay], [], []);
+
+        Assert.Empty(days[0].FreeGaps);
+    }
+
+    [Fact]
+    public void FirstCommitment_SkipsSleep()
+    {
+        var days = AgendaBuilder.Build(Monday, Monday, [Sleep(), Work(DayOfWeekFlags.Weekdays)], [], []);
+
+        Assert.Equal("Core hours", days[0].FirstCommitment!.Label);
     }
 }
