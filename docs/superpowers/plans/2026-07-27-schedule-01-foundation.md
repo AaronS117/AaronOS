@@ -21,7 +21,7 @@ Every task's requirements implicitly include this section. Values are copied ver
 - `Frame.Navigate` in WPF takes an **instance**, not a `Type`: `ContentFrame.Navigate(new TodayPage())`.
 - Never reference another module's entities or tables. `Goal` in this module is unrelated to `BodyMeasurements` goals and must not read them.
 - WPF has no `ColumnSpacing`/`RowSpacing`/`Spacing`/`Padding` on `Grid`/`StackPanel`. Use explicit `Margin` on children.
-- `ui:NumberBox.Value` is a `double`; a cleared box reports `double.NaN`, not null. Use `double.NaN` as the not-entered sentinel and convert to a nullable type at save time. Do not add a value converter.
+- `ui:NumberBox.Value` is declared `double?` on the installed WPF-UI 4.3.0, and a cleared box reports `null`, not `double.NaN`. Bind it to a `double?`, use `null` as the not-entered sentinel, and convert to the target numeric type at save time. Do not add a value converter. A non-nullable `double` target silently fails to update on clear, because WPF drops the `null`→`double` TwoWay conversion instead of throwing — so any `double.IsNaN` guard written against it is unreachable.
 - `DatePicker.SelectedDate` is `DateTime?` in WPF (not `DateTimeOffset`).
 - For per-item buttons inside a `DataTemplate`, use a code-behind `Click` handler reading the item off `DataContext`, matching the existing pages.
 - Imperial units and local time only. No unit toggle, no time-zone handling.
@@ -2094,7 +2094,7 @@ public partial class WeekViewModel(IDbContextFactory<AaronOsDbContext> dbContext
     private bool _newSunday;
 
     /// <summary>Entered as "HH:mm" text rather than through a NumberBox pair — a time of day is one
-    /// value, and ui:NumberBox's double/NaN handling makes two-box entry worse, not better.</summary>
+    /// value, so splitting it across two numeric boxes makes entry worse, not better.</summary>
     [ObservableProperty]
     private string _newStartText = "08:00";
 
@@ -2530,13 +2530,16 @@ public partial class RoutinesViewModel(IDbContextFactory<AaronOsDbContext> dbCon
     [ObservableProperty]
     private RoutineCategory _newCategory = RoutineCategory.Other;
 
-    /// <summary>ui:NumberBox binds a double and reports NaN when cleared, so NaN is the
-    /// not-entered sentinel — converted to int? at save time, per MODULE_GUIDELINES.md.</summary>
+    // ui:NumberBox.Value is double? on the installed WPF-UI 4.3.0 (ValueProperty is registered as
+    // typeof(double?), and clearing the box sets it to null, not NaN) — same convention already
+    // used in AaronOS.Modules.Nutrition, and the rule in docs/MODULE_GUIDELINES.md. A
+    // non-nullable double target here would silently fail to update on clear, since WPF drops a
+    // null->double TwoWay conversion instead of throwing.
     [ObservableProperty]
-    private double _newIntervalDays = 2;
+    private double? _newIntervalDays = 2;
 
     [ObservableProperty]
-    private double _newEstimatedMinutes = double.NaN;
+    private double? _newEstimatedMinutes;
 
     [ObservableProperty]
     private string? _validationMessage;
@@ -2596,7 +2599,7 @@ public partial class RoutinesViewModel(IDbContextFactory<AaronOsDbContext> dbCon
             return;
         }
 
-        var interval = double.IsNaN(NewIntervalDays) ? 0 : (int)NewIntervalDays;
+        var interval = NewIntervalDays is > 0 ? (int)NewIntervalDays.Value : 0;
         if (interval <= 0)
         {
             ValidationMessage = "Interval must be at least 1 day.";
@@ -2609,7 +2612,7 @@ public partial class RoutinesViewModel(IDbContextFactory<AaronOsDbContext> dbCon
             Name = NewName.Trim(),
             Category = NewCategory,
             IntervalDays = interval,
-            EstimatedMinutes = double.IsNaN(NewEstimatedMinutes) ? null : (int)NewEstimatedMinutes,
+            EstimatedMinutes = NewEstimatedMinutes is { } minutes ? (int)minutes : null,
             IsActive = true,
         });
         await db.SaveChangesAsync();

@@ -23,7 +23,7 @@ Every task's requirements implicitly include this section. These repeat Plan 1's
 - `Frame.Navigate` takes an instance: `ContentFrame.Navigate(new SleepPage())`.
 - Never reference another module's entities. `Goal` here is unrelated to `BodyMeasurements` goals and must not read them.
 - WPF `Grid`/`StackPanel` have no `Spacing`/`Padding` — use explicit `Margin` on children.
-- `ui:NumberBox.Value` is a `double`; cleared reports `double.NaN`. Use `NaN` as the not-entered sentinel, convert at save time, no value converter.
+- `ui:NumberBox.Value` is declared `double?` on the installed WPF-UI 4.3.0; a cleared box reports `null`, not `double.NaN`. Bind it to a `double?`, use `null` as the not-entered sentinel, convert at save time, no value converter. A non-nullable `double` target silently fails to update on clear — WPF drops the `null`→`double` TwoWay conversion instead of throwing — so a `double.IsNaN` guard against it is unreachable.
 - `DatePicker.SelectedDate` is `DateTime?`.
 - Per-item buttons in a `DataTemplate` use a code-behind `Click` handler reading `DataContext`.
 - Pure services take `today` (or an explicit date) as a parameter. **Never read `DateTime.Now` inside a pure service** — it makes the rules untestable at an arbitrary date.
@@ -593,21 +593,23 @@ public partial class SleepViewModel(IDbContextFactory<AaronOsDbContext> dbContex
     [ObservableProperty]
     private string _newWakeTimeText = "07:00";
 
+    // Every property below is bound to a ui:NumberBox, so each is double? and null means
+    // "cleared" — see the Global Constraint. Do not narrow these to double.
     [ObservableProperty]
-    private double _newQuality = double.NaN;
+    private double? _newQuality;
 
     // Settings editor.
     [ObservableProperty]
-    private double _targetHours = 8;
+    private double? _targetHours = 8;
 
     [ObservableProperty]
-    private double _sleepOnsetMinutes = 15;
+    private double? _sleepOnsetMinutes = 15;
 
     [ObservableProperty]
-    private double _morningRoutineMinutes = 45;
+    private double? _morningRoutineMinutes = 45;
 
     [ObservableProperty]
-    private double _windDownLeadMinutes = 30;
+    private double? _windDownLeadMinutes = 30;
 
     [ObservableProperty]
     private string? _validationMessage;
@@ -691,7 +693,7 @@ public partial class SleepViewModel(IDbContextFactory<AaronOsDbContext> dbContex
                 NightOf = nightOf,
                 BedTime = bedTime,
                 WakeTime = wakeTime,
-                Quality = double.IsNaN(NewQuality) ? null : (int)NewQuality,
+                Quality = NewQuality is { } quality ? (int)quality : null,
             });
         }
         else
@@ -700,7 +702,7 @@ public partial class SleepViewModel(IDbContextFactory<AaronOsDbContext> dbContex
             // an error the user has to resolve.
             existing.BedTime = bedTime;
             existing.WakeTime = wakeTime;
-            existing.Quality = double.IsNaN(NewQuality) ? null : (int)NewQuality;
+            existing.Quality = NewQuality is { } quality ? (int)quality : null;
         }
 
         await db.SaveChangesAsync();
@@ -721,7 +723,9 @@ public partial class SleepViewModel(IDbContextFactory<AaronOsDbContext> dbContex
     {
         ValidationMessage = null;
 
-        if (double.IsNaN(TargetHours) || TargetHours is <= 0 or > 16)
+        // `is null or <= 0 or > 16` covers the cleared box too — a relational pattern never
+        // matches a null double?, so the null arm has to be spelled out.
+        if (TargetHours is null or <= 0 or > 16)
         {
             ValidationMessage = "Target hours must be between 1 and 16.";
             return;
@@ -729,10 +733,10 @@ public partial class SleepViewModel(IDbContextFactory<AaronOsDbContext> dbContex
 
         await using var db = await dbContextFactory.CreateDbContextAsync();
         var settings = await LoadOrCreateSettingsAsync(db);
-        settings.TargetHours = (decimal)TargetHours;
-        settings.SleepOnsetMinutes = double.IsNaN(SleepOnsetMinutes) ? 0 : (int)SleepOnsetMinutes;
-        settings.MorningRoutineMinutes = double.IsNaN(MorningRoutineMinutes) ? 0 : (int)MorningRoutineMinutes;
-        settings.WindDownLeadMinutes = double.IsNaN(WindDownLeadMinutes) ? 0 : (int)WindDownLeadMinutes;
+        settings.TargetHours = (decimal)TargetHours.Value;
+        settings.SleepOnsetMinutes = (int)(SleepOnsetMinutes ?? 0);
+        settings.MorningRoutineMinutes = (int)(MorningRoutineMinutes ?? 0);
+        settings.WindDownLeadMinutes = (int)(WindDownLeadMinutes ?? 0);
         await db.SaveChangesAsync();
 
         await LoadAsync();

@@ -21,9 +21,9 @@ public partial class RoutinesViewModel(IDbContextFactory<AaronOsDbContext> dbCon
     [ObservableProperty]
     private RoutineCategory _newCategory = RoutineCategory.Other;
 
-    // ui:NumberBox.Value is double? in this WPF-UI version (confirmed against the installed
-    // 3.4.2.7 source: ValueProperty is registered as typeof(double?), and clearing the box sets
-    // it to null, not NaN) — same convention already used in AaronOS.Modules.Nutrition. A
+    // ui:NumberBox.Value is double? on the installed WPF-UI 4.3.0 (ValueProperty is registered as
+    // typeof(double?), and clearing the box sets it to null, not NaN) — same convention already
+    // used in AaronOS.Modules.Nutrition, and the rule in docs/MODULE_GUIDELINES.md. A
     // non-nullable double target here would silently fail to update on clear, since WPF drops a
     // null->double TwoWay conversion instead of throwing.
     [ObservableProperty]
