@@ -10,7 +10,21 @@ public sealed record AgendaEntry(
     TimeSpan End,
     ScheduleBlockKind Kind,
     string Label,
-    AgendaEntrySource Source);
+    AgendaEntrySource Source)
+{
+    private static readonly TimeSpan FullDay = TimeSpan.FromHours(24);
+
+    public string StartDisplay => Format(Start);
+    public string EndDisplay => Format(End);
+
+    /// <summary>
+    /// Bind these in XAML rather than formatting Start/End directly. The first half of a
+    /// midnight-wrapping block ends at exactly 24:00, and the `hh` custom format specifier reads
+    /// the Hours component after Days are stripped — so it would render as "00:00".
+    /// </summary>
+    private static string Format(TimeSpan value) =>
+        value == FullDay ? "24:00" : value.ToString(@"hh\:mm");
+}
 
 /// <summary>An uncommitted span. Sleep counts as committed, so gaps are naturally waking hours.</summary>
 public sealed record FreeGap(TimeSpan Start, TimeSpan End)
