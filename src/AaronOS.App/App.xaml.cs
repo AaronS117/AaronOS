@@ -2,6 +2,7 @@ using AaronOS_App.ViewModels;
 using AaronOS.Core;
 using AaronOS.Core.Data;
 using AaronOS.Modules.BodyMeasurements;
+using AaronOS.Modules.Finance;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -31,7 +32,7 @@ public partial class App : Application
 
         // The full list of registered modules. Adding a module means adding a project
         // reference plus one line here — see docs/MODULE_GUIDELINES.md.
-        IAppModule[] modules = [new BodyMeasurementsModule()];
+        IAppModule[] modules = [new BodyMeasurementsModule(), new FinanceModule()];
 
         _host = Host.CreateDefaultBuilder()
             .ConfigureServices(services =>

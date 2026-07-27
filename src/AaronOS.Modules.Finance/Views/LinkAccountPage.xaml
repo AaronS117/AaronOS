@@ -1,0 +1,27 @@
+<Page
+    x:Class="AaronOS.Modules.Finance.Views.LinkAccountPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+    mc:Ignorable="d">
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="Link Account" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,12" />
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,12">
+            <ui:Button Content="Start Link" Command="{Binding CreateLinkTokenCommand}" Appearance="Primary" Margin="0,0,12,0" />
+            <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" />
+        </StackPanel>
+
+        <wv2:WebView2 x:Name="WebView" Grid.Row="2" />
+    </Grid>
+</Page>

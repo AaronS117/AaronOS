@@ -8,6 +8,7 @@
     xmlns:pages="clr-namespace:AaronOS_App.Pages"
     Title="AaronOS"
     Height="720" Width="1080"
+    Icon="pack://application:,,,/Assets/AppIcon.ico"
     ExtendsContentIntoTitleBar="True"
     WindowBackdropType="Mica"
     mc:Ignorable="d">
@@ -18,7 +19,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <ui:TitleBar Grid.Row="0" Title="AaronOS" />
+        <ui:TitleBar Grid.Row="0" Title="AaronOS" Icon="pack://application:,,,/Assets/AppIcon.ico" />
 
         <ui:NavigationView x:Name="NavView" Grid.Row="1">
             <ui:NavigationView.FooterMenuItems>

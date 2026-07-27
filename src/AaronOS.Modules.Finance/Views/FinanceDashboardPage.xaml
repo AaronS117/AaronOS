@@ -1,0 +1,60 @@
+<Page
+    x:Class="AaronOS.Modules.Finance.Views.FinanceDashboardPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:data="clr-namespace:AaronOS.Modules.Finance.Data"
+    mc:Ignorable="d">
+
+    <ScrollViewer Padding="24">
+        <StackPanel MaxWidth="720" HorizontalAlignment="Left">
+            <TextBlock Text="Finance" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,16" />
+
+            <TextBlock Text="Total balance" Opacity="0.7" />
+            <TextBlock Text="{Binding TotalBalance, StringFormat=C}" FontSize="24" FontWeight="SemiBold" Margin="0,0,0,16" />
+
+            <ui:Button Content="Sync Now" Command="{Binding SyncNowCommand}" Appearance="Primary" Margin="0,0,0,4" />
+            <TextBlock Text="{Binding ErrorMessage}" Foreground="Red" Margin="0,0,0,16" />
+
+            <TextBlock Text="Accounts" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,8" />
+            <ItemsControl ItemsSource="{Binding Accounts}" Margin="0,0,0,16">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type data:FinanceAccount}">
+                        <Grid Margin="0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="{Binding Name}" />
+                            <TextBlock Grid.Column="1" Text="{Binding CurrentBalance, StringFormat=C}" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Text="Spend by category (this month)" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,8" />
+            <lvc:PieChart Series="{Binding SpendByCategorySeries}" Height="240" Margin="0,0,0,16" />
+
+            <TextBlock Text="Recent transactions (30 days)" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,8" />
+            <ItemsControl ItemsSource="{Binding RecentTransactions}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type data:FinanceTransaction}">
+                        <Grid Margin="0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="100" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="{Binding Date}" />
+                            <TextBlock Grid.Column="1" Text="{Binding Name}" Margin="8,0" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Column="2" Text="{Binding Amount, StringFormat=C}" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
+</Page>
