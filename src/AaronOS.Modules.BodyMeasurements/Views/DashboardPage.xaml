@@ -6,6 +6,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
     xmlns:vm="clr-namespace:AaronOS.Modules.BodyMeasurements.ViewModels"
+    xmlns:views="clr-namespace:AaronOS.Modules.BodyMeasurements.Views"
     mc:Ignorable="d">
 
     <Page.Resources>
@@ -66,6 +67,46 @@
                         FontSize="18"
                         Margin="0,6,0,0" />
                 </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Body: the outline is always drawn, using average proportions and dimmed when there is
+             nothing recorded yet, so it works as a frame of reference from the first launch. -->
+        <TextBlock Text="BODY" Style="{DynamicResource EyebrowText}" />
+        <Border Style="{DynamicResource SurfaceCard}" Padding="18,16" Margin="0,0,0,26">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <views:BodySilhouette x:Name="Silhouette" Grid.Column="0" Width="190" Height="360" />
+
+                <ItemsControl Grid.Column="1" ItemsSource="{Binding MeasurementRows}" Margin="24,4,0,0" VerticalAlignment="Center">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:MeasurementRow}">
+                            <Grid Margin="0,5">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding Label}" Style="{DynamicResource CaptionText}" />
+                                <TextBlock Grid.Column="1" Text="{Binding Display}" MinWidth="64">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource NumericText}">
+                                            <Style.Triggers>
+                                                <!-- Not-yet-recorded values recede rather than sitting at full contrast. -->
+                                                <DataTrigger Binding="{Binding HasValue}" Value="False">
+                                                    <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
             </Grid>
         </Border>
 

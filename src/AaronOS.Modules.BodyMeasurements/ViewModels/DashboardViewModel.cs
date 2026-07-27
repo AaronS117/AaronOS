@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using AaronOS.Core;
 using AaronOS.Core.Data;
 using AaronOS.Modules.BodyMeasurements.Data;
@@ -12,6 +13,10 @@ using Microsoft.EntityFrameworkCore;
 using SkiaSharp;
 
 namespace AaronOS.Modules.BodyMeasurements.ViewModels;
+
+/// <summary>One labelled measurement for the dashboard readout beside the silhouette. Missing values
+/// still get a row, shown as a dash, so the full set is always visible as a checklist.</summary>
+public record MeasurementRow(string Label, string Display, bool HasValue);
 
 public class GoalProgress
 {
@@ -46,9 +51,13 @@ public partial class DashboardViewModel(IDbContextFactory<AaronOsDbContext> dbCo
     private static readonly SKColor AxisLabel = new(0x9A, 0xA3, 0xB2);
     private static readonly SKColor Separator = new(0x2A, 0x2A, 0x30);
 
+    /// <summary>Most recent check-in, handed to the silhouette control so it can size its segments.</summary>
+    public BodyCheckIn? LatestCheckIn { get; private set; }
+
     public List<GoalProgress> ActiveGoals { get; } = [];
     public List<ISeries> WeightSeries { get; } = [];
     public List<ICartesianAxis> WeightAxes { get; } = [];
+    public ObservableCollection<MeasurementRow> MeasurementRows { get; } = [];
 
     [RelayCommand]
     private async Task LoadAsync()
@@ -63,8 +72,10 @@ public partial class DashboardViewModel(IDbContextFactory<AaronOsDbContext> dbCo
                 .ToListAsync();
 
             var latest = checkIns.LastOrDefault();
+            LatestCheckIn = latest;
             LatestWeightLb = latest?.WeightLb;
             LatestCheckInDate = latest?.Date;
+            BuildMeasurementRows(latest);
 
             var profile = await db.UserProfiles.FirstOrDefaultAsync();
             Bmi = BmiCalculator.Calculate(LatestWeightLb, profile?.HeightInches);
@@ -114,6 +125,34 @@ public partial class DashboardViewModel(IDbContextFactory<AaronOsDbContext> dbCo
         finally
         {
             IsBusy = false;
+        }
+    }
+
+    /// <summary>Every tracked measurement gets a row whether or not it was recorded, so the list
+    /// doubles as a checklist of what is still missing from the latest check-in.</summary>
+    private void BuildMeasurementRows(BodyCheckIn? c)
+    {
+        (string Label, decimal? Value)[] source =
+        [
+            ("Neck", c?.NeckIn),
+            ("Chest", c?.ChestIn),
+            ("Waist", c?.WaistIn),
+            ("Hips", c?.HipsIn),
+            ("Bicep L", c?.BicepLeftIn),
+            ("Bicep R", c?.BicepRightIn),
+            ("Thigh L", c?.ThighLeftIn),
+            ("Thigh R", c?.ThighRightIn),
+            ("Calf L", c?.CalfLeftIn),
+            ("Calf R", c?.CalfRightIn),
+        ];
+
+        MeasurementRows.Clear();
+        foreach (var (label, value) in source)
+        {
+            MeasurementRows.Add(new MeasurementRow(
+                label,
+                value is null ? "—" : $"{value:N1}″",
+                value is not null));
         }
     }
 

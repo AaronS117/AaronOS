@@ -5,19 +5,50 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:views="clr-namespace:AaronOS.Modules.BodyMeasurements.Views"
     mc:Ignorable="d">
 
-    <ScrollViewer Padding="24">
-        <StackPanel MaxWidth="480" HorizontalAlignment="Left">
-            <TextBlock Text="Check In" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,16" />
+    <Page.Resources>
+        <!-- Field label sitting above a NumberBox in the measurements grid. -->
+        <Style x:Key="FieldLabel" TargetType="TextBlock" BasedOn="{StaticResource CaptionText}">
+            <Setter Property="Margin" Value="0,0,0,5" />
+        </Style>
+    </Page.Resources>
 
-            <TextBlock Text="Date" Margin="0,0,0,4" />
-            <DatePicker SelectedDate="{Binding Date, Mode=TwoWay}" Margin="0,0,0,12" />
+    <!-- No ScrollViewer: the shell scrolls the page (see FinanceDashboardPage.xaml). -->
+    <StackPanel MaxWidth="720" HorizontalAlignment="Left" Margin="28,20,28,32">
 
-            <TextBlock Text="Weight (lb)" Margin="0,0,0,4" />
-            <ui:NumberBox Value="{Binding WeightLb, Mode=TwoWay}" Margin="0,0,0,16" />
+        <TextBlock Text="Check In" Style="{DynamicResource PageTitleText}" Margin="0,0,0,22" />
 
-            <TextBlock Text="Measurements (in)" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,8" />
+        <!--
+            Weight leads, as a scroll wheel: logging a weight is the thing done most often, so the
+            quickest path through this page is open, flick, save. Everything else is optional and
+            sits below.
+        -->
+        <TextBlock Text="WEIGHT" Style="{DynamicResource EyebrowText}" />
+        <Border Style="{DynamicResource SurfaceCard}" Padding="18,18" Margin="0,0,0,14">
+            <views:WeightPicker x:Name="Picker" Weight="{Binding WeightLb, Mode=TwoWay}" />
+        </Border>
+
+        <Grid Margin="0,0,0,26">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" Width="190">
+                <TextBlock Text="DATE" Style="{DynamicResource EyebrowText}" Margin="0,0,0,6" />
+                <DatePicker SelectedDate="{Binding Date, Mode=TwoWay}" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" VerticalAlignment="Bottom" HorizontalAlignment="Right">
+                <ui:Button Content="Save check-in" Command="{Binding SaveCommand}" Appearance="Primary" />
+            </StackPanel>
+        </Grid>
+
+        <TextBlock Text="{Binding StatusMessage}" Style="{DynamicResource CaptionText}" Margin="0,0,0,18" />
+
+        <!-- Optional tape measurements. Leave any of them blank; only what you fill in is stored. -->
+        <TextBlock Text="MEASUREMENTS · OPTIONAL, IN INCHES" Style="{DynamicResource EyebrowText}" />
+        <Border Style="{DynamicResource SurfaceCard}" Padding="18,16" Margin="0,0,0,20">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -31,57 +62,58 @@
                     <RowDefinition />
                 </Grid.RowDefinitions>
 
-                <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,12,12">
-                    <TextBlock Text="Neck" Margin="0,0,0,4" />
+                <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,14,14">
+                    <TextBlock Text="Neck" Style="{StaticResource FieldLabel}" />
                     <ui:NumberBox Value="{Binding NeckIn, Mode=TwoWay}" />
                 </StackPanel>
-                <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,12">
-                    <TextBlock Text="Chest" Margin="0,0,0,4" />
+                <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,14">
+                    <TextBlock Text="Chest" Style="{StaticResource FieldLabel}" />
                     <ui:NumberBox Value="{Binding ChestIn, Mode=TwoWay}" />
                 </StackPanel>
 
-                <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,12,12">
-                    <TextBlock Text="Waist" Margin="0,0,0,4" />
+                <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,14,14">
+                    <TextBlock Text="Waist" Style="{StaticResource FieldLabel}" />
                     <ui:NumberBox Value="{Binding WaistIn, Mode=TwoWay}" />
                 </StackPanel>
-                <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,12">
-                    <TextBlock Text="Hips" Margin="0,0,0,4" />
+                <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,14">
+                    <TextBlock Text="Hips" Style="{StaticResource FieldLabel}" />
                     <ui:NumberBox Value="{Binding HipsIn, Mode=TwoWay}" />
                 </StackPanel>
 
-                <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,12,12">
-                    <TextBlock Text="Bicep (L)" Margin="0,0,0,4" />
+                <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,14,14">
+                    <TextBlock Text="Bicep, left" Style="{StaticResource FieldLabel}" />
                     <ui:NumberBox Value="{Binding BicepLeftIn, Mode=TwoWay}" />
                 </StackPanel>
-                <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,0,0,12">
-                    <TextBlock Text="Bicep (R)" Margin="0,0,0,4" />
+                <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,0,0,14">
+                    <TextBlock Text="Bicep, right" Style="{StaticResource FieldLabel}" />
                     <ui:NumberBox Value="{Binding BicepRightIn, Mode=TwoWay}" />
                 </StackPanel>
 
-                <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,0,12,12">
-                    <TextBlock Text="Thigh (L)" Margin="0,0,0,4" />
+                <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,0,14,14">
+                    <TextBlock Text="Thigh, left" Style="{StaticResource FieldLabel}" />
                     <ui:NumberBox Value="{Binding ThighLeftIn, Mode=TwoWay}" />
                 </StackPanel>
-                <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,0,0,12">
-                    <TextBlock Text="Thigh (R)" Margin="0,0,0,4" />
+                <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,0,0,14">
+                    <TextBlock Text="Thigh, right" Style="{StaticResource FieldLabel}" />
                     <ui:NumberBox Value="{Binding ThighRightIn, Mode=TwoWay}" />
                 </StackPanel>
 
-                <StackPanel Grid.Row="4" Grid.Column="0" Margin="0,0,12,12">
-                    <TextBlock Text="Calf (L)" Margin="0,0,0,4" />
+                <StackPanel Grid.Row="4" Grid.Column="0" Margin="0,0,14,0">
+                    <TextBlock Text="Calf, left" Style="{StaticResource FieldLabel}" />
                     <ui:NumberBox Value="{Binding CalfLeftIn, Mode=TwoWay}" />
                 </StackPanel>
-                <StackPanel Grid.Row="4" Grid.Column="1" Margin="0,0,0,12">
-                    <TextBlock Text="Calf (R)" Margin="0,0,0,4" />
+                <StackPanel Grid.Row="4" Grid.Column="1">
+                    <TextBlock Text="Calf, right" Style="{StaticResource FieldLabel}" />
                     <ui:NumberBox Value="{Binding CalfRightIn, Mode=TwoWay}" />
                 </StackPanel>
             </Grid>
+        </Border>
 
-            <TextBlock Text="Notes" Margin="0,4,0,4" />
-            <TextBox Text="{Binding Notes, Mode=TwoWay}" AcceptsReturn="True" Height="72" Margin="0,0,0,16" />
-
-            <ui:Button Content="Save Check-In" Command="{Binding SaveCommand}" Appearance="Primary" />
-            <TextBlock Text="{Binding StatusMessage}" Opacity="0.7" Margin="0,8,0,0" />
-        </StackPanel>
-    </ScrollViewer>
+        <TextBlock Text="NOTES" Style="{DynamicResource EyebrowText}" />
+        <ui:TextBox
+            Text="{Binding Notes, Mode=TwoWay}"
+            PlaceholderText="Anything worth remembering about today"
+            AcceptsReturn="True"
+            Height="80" />
+    </StackPanel>
 </Page>

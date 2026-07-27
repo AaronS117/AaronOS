@@ -55,6 +55,25 @@ public partial class CheckInViewModel(IDbContextFactory<AaronOsDbContext> dbCont
 
     private static decimal? ToEntry(double value) => double.IsNaN(value) ? null : (decimal)value;
 
+    /// <summary>Opens the weight wheel at the most recent recorded weight, so a routine check-in is
+    /// a small nudge from last time rather than a scroll from an arbitrary default.</summary>
+    [RelayCommand]
+    private async Task LoadAsync()
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync();
+        var lastWeight = await db.Set<BodyCheckIn>()
+            .Where(c => c.WeightLb != null)
+            .OrderByDescending(c => c.Date)
+            .ThenByDescending(c => c.Id)
+            .Select(c => c.WeightLb)
+            .FirstOrDefaultAsync();
+
+        if (lastWeight is not null)
+        {
+            WeightLb = (double)lastWeight.Value;
+        }
+    }
+
     [RelayCommand]
     private async Task SaveAsync()
     {
@@ -80,8 +99,10 @@ public partial class CheckInViewModel(IDbContextFactory<AaronOsDbContext> dbCont
             });
             await db.SaveChangesAsync();
 
-            StatusMessage = "Check-in saved.";
-            WeightLb = NeckIn = ChestIn = WaistIn = HipsIn = double.NaN;
+            StatusMessage = $"Saved {Date?.ToString("MMM d") ?? "today"}. Weight {WeightLb:N1} lb.";
+            // Weight deliberately survives the reset: the wheel should stay where it was set rather
+            // than snapping back, and the next check-in almost always starts near the same figure.
+            NeckIn = ChestIn = WaistIn = HipsIn = double.NaN;
             BicepLeftIn = BicepRightIn = ThighLeftIn = ThighRightIn = CalfLeftIn = CalfRightIn = double.NaN;
             Notes = "";
         }

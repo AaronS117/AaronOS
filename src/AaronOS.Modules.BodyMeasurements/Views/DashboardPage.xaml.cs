@@ -14,6 +14,12 @@ public sealed partial class DashboardPage : Page
         ViewModel = AppServices.Provider.GetRequiredService<DashboardViewModel>();
         DataContext = ViewModel;
         InitializeComponent();
-        Loaded += async (_, _) => await ViewModel.LoadCommand.ExecuteAsync(null);
+        Loaded += async (_, _) =>
+        {
+            await ViewModel.LoadCommand.ExecuteAsync(null);
+            // Pushed in rather than bound: the silhouette redraws imperatively from a whole
+            // check-in, which is far simpler than ten dependency properties.
+            Silhouette.Apply(ViewModel.LatestCheckIn);
+        };
     }
 }

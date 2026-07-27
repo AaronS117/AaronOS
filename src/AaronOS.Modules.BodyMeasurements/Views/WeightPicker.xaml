@@ -1,0 +1,102 @@
+<UserControl
+    x:Class="AaronOS.Modules.BodyMeasurements.Views.WeightPicker"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <!--
+            A wheel column. Height is fixed on purpose: it gives the inner ScrollViewer a real
+            viewport so it scrolls (and so the wheel over it adjusts the value instead of the page).
+            CanContentScroll snaps scrolling to whole items, which is what makes it feel like a
+            picker rather than a free-scrolling list.
+        -->
+        <Style x:Key="WheelColumn" TargetType="ListBox">
+            <Setter Property="Height" Value="150" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Hidden" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Center" />
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="Height" Value="30" />
+                        <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+                        <Setter Property="FontFamily" Value="Cascadia Mono, Consolas" />
+                        <Setter Property="FontSize" Value="17" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <!-- No selection chrome: the centre band and colour carry selection,
+                                     so a highlighted rectangle would just fight with them. -->
+                                <ControlTemplate TargetType="ListBoxItem">
+                                    <Border Background="Transparent" Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            TextBlock.Foreground="{TemplateBinding Foreground}"
+                                            TextBlock.FontFamily="{TemplateBinding FontFamily}"
+                                            TextBlock.FontSize="{TemplateBinding FontSize}" />
+                                    </Border>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                        <Style.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                                <Setter Property="FontSize" Value="22" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel>
+        <Grid Height="150">
+            <!-- Selection band, sized to one row and centred, so the value under it is "chosen". -->
+            <Border
+                Height="32"
+                VerticalAlignment="Center"
+                CornerRadius="6"
+                Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                BorderThickness="0,1,0,1"
+                BorderBrush="{DynamicResource ReactorGlow}"
+                Opacity="0.9" />
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                <ListBox x:Name="WholeList" Style="{StaticResource WheelColumn}" Width="86"
+                         SelectionChanged="Column_SelectionChanged" />
+                <TextBlock
+                    Text="."
+                    VerticalAlignment="Center"
+                    FontFamily="Cascadia Mono, Consolas"
+                    FontSize="22"
+                    Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                    Margin="2,0" />
+                <ListBox x:Name="TenthList" Style="{StaticResource WheelColumn}" Width="52"
+                         SelectionChanged="Column_SelectionChanged" />
+                <TextBlock
+                    Text="lb"
+                    VerticalAlignment="Center"
+                    FontSize="14"
+                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                    Margin="10,4,0,0" />
+            </StackPanel>
+        </Grid>
+
+        <TextBlock
+            x:Name="Hint"
+            Text="Scroll to set your weight"
+            Style="{DynamicResource CaptionText}"
+            Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+            HorizontalAlignment="Center"
+            Margin="0,8,0,0" />
+    </StackPanel>
+</UserControl>
