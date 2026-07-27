@@ -22,6 +22,7 @@ public class MedicalModule : IAppModule
         services.AddTransient<MedicationsViewModel>();
         services.AddTransient<VisitsViewModel>();
         services.AddTransient<LabsViewModel>();
+        services.AddTransient<MoodViewModel>();
         services.AddTransient<ImportViewModel>();
     }
 }

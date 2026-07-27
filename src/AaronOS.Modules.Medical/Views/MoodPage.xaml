@@ -1,0 +1,312 @@
+<Page
+    x:Class="AaronOS.Modules.Medical.Views.MoodPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
+    xmlns:data="clr-namespace:AaronOS.Modules.Medical.Data"
+    xmlns:calc="clr-namespace:AaronOS.Modules.Medical.Calculations"
+    mc:Ignorable="d">
+
+    <Page.Resources>
+        <Style x:Key="EmptyStateText" TargetType="TextBlock" BasedOn="{StaticResource CaptionText}">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Setter Property="Margin" Value="14,12" />
+        </Style>
+        <Style x:Key="FieldLabel" TargetType="TextBlock" BasedOn="{StaticResource EyebrowText}">
+            <Setter Property="Margin" Value="0,0,0,6" />
+        </Style>
+        <Style x:Key="RowAction" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="6,2" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+        </Style>
+    </Page.Resources>
+
+    <StackPanel MaxWidth="780" HorizontalAlignment="Left" Margin="28,20,28,32">
+
+        <TextBlock Text="Mood" Style="{DynamicResource PageTitleText}" Margin="0,0,0,10" />
+        <TextBlock
+            Text="A daily log of mood, sleep and energy. Mood runs from −5 (severely low) through 0 (even) to +5 (severely elevated), so a low day and a wired day are distinguishable rather than both reading as 'not fine'. This is your own account, not a clinical assessment — its purpose is to replace recall with data when you talk to a doctor."
+            Style="{DynamicResource CaptionText}"
+            TextWrapping="Wrap"
+            Margin="0,0,0,22" />
+
+        <!-- Today's entry -->
+        <TextBlock Text="LOG A DAY" Style="{DynamicResource EyebrowText}" />
+        <Border Style="{DynamicResource SurfaceCard}" Padding="18,16" Margin="0,0,0,26">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="*" MinWidth="240" />
+                        <ColumnDefinition Width="120" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                        <TextBlock Text="DATE" Style="{DynamicResource FieldLabel}" />
+                        <DatePicker SelectedDate="{Binding EntryDate, Mode=TwoWay}" />
+                        <TextBlock
+                            Text="Already logged — saving updates it"
+                            Style="{DynamicResource CaptionText}"
+                            Foreground="{DynamicResource ExpirySoon}"
+                            TextWrapping="Wrap"
+                            Margin="0,6,0,0"
+                            Visibility="{Binding EditingExistingDay, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="MOOD" Style="{DynamicResource FieldLabel}" />
+                            <TextBlock Grid.Column="1" Text="{Binding MoodLabel}" Style="{DynamicResource CaptionText}" Margin="0,0,0,6" />
+                        </Grid>
+                        <Slider
+                            Minimum="-5" Maximum="5"
+                            TickFrequency="1" IsSnapToTickEnabled="True"
+                            TickPlacement="BottomRight"
+                            Value="{Binding Mood, Mode=TwoWay}" />
+                        <Grid Margin="0,2,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="−5 low" Style="{DynamicResource CaptionText}" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            <TextBlock Grid.Column="1" Text="0 even" Style="{DynamicResource CaptionText}" Foreground="{DynamicResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center" />
+                            <TextBlock Grid.Column="2" Text="+5 elevated" Style="{DynamicResource CaptionText}" Foreground="{DynamicResource TextFillColorTertiaryBrush}" HorizontalAlignment="Right" />
+                        </Grid>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="SLEEP (H)" Style="{DynamicResource FieldLabel}" />
+                        <ui:NumberBox Value="{Binding SleepHours, Mode=TwoWay}" PlaceholderText="7.5" />
+                    </StackPanel>
+                </Grid>
+
+                <Grid Margin="0,16,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="170" />
+                        <ColumnDefinition Width="*" MinWidth="240" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                        <TextBlock Text="ENERGY" Style="{DynamicResource FieldLabel}" />
+                        <Slider
+                            Minimum="1" Maximum="5"
+                            TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding Energy, Mode=TwoWay}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                        <TextBlock Text="NOTE" Style="{DynamicResource FieldLabel}" />
+                        <ui:TextBox Text="{Binding Note, Mode=TwoWay}" PlaceholderText="Anything worth remembering about today" />
+                    </StackPanel>
+
+                    <ui:Button Grid.Column="2" Content="Save" Command="{Binding SaveCommand}" Appearance="Primary" VerticalAlignment="Bottom" MinWidth="88" />
+                </Grid>
+
+                <TextBlock Text="{Binding StatusMessage}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource CaptionText}">
+                            <Setter Property="Margin" Value="0,12,0,0" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding StatusMessage}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+
+        <!-- Last 30 days -->
+        <TextBlock Text="LAST 30 DAYS" Style="{DynamicResource EyebrowText}" />
+        <Border Style="{DynamicResource SurfaceCard}" Padding="22,18" Margin="0,0,0,26">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="DAYS LOGGED" Style="{DynamicResource EyebrowText}" Margin="0,0,0,4" />
+                        <TextBlock Text="{Binding DaysLogged}" Style="{DynamicResource HeroMetricText}" FontSize="26" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="SWING" Style="{DynamicResource EyebrowText}" Margin="0,0,0,4" />
+                        <TextBlock Text="{Binding Swing}" Style="{DynamicResource HeroMetricText}" FontSize="26" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="LOW DAYS" Style="{DynamicResource EyebrowText}" Margin="0,0,0,4" />
+                        <TextBlock Text="{Binding LowDays}" Style="{DynamicResource HeroMetricText}" FontSize="26" Foreground="{DynamicResource ExpiryPast}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="3">
+                        <TextBlock Text="ELEVATED DAYS" Style="{DynamicResource EyebrowText}" Margin="0,0,0,4" />
+                        <TextBlock Text="{Binding ElevatedDays}" Style="{DynamicResource HeroMetricText}" FontSize="26" Foreground="{DynamicResource ExpirySoon}" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- Swing is stated in words because an average alone hides instability. -->
+                <TextBlock
+                    Text="{Binding SwingDescription}"
+                    Style="{DynamicResource CaptionText}"
+                    Margin="0,14,0,0" />
+                <TextBlock Style="{DynamicResource CaptionText}" Foreground="{DynamicResource TextFillColorTertiaryBrush}" Margin="0,4,0,0">
+                    <Run Text="Average mood " /><Run Text="{Binding AverageMood, Mode=OneWay}" /><Run Text=" · sleep " /><Run Text="{Binding SleepSummary, Mode=OneWay}" />
+                </TextBlock>
+            </StackPanel>
+        </Border>
+
+        <!-- Trend -->
+        <TextBlock Text="MOOD AND SLEEP · LAST 60 DAYS" Style="{DynamicResource EyebrowText}" />
+        <Border Style="{DynamicResource SurfaceCard}" Padding="18,16" Margin="0,0,0,26">
+            <StackPanel>
+                <lvc:CartesianChart
+                    Height="280"
+                    Series="{Binding TrendSeries}"
+                    XAxes="{Binding TrendXAxes}"
+                    YAxes="{Binding TrendYAxes}"
+                    Background="Transparent"
+                    Visibility="{Binding HasTrend, Converter={StaticResource BoolToVis}}" />
+                <TextBlock Text="Log a few days and the trend will appear here, with sleep on its own scale.">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource CaptionText}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasTrend}" Value="False">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+
+        <!-- Month by month: the seasonal question, with numbers attached. -->
+        <StackPanel Visibility="{Binding HasMonths, Converter={StaticResource BoolToVis}}">
+            <TextBlock Text="MONTH BY MONTH" Style="{DynamicResource EyebrowText}" />
+            <Border Style="{DynamicResource SurfaceCard}" Padding="4,2" Margin="0,0,0,26">
+                <ItemsControl ItemsSource="{Binding Months}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type calc:MonthlyMood}">
+                            <Grid Margin="14,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" MinWidth="140" />
+                                    <ColumnDefinition Width="120" />
+                                    <ColumnDefinition Width="140" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding Label}" Style="{DynamicResource BodyText}" FontSize="13" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="{Binding AverageMood}" VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource NumericText}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsLow}" Value="True">
+                                                    <Setter Property="Foreground" Value="{DynamicResource ExpiryPast}" />
+                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Grid.Column="2" Text="{Binding DaysLogged, StringFormat='{}{0} days logged'}" Style="{DynamicResource CaptionText}" Foreground="{DynamicResource TextFillColorTertiaryBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Border>
+        </StackPanel>
+
+        <!-- History -->
+        <TextBlock Text="ENTRIES" Style="{DynamicResource EyebrowText}" />
+        <Border Style="{DynamicResource SurfaceCard}" Padding="4,2">
+            <StackPanel>
+                <Grid Margin="14,10,14,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="110" />
+                        <ColumnDefinition Width="60" />
+                        <ColumnDefinition Width="110" />
+                        <ColumnDefinition Width="70" />
+                        <ColumnDefinition Width="70" />
+                        <ColumnDefinition Width="*" MinWidth="120" />
+                        <ColumnDefinition Width="70" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="DATE" Style="{DynamicResource EyebrowText}" Margin="0" />
+                    <TextBlock Grid.Column="1" Text="MOOD" Style="{DynamicResource EyebrowText}" Margin="0" HorizontalAlignment="Right" />
+                    <TextBlock Grid.Column="2" Text="" Style="{DynamicResource EyebrowText}" Margin="10,0,0,0" />
+                    <TextBlock Grid.Column="3" Text="SLEEP" Style="{DynamicResource EyebrowText}" Margin="0" HorizontalAlignment="Right" />
+                    <TextBlock Grid.Column="4" Text="ENERGY" Style="{DynamicResource EyebrowText}" Margin="0" HorizontalAlignment="Right" />
+                    <TextBlock Grid.Column="5" Text="NOTE" Style="{DynamicResource EyebrowText}" Margin="12,0,0,0" />
+                </Grid>
+                <Border Height="1" Background="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="14,0,14,4" />
+
+                <ItemsControl ItemsSource="{Binding Entries}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type data:MoodEntry}">
+                            <Grid Margin="14,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="60" />
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="*" MinWidth="120" />
+                                    <ColumnDefinition Width="70" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding DateDisplay}" Style="{DynamicResource CaptionText}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="{Binding MoodDisplay}" VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource NumericText}">
+                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsLow}" Value="True">
+                                                    <Setter Property="Foreground" Value="{DynamicResource ExpiryPast}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsElevated}" Value="True">
+                                                    <Setter Property="Foreground" Value="{DynamicResource ExpirySoon}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Grid.Column="2" Text="{Binding MoodLabel}" Style="{DynamicResource CaptionText}" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" Margin="10,0,0,0" />
+                                <TextBlock Grid.Column="3" Text="{Binding SleepDisplay}" Style="{DynamicResource NumericText}" FontSize="12" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="4" Text="{Binding EnergyDisplay}" Style="{DynamicResource NumericText}" FontSize="12" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="5" Text="{Binding NoteDisplay}" Style="{DynamicResource CaptionText}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="12,0,0,0" />
+                                <Button Grid.Column="6" Content="Remove" Style="{StaticResource RowAction}" Click="DeleteEntry_Click" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Text="Nothing logged yet. Start with today.">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource EmptyStateText}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasEntries}" Value="False">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</Page>

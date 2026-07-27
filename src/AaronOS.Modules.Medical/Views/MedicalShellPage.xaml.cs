@@ -21,5 +21,6 @@ public sealed partial class MedicalShellPage : Page
     private void Medications_Click(object sender, RoutedEventArgs e) => ContentFrame.Navigate(new MedicationsPage());
     private void Visits_Click(object sender, RoutedEventArgs e) => ContentFrame.Navigate(new VisitsPage());
     private void Labs_Click(object sender, RoutedEventArgs e) => ContentFrame.Navigate(new LabsPage());
+    private void Mood_Click(object sender, RoutedEventArgs e) => ContentFrame.Navigate(new MoodPage());
     private void Import_Click(object sender, RoutedEventArgs e) => ContentFrame.Navigate(new ImportPage());
 }
