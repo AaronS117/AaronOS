@@ -69,13 +69,28 @@ public class BodyFigureTests
     [Fact]
     public void Asset_BaseGirthsMatchARealAdultBody()
     {
-        // The whole deformation is a ratio against these numbers. If the base mesh's own measurements
-        // were wrong, every figure would be silently distorted even with correct data entered.
-        Assert.InRange(GirthAtHeight(BodyRegionKind.Torso, 0.530) * 70, 36, 43);   // hips
-        Assert.InRange(GirthAtHeight(BodyRegionKind.Torso, 0.615) * 70, 28, 34);   // waist
-        Assert.InRange(GirthAtHeight(BodyRegionKind.Torso, 0.720) * 70, 31, 38);   // chest
+        // The whole deformation is a ratio against these numbers, so if the base mesh's own
+        // measurements were wrong, every figure would be silently distorted even with correct data
+        // entered. Ranges are for an average slim adult male at 70 inches.
+        Assert.InRange(GirthAtHeight(BodyRegionKind.Torso, 0.530) * 70, 35, 41);    // hips
+        Assert.InRange(GirthAtHeight(BodyRegionKind.Torso, 0.615) * 70, 28, 34);    // waist
+        Assert.InRange(GirthAtHeight(BodyRegionKind.Torso, 0.720) * 70, 35, 41);    // chest
         Assert.InRange(GirthAtHeight(BodyRegionKind.LegRight, 0.410) * 70, 18, 24); // thigh
         Assert.InRange(GirthAtHeight(BodyRegionKind.LegRight, 0.225) * 70, 12, 17); // calf
+    }
+
+    [Fact]
+    public void Asset_IsBuiltFromTheMaleMorphNotTheNeutralBaseMesh()
+    {
+        // MakeHuman's raw base mesh is androgynous and reads as female. Its chest measures narrower
+        // than its hips; applying the male targets brings the chest up to at least match them. This is
+        // the cheapest signal that distinguishes the two, so it catches an asset rebuilt without the
+        // morph — which would otherwise look wrong and pass every other test here.
+        var chest = GirthAtHeight(BodyRegionKind.Torso, 0.720);
+        var hips = GirthAtHeight(BodyRegionKind.Torso, 0.530);
+
+        Assert.True(chest / hips > 0.95,
+            $"chest/hips is {chest / hips:F2}; the neutral base mesh sits near 0.83, the male morph near 1.00");
     }
 
     [Fact]

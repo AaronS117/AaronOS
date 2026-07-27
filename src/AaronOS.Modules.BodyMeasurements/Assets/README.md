@@ -2,12 +2,32 @@
 
 ## `human-base.mesh`
 
-Derived from the **MakeHuman community base mesh** (`makehuman/data/3dobjs/base.obj`), taken from
+Derived from the **MakeHuman community base mesh** (`makehuman/data/3dobjs/base.obj`) with MakeHuman's
+own young-male morph targets applied, all taken from
 <https://github.com/makehumancommunity/makehuman>.
 
-**Licence: CC0 1.0 (public domain dedication).** The upstream file states in its own header that the
-asset "was explicitly released as CC0 in september 2020". No attribution is required; it is recorded
-here so the provenance of a binary asset is not lost.
+**Licence: CC0 1.0 (public domain dedication).** Both the mesh and the targets state in their own
+headers that the asset "was explicitly released as CC0 in september 2020". No attribution is required;
+it is recorded here so the provenance of a binary asset is not lost.
+
+### The male morph
+
+MakeHuman's base mesh is a neutral androgynous form — it reads as female if used unmodified, which is
+not a usable default for this app. A recognisable body comes from applying MakeHuman's morph targets,
+so the asset is baked with these three at equal weight:
+
+- `data/targets/macrodetails/african-male-young.target`
+- `data/targets/macrodetails/asian-male-young.target`
+- `data/targets/macrodetails/caucasian-male-young.target`
+
+An equal blend is MakeHuman's own behaviour when the ethnicity sliders are untouched, which yields a
+male figure without baking in an ethnicity the app never asks about.
+
+The muscle and weight axis is deliberately left alone. MakeHuman's
+`universal-male-young-averagemuscle-averageweight.target` contains no offsets at all, because average
+build *is* the reference pose — muscle and fat come from the measurements recorded in the app, not
+from a preset. Supporting a female figure later means baking a second asset from the corresponding
+`*-female-young` targets and choosing between them; nothing in the runtime is male-specific.
 
 This licence is why the mesh is MakeHuman's rather than one of the more detailed parametric human
 models available. Most published human body models — anything derived from SMPL, including the
