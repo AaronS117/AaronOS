@@ -1165,10 +1165,58 @@ Add to `AgendaBuilderTests`:
     }
 
     [Fact]
-    public void FirstCommitment_SkipsSleep()
+    public void FreeGaps_EnclosedEntryDoesNotOpenASpuriousGap()
+    {
+        var outer = Work(DayOfWeekFlags.EveryDay);
+        outer.EndTime = new TimeSpan(19, 0, 0);            // 08:00-19:00
+
+        var enclosed = Work(DayOfWeekFlags.EveryDay);
+        enclosed.Id = 2;
+        enclosed.Label = "Enclosed";
+        enclosed.StartTime = new TimeSpan(16, 0, 0);
+        enclosed.EndTime = new TimeSpan(18, 0, 0);         // wholly inside 08:00-19:00
+
+        var days = AgendaBuilder.Build(Monday, Monday, [outer, enclosed], [], []);
+
+        // This is the case the `entry.End > cursor` guard exists for, and the only test that
+        // executes its false branch: the enclosed entry must not move the union frontier, so the
+        // afternoon gap starts at 19:00. An unconditional `cursor = entry.End` yields 18:00 here
+        // and passes every other test in this file.
+        Assert.Equal(
+            [(TimeSpan.Zero, new TimeSpan(8, 0, 0)), (new TimeSpan(19, 0, 0), new TimeSpan(24, 0, 0))],
+            days[0].FreeGaps.Select(g => (g.Start, g.End)));
+    }
+
+    [Fact]
+    public void ZeroDurationSpan_IsSkippedRatherThanTreatedAsAWrap()
+    {
+        ScheduleException zeroLength = new()
+        {
+            Id = 1, Date = Monday, Kind = ScheduleBlockKind.Personal, Label = "Mis-entered",
+            StartTime = new TimeSpan(9, 0, 0), EndTime = new TimeSpan(9, 0, 0),
+        };
+
+        var days = AgendaBuilder.Build(Monday, Monday.AddDays(1), [], [zeroLength], []);
+
+        // A zero-length span is not a wrap: no entry on its own day, and no phantom tail carried
+        // onto the next. Without the guard in AddSpan this produced a 09:00-24:00 entry plus a
+        // 00:00-09:00 entry the following day.
+        Assert.Empty(days[0].Entries);
+        Assert.Empty(days[1].Entries);
+        Assert.All(days, d => Assert.All(d.Entries, e => Assert.True(e.End > e.Start)));
+    }
+
+    [Fact]
+    public void FirstCommitment_SkipsTheCarriedSleepTail()
     {
         var days = AgendaBuilder.Build(Monday, Monday, [Sleep(), Work(DayOfWeekFlags.Weekdays)], [], []);
 
+        // The first two assertions are what make this test depend on *this* task: without the
+        // midnight split, Entries[0] would be Work at 08:00 rather than the previous night's sleep
+        // tail opening the day at 00:00. Asserting FirstCommitment alone re-tests Task 4's filter
+        // and passes whether the split works, is subtly wrong, or is absent entirely.
+        Assert.Equal(ScheduleBlockKind.Sleep, days[0].Entries[0].Kind);
+        Assert.Equal(TimeSpan.Zero, days[0].Entries[0].Start);
         Assert.Equal("Core hours", days[0].FirstCommitment!.Label);
     }
 ```
@@ -1176,7 +1224,9 @@ Add to `AgendaBuilderTests`:
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: 6 failures. The wrapping test reports one entry `(23:00, 07:00)` instead of two split entries; every gap test fails with an empty `FreeGaps` collection.
+Expected: several failures — the wrapping test reporting one entry `(23:00, 07:00)` instead of two split entries, the gap tests failing on an empty `FreeGaps`, and the zero-duration test failing because `AddSpan` does not exist yet.
+
+**Do not treat a specific failure count as the gate.** Some of these tests pass trivially against the pre-task code: `FullyBookedDay_HasNoGaps` passes while `FreeGaps` is hardcoded empty, and `FirstCommitment_SkipsTheCarriedSleepTail`'s third assertion holds without any split. What matters is that each test fails *for the reason its name describes* once it is exercising real logic, and that all of them pass afterwards.
 
 - [ ] **Step 3: Write the implementation**
 
@@ -1201,6 +1251,13 @@ Two changes to `AgendaBuilder`. First, emit wrapping entries as two segments. Re
         string label,
         AgendaEntrySource source)
     {
+        // A zero-duration commitment is meaningless, and it is NOT a wrap — ScheduleBlock.WrapsMidnight
+        // uses strict `<`, so treating equal times as wrapping would fabricate a near-full-day entry
+        // plus a phantom tail on the next day. Guard before the wrap branch, and do not relax the
+        // condition below to `>=`: that would emit a zero-width entry and break the no-End<=Start
+        // invariant this method exists to maintain.
+        if (end == start) return;
+
         if (end > start)
         {
             today.Add(new AgendaEntry(start, end, kind, label, source));
@@ -1282,7 +1339,7 @@ Advancing `cursor` only when `entry.End > cursor` is what makes a fully-enclosed
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 19`
+Expected: `Passed! - Failed: 0, Passed: 21`
 
 - [ ] **Step 5: Commit**
 
@@ -1466,7 +1523,7 @@ public class RoutineCompletionConfiguration : IEntityTypeConfiguration<RoutineCo
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 21`
+Expected: `Passed! - Failed: 0, Passed: 23`
 
 - [ ] **Step 5: Commit**
 
@@ -1727,7 +1784,7 @@ public static class RoutineScheduler
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 30`
+Expected: `Passed! - Failed: 0, Passed: 32`
 
 - [ ] **Step 5: Commit**
 
@@ -1918,7 +1975,7 @@ If the window closes or an error dialog appears mentioning `no such table: Sched
 - [ ] **Step 4: Run the tests to confirm nothing regressed**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 30`
+Expected: `Passed! - Failed: 0, Passed: 32`
 
 - [ ] **Step 5: Commit**
 
@@ -2340,7 +2397,7 @@ Close the app.
 - [ ] **Step 4: Run the tests to confirm nothing regressed**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 30`
+Expected: `Passed! - Failed: 0, Passed: 32`
 
 - [ ] **Step 5: Commit**
 
@@ -2668,7 +2725,7 @@ Close the app.
 - [ ] **Step 4: Run the tests to confirm nothing regressed**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 30`
+Expected: `Passed! - Failed: 0, Passed: 32`
 
 - [ ] **Step 5: Commit**
 
@@ -2682,7 +2739,7 @@ git commit -m "Add Routines page with completion logging and due-state display"
 ## Definition of done for Plan 1
 
 - `dotnet build AaronOS.slnx --nologo` succeeds.
-- `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo` reports 30 passing tests, 0 failing.
+- `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo` reports 32 passing tests, 0 failing.
 - The app launches, the Schedule nav item appears, and Today, Week, and Routines all load against the real database.
 - Recurring blocks, day-off exceptions, routines, and completions all persist across an app restart.
 - No external network call exists anywhere in the module.

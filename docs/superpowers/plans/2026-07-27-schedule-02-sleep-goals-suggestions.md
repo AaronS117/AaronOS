@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-07-27-schedule-module-design.md` — this plan covers phases 3, 4, and 5.
 
-**Prerequisite:** Plan 1 complete — `AaronOS.Modules.Schedule` exists and is registered, `AgendaBuilder.Build` and `RoutineScheduler.EvaluateAll` are in place, and 30 tests pass.
+**Prerequisite:** Plan 1 complete — `AaronOS.Modules.Schedule` exists and is registered, `AgendaBuilder.Build` and `RoutineScheduler.EvaluateAll` are in place, and 32 tests pass.
 
 ## Global Constraints
 
@@ -248,7 +248,7 @@ public class SleepSettingsConfiguration : IEntityTypeConfiguration<SleepSettings
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 32`
+Expected: `Passed! - Failed: 0, Passed: 34`
 
 - [ ] **Step 5: Commit**
 
@@ -524,7 +524,7 @@ The window is `>= today - 14 && < today`: tonight is not yet logged, so includin
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 42`
+Expected: `Passed! - Failed: 0, Passed: 44`
 
 - [ ] **Step 5: Commit**
 
@@ -907,7 +907,7 @@ Close the app.
 - [ ] **Step 4: Run the tests to confirm nothing regressed**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 42`
+Expected: `Passed! - Failed: 0, Passed: 44`
 
 - [ ] **Step 5: Commit**
 
@@ -1141,7 +1141,7 @@ public class ReleaseConfiguration : IEntityTypeConfiguration<Release>
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 44`
+Expected: `Passed! - Failed: 0, Passed: 46`
 
 - [ ] **Step 5: Commit**
 
@@ -1576,7 +1576,7 @@ public static class SuggestionEngine
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 56`
+Expected: `Passed! - Failed: 0, Passed: 58`
 
 - [ ] **Step 5: Commit**
 
@@ -2064,7 +2064,7 @@ Close the app.
 - [ ] **Step 4: Run the tests to confirm nothing regressed**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 56`
+Expected: `Passed! - Failed: 0, Passed: 58`
 
 - [ ] **Step 5: Commit**
 
@@ -2260,7 +2260,7 @@ Close the app.
 - [ ] **Step 5: Run the tests and commit**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 56`
+Expected: `Passed! - Failed: 0, Passed: 58`
 
 ```bash
 git add src/AaronOS.Modules.Schedule
@@ -2272,7 +2272,7 @@ git commit -m "Surface ranked suggestions on the Today page"
 ## Definition of done for Plan 2
 
 - `dotnet build AaronOS.slnx --nologo` succeeds.
-- `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo` reports 56 passing tests, 0 failing.
+- `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo` reports 58 passing tests, 0 failing.
 - Sleep, Goals, and Today all load against the real database; Today ranks routines, releases, milestones, and bedtime in one list.
 - Sleep logs, goals, milestones, and releases persist across an app restart.
 - No external network call exists anywhere in the module.

@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-07-27-schedule-module-design.md` — this plan covers phase 6.
 
-**Prerequisite:** Plans 1 and 2 complete — `SuggestionEngine`, `SleepPlanner`, `RoutineScheduler`, and `AgendaBuilder` all exist, and 56 tests pass.
+**Prerequisite:** Plans 1 and 2 complete — `SuggestionEngine`, `SleepPlanner`, `RoutineScheduler`, and `AgendaBuilder` all exist, and 58 tests pass.
 
 ## Global Constraints
 
@@ -388,7 +388,7 @@ public static class NotificationPlanner
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 68`
+Expected: `Passed! - Failed: 0, Passed: 70`
 
 - [ ] **Step 5: Commit**
 
@@ -547,7 +547,7 @@ The `using Application = System.Windows.Application;` alias is load-bearing: `Sy
 - [ ] **Step 4: Run the tests**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 68`
+Expected: `Passed! - Failed: 0, Passed: 70`
 
 - [ ] **Step 5: Commit**
 
@@ -732,7 +732,7 @@ Expected: `Build succeeded`.
 - [ ] **Step 4: Run the tests**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 68`
+Expected: `Passed! - Failed: 0, Passed: 70`
 
 - [ ] **Step 5: Commit**
 
@@ -804,7 +804,7 @@ Delete the `Notification test` routine from the Routines page. No code changed i
 ## Definition of done for Plan 3
 
 - `dotnet build AaronOS.slnx --nologo` succeeds.
-- `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo` reports 68 passing tests, 0 failing.
+- `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo` reports 70 passing tests, 0 failing.
 - An overdue routine produces exactly one Windows notification per day while the app is open.
 - The wind-down reminder fires once inside its lead window.
 - The tray icon appears on first notification and disappears cleanly on exit.

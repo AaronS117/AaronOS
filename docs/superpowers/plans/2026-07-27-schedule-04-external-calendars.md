@@ -294,7 +294,7 @@ public class ExternalEventConfiguration : IEntityTypeConfiguration<ExternalEvent
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 70`
+Expected: `Passed! - Failed: 0, Passed: 72`
 
 - [ ] **Step 5: Commit**
 
@@ -550,7 +550,7 @@ public static class ExternalEventMerger
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 77`
+Expected: `Passed! - Failed: 0, Passed: 79`
 
 - [ ] **Step 5: Commit**
 
@@ -788,7 +788,7 @@ Expected: `Build succeeded`.
 - [ ] **Step 4: Run the tests**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 77`
+Expected: `Passed! - Failed: 0, Passed: 79`
 
 - [ ] **Step 5: Commit**
 
@@ -1115,7 +1115,7 @@ Run `dotnet build` after each adjustment and let the compiler drive. The six tes
 - [ ] **Step 6: Run the tests to verify they pass**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 83`
+Expected: `Passed! - Failed: 0, Passed: 85`
 
 If `Parses_ASimpleEvent` reports a time offset by hours, the local-time conversion is wrong — the fixture is authored in `America/New_York` and converts to whatever this machine's zone is, so assert against the converted value rather than the literal `09:30` if the machine is not Eastern. Adjust the test to compute the expectation from the fixture's zone, and say so in a comment.
 
@@ -1707,7 +1707,7 @@ and at the top of `TickSafelyAsync`'s `try` block, before planning:
 - [ ] **Step 6: Run the tests and verify in the app**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 89`
+Expected: `Passed! - Failed: 0, Passed: 91`
 
 Run: `dotnet run --project src/AaronOS.App/AaronOS.App.csproj`
 
@@ -1891,7 +1891,7 @@ public sealed class DpapiDataStore(
 - [ ] **Step 5: Run the tests and commit**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 91`
+Expected: `Passed! - Failed: 0, Passed: 93`
 
 ```bash
 git add src/AaronOS.Modules.Schedule src/AaronOS.Modules.Schedule.Tests
@@ -2211,7 +2211,7 @@ No code changed unless a step surfaced a fix. Commit any fix with a message nami
 ## Definition of done for Plan 4
 
 - `dotnet build AaronOS.slnx --nologo` succeeds.
-- `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo` reports 91 passing tests, 0 failing.
+- `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo` reports 93 passing tests, 0 failing.
 - Outlook (if the Task 0 gate passed) and Google events appear on Today, Week, and in the bedtime calculation.
 - Re-syncing does not duplicate events; a cancelled event disappears; a declined or free event never consumes a free gap.
 - Every failure path in Task 9 leaves cached data intact and surfaces as row-level error text, never as a dialog or a crash.

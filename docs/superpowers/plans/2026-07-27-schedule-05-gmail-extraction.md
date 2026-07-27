@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-07-27-schedule-module-design.md` — this plan covers phase 9.
 
-**Prerequisite:** Plan 4 complete, specifically `GoogleCredentialProvider`, `DpapiDataStore`, and `TokenProtector`, which this plan reuses. 91 tests pass.
+**Prerequisite:** Plan 4 complete, specifically `GoogleCredentialProvider`, `DpapiDataStore`, and `TokenProtector`, which this plan reuses. 93 tests pass.
 
 ## Global Constraints
 
@@ -291,7 +291,7 @@ public class ScheduleCredentialsConfiguration : IEntityTypeConfiguration<Schedul
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 94`
+Expected: `Passed! - Failed: 0, Passed: 96`
 
 - [ ] **Step 5: Commit**
 
@@ -688,7 +688,7 @@ public static class InboxItemAccepter
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 107`
+Expected: `Passed! - Failed: 0, Passed: 109`
 
 - [ ] **Step 5: Commit**
 
@@ -809,7 +809,7 @@ Run: `dotnet build AaronOS.slnx --nologo`
 Expected: `Build succeeded`.
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 107`
+Expected: `Passed! - Failed: 0, Passed: 109`
 
 - [ ] **Step 5: Commit**
 
@@ -1100,7 +1100,7 @@ Run: `dotnet build AaronOS.slnx --nologo`
 Expected: `Build succeeded`.
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 107`
+Expected: `Passed! - Failed: 0, Passed: 109`
 
 ```bash
 git add src/AaronOS.Modules.Schedule
@@ -1565,7 +1565,7 @@ Run: `dotnet build AaronOS.slnx --nologo`
 Expected: `Build succeeded`.
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 107`
+Expected: `Passed! - Failed: 0, Passed: 109`
 
 - [ ] **Step 7: Commit**
 
@@ -1662,7 +1662,7 @@ No code changed unless a step surfaced a fix. Commit any fix with a message nami
 ## Definition of done for Plan 5
 
 - `dotnet build AaronOS.slnx --nologo` succeeds.
-- `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo` reports 107 passing tests, 0 failing.
+- `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo` reports 109 passing tests, 0 failing.
 - A scan queues items with a title, date, kind, and confidence, each showing the subject and snippet it came from.
 - Accepting produces the right record type for each kind; dismissing prevents re-queuing.
 - Only subject and snippet leave the machine, verified in Task 6 Step 7.
