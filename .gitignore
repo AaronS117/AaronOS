@@ -20,3 +20,6 @@ AppX/
 *.db
 *.db-shm
 *.db-wal
+
+# Generated knowledge-graph output from the graphify tool
+graphify-out/
