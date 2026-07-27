@@ -261,6 +261,24 @@ public class AgendaBuilderTests
     }
 
     [Fact]
+    public void WrapToExactlyMidnight_DoesNotCarryAZeroDurationTailToTheNextDay()
+    {
+        var untilMidnight = Work(DayOfWeekFlags.EveryDay);
+        untilMidnight.StartTime = new TimeSpan(8, 0, 0);
+        untilMidnight.EndTime = TimeSpan.Zero; // "8am until midnight" — a legitimate wrap, not a zero-duration span.
+
+        var days = AgendaBuilder.Build(Monday, Monday.AddDays(1), [untilMidnight], [], []);
+
+        // Second day: exactly one entry for the block — (08:00, 24:00) — and no phantom
+        // 00:00-00:00 tail carried from the first day's wrap.
+        var tuesday = days[1].Entries;
+        var entry = Assert.Single(tuesday);
+        Assert.Equal(new TimeSpan(8, 0, 0), entry.Start);
+        Assert.Equal(new TimeSpan(24, 0, 0), entry.End);
+        Assert.DoesNotContain(tuesday, e => e.Start == TimeSpan.Zero);
+    }
+
+    [Fact]
     public void ZeroDurationSpan_IsSkippedRatherThanTreatedAsAWrap()
     {
         ScheduleException zeroLength = new()

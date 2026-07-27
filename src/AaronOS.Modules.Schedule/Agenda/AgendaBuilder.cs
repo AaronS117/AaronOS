@@ -114,6 +114,11 @@ public static class AgendaBuilder
 
         today.Add(new AgendaEntry(start, DayEnd, kind, label, source));
 
+        // A span ending exactly at midnight (end == 00:00) has no next-day remainder — the tail
+        // would run from 00:00 to 00:00, which is the same zero-duration case the guard above
+        // exists to prevent. Only carry a tail when it has real duration.
+        if (end == TimeSpan.Zero) return;
+
         var next = date.AddDays(1);
         if (!carry.TryGetValue(next, out var list))
         {
