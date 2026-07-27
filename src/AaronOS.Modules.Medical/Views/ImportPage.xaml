@@ -1,0 +1,164 @@
+<Page
+    x:Class="AaronOS.Modules.Medical.Views.ImportPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:imp="clr-namespace:AaronOS.Modules.Medical.Import"
+    mc:Ignorable="d">
+
+    <Page.Resources>
+        <Style x:Key="FieldLabel" TargetType="TextBlock" BasedOn="{StaticResource EyebrowText}">
+            <Setter Property="Margin" Value="0,0,0,6" />
+        </Style>
+    </Page.Resources>
+
+    <StackPanel MaxWidth="780" HorizontalAlignment="Left" Margin="28,20,28,32">
+
+        <TextBlock Text="Import" Style="{DynamicResource PageTitleText}" Margin="0,0,0,10" />
+        <TextBlock
+            Text="Bring in a record export from MyChart. In MyChart, choose Sharing, then Download My Record, and pick the XML file it produces. Nothing is saved until you have seen what was found and confirmed it."
+            Style="{DynamicResource CaptionText}"
+            TextWrapping="Wrap"
+            Margin="0,0,0,22" />
+
+        <!-- Choose and parse -->
+        <TextBlock Text="RECORD FILE" Style="{DynamicResource EyebrowText}" />
+        <Border Style="{DynamicResource SurfaceCard}" Padding="18,16" Margin="0,0,0,14">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <ui:Button Content="Choose file…" Click="ChooseFile_Click" Margin="0,0,8,0" />
+                    <ui:Button
+                        Content="Read it"
+                        Command="{Binding ParseCommand}"
+                        Appearance="Primary"
+                        IsEnabled="{Binding HasFile}" />
+                </StackPanel>
+                <TextBlock
+                    Text="{Binding FilePath}"
+                    Style="{DynamicResource CaptionText}"
+                    Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                    TextTrimming="CharacterEllipsis"
+                    Margin="0,12,0,0"
+                    Visibility="{Binding HasFile, Converter={StaticResource BoolToVis}}" />
+            </StackPanel>
+        </Border>
+
+        <!-- Error, styled the same as Finance's sync error -->
+        <Border
+            Background="#2A1416"
+            BorderBrush="#7A2E33"
+            BorderThickness="1"
+            CornerRadius="6"
+            Padding="14,10"
+            Margin="0,0,0,14"
+            Visibility="{Binding HasError, Converter={StaticResource BoolToVis}}">
+            <TextBlock Text="{Binding ErrorMessage}" Style="{DynamicResource BodyText}" FontSize="13" TextWrapping="Wrap" />
+        </Border>
+
+        <!-- What was found -->
+        <StackPanel Visibility="{Binding HasParsed, Converter={StaticResource BoolToVis}}">
+            <Border Style="{DynamicResource SurfaceCard}" Padding="22,18" Margin="0,0,0,14">
+                <StackPanel>
+                    <TextBlock Text="NEW RECORDS" Style="{DynamicResource EyebrowText}" Margin="0,0,0,4" />
+                    <TextBlock Text="{Binding NewCount}" Style="{DynamicResource HeroMetricText}" />
+                    <TextBlock
+                        Text="{Binding SummaryText}"
+                        Style="{DynamicResource CaptionText}"
+                        Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                        Margin="0,6,0,0" />
+                </StackPanel>
+            </Border>
+
+            <!-- Anything unreadable is said out loud rather than quietly dropped. -->
+            <StackPanel Visibility="{Binding HasWarnings, Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="COULD NOT BE READ" Style="{DynamicResource EyebrowText}" />
+                <Border Style="{DynamicResource SurfaceCard}" Padding="14,10" Margin="0,0,0,14">
+                    <ItemsControl ItemsSource="{Binding Warnings}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock
+                                    Text="{Binding}"
+                                    Style="{DynamicResource CaptionText}"
+                                    Foreground="{DynamicResource ExpirySoon}"
+                                    TextWrapping="Wrap"
+                                    Margin="0,3" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+            </StackPanel>
+
+            <!-- Review table -->
+            <TextBlock Text="REVIEW" Style="{DynamicResource EyebrowText}" />
+            <Border Style="{DynamicResource SurfaceCard}" Padding="4,2" Margin="0,0,0,14">
+                <StackPanel>
+                    <Grid Margin="14,10,14,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="140" />
+                            <ColumnDefinition Width="*" MinWidth="240" />
+                            <ColumnDefinition Width="140" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="SECTION" Style="{DynamicResource EyebrowText}" Margin="0" />
+                        <TextBlock Grid.Column="1" Text="RECORD" Style="{DynamicResource EyebrowText}" Margin="0" />
+                        <TextBlock Grid.Column="2" Text="STATUS" Style="{DynamicResource EyebrowText}" Margin="0" HorizontalAlignment="Right" />
+                    </Grid>
+                    <Border Height="1" Background="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="14,0,14,4" />
+                    <ItemsControl ItemsSource="{Binding Rows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type imp:ImportRow}">
+                                <Grid Margin="14,7">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="*" MinWidth="240" />
+                                        <ColumnDefinition Width="140" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        Text="{Binding Section}"
+                                        Style="{DynamicResource CaptionText}"
+                                        Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                        VerticalAlignment="Center" />
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        Text="{Binding Description}"
+                                        Style="{DynamicResource BodyText}"
+                                        FontSize="13"
+                                        VerticalAlignment="Center"
+                                        Margin="0,0,12,0" />
+                                    <TextBlock Grid.Column="2" Text="{Binding Status}" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource CaptionText}">
+                                                <!-- Already-held rows read quietly; only New is worth attention. -->
+                                                <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Status}" Value="New">
+                                                        <Setter Property="Foreground" Value="{DynamicResource MoneyIn}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <TextBlock
+                    Text="{Binding StatusMessage}"
+                    Style="{DynamicResource CaptionText}"
+                    VerticalAlignment="Center"
+                    Margin="0,0,12,0" />
+                <ui:Button
+                    Content="Import the new records"
+                    Command="{Binding CommitCommand}"
+                    Appearance="Primary"
+                    IsEnabled="{Binding CanCommit}" />
+            </StackPanel>
+        </StackPanel>
+    </StackPanel>
+</Page>

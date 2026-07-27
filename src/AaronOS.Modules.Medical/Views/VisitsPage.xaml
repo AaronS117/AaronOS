@@ -1,0 +1,314 @@
+<Page
+    x:Class="AaronOS.Modules.Medical.Views.VisitsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:data="clr-namespace:AaronOS.Modules.Medical.Data"
+    mc:Ignorable="d">
+
+    <Page.Resources>
+        <Style x:Key="EmptyStateText" TargetType="TextBlock" BasedOn="{StaticResource CaptionText}">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Setter Property="Margin" Value="14,12" />
+        </Style>
+        <Style x:Key="FieldLabel" TargetType="TextBlock" BasedOn="{StaticResource EyebrowText}">
+            <Setter Property="Margin" Value="0,0,0,6" />
+        </Style>
+        <Style x:Key="RowAction" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="6,2" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+        </Style>
+        <Style x:Key="ImportedTag" TargetType="TextBlock" BasedOn="{StaticResource EyebrowText}">
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Margin" Value="8,2,0,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource ReactorGlowDim}" />
+        </Style>
+    </Page.Resources>
+
+    <StackPanel MaxWidth="780" HorizontalAlignment="Left" Margin="28,20,28,32">
+
+        <TextBlock Text="Visits" Style="{DynamicResource PageTitleText}" Margin="0,0,0,22" />
+
+        <!-- Record a visit -->
+        <TextBlock Text="RECORD A VISIT" Style="{DynamicResource EyebrowText}" />
+        <Border Style="{DynamicResource SurfaceCard}" Padding="18,16" Margin="0,0,0,14">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="*" MinWidth="160" />
+                        <ColumnDefinition Width="*" MinWidth="160" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                        <TextBlock Text="DATE" Style="{DynamicResource FieldLabel}" />
+                        <DatePicker SelectedDate="{Binding NewVisitDate, Mode=TwoWay}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Margin="0,0,12,0">
+                        <TextBlock Text="TYPE" Style="{DynamicResource FieldLabel}" />
+                        <ui:TextBox Text="{Binding NewVisitType, Mode=TwoWay}" PlaceholderText="Office visit" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="FACILITY" Style="{DynamicResource FieldLabel}" />
+                        <ui:TextBox Text="{Binding NewVisitFacility, Mode=TwoWay}" PlaceholderText="Clinic name" />
+                    </StackPanel>
+                </Grid>
+                <Grid Margin="0,14,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" MinWidth="200" />
+                        <ColumnDefinition Width="180" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                        <TextBlock Text="REASON" Style="{DynamicResource FieldLabel}" />
+                        <ui:TextBox Text="{Binding NewVisitReason, Mode=TwoWay}" PlaceholderText="Annual physical" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Margin="0,0,12,0">
+                        <TextBlock Text="PROVIDER" Style="{DynamicResource FieldLabel}" />
+                        <ComboBox ItemsSource="{Binding Providers}" DisplayMemberPath="Name" SelectedItem="{Binding NewVisitProvider, Mode=TwoWay}" />
+                    </StackPanel>
+                    <ui:Button Grid.Column="2" Content="Add" Command="{Binding AddVisitCommand}" Appearance="Primary" VerticalAlignment="Bottom" MinWidth="80" />
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <TextBlock Text="VISITS" Style="{DynamicResource EyebrowText}" />
+        <Border Style="{DynamicResource SurfaceCard}" Padding="4,2" Margin="0,0,0,26">
+            <StackPanel>
+                <Grid Margin="14,10,14,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="110" />
+                        <ColumnDefinition Width="*" MinWidth="150" />
+                        <ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="78" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="DATE" Style="{DynamicResource EyebrowText}" Margin="0" />
+                    <TextBlock Grid.Column="1" Text="TYPE" Style="{DynamicResource EyebrowText}" Margin="0" />
+                    <TextBlock Grid.Column="2" Text="PROVIDER" Style="{DynamicResource EyebrowText}" Margin="0" />
+                    <TextBlock Grid.Column="3" Text="WHERE" Style="{DynamicResource EyebrowText}" Margin="0" />
+                </Grid>
+                <Border Height="1" Background="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="14,0,14,4" />
+                <ItemsControl ItemsSource="{Binding Visits}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type data:MedicalVisit}">
+                            <Grid Margin="14,9">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="*" MinWidth="150" />
+                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="78" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding DateDisplay}" Style="{DynamicResource CaptionText}" VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" Margin="0,0,12,0">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding TypeDisplay}" Style="{DynamicResource BodyText}" FontSize="13" />
+                                        <TextBlock Text="IMPORTED" Style="{DynamicResource ImportedTag}" Visibility="{Binding IsImported, Converter={StaticResource BoolToVis}}" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding ReasonDisplay}" Style="{DynamicResource CaptionText}" Foreground="{DynamicResource TextFillColorTertiaryBrush}" Margin="0,2,0,0" />
+                                </StackPanel>
+                                <TextBlock Grid.Column="2" Text="{Binding ProviderDisplay}" Style="{DynamicResource CaptionText}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="3" Text="{Binding WhereDisplay}" Style="{DynamicResource CaptionText}" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
+                                <Button Grid.Column="4" Content="Remove" Style="{StaticResource RowAction}" HorizontalAlignment="Right" Click="DeleteVisit_Click" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="No visits recorded yet.">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource EmptyStateText}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasVisits}" Value="False">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+
+        <!-- Providers -->
+        <TextBlock Text="ADD A PROVIDER" Style="{DynamicResource EyebrowText}" />
+        <Border Style="{DynamicResource SurfaceCard}" Padding="18,16" Margin="0,0,0,14">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" MinWidth="170" />
+                    <ColumnDefinition Width="*" MinWidth="140" />
+                    <ColumnDefinition Width="140" />
+                    <ColumnDefinition Width="*" MinWidth="140" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                    <TextBlock Text="NAME" Style="{DynamicResource FieldLabel}" />
+                    <ui:TextBox Text="{Binding NewProviderName, Mode=TwoWay}" PlaceholderText="Dr Smith" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Margin="0,0,12,0">
+                    <TextBlock Text="SPECIALTY" Style="{DynamicResource FieldLabel}" />
+                    <ui:TextBox Text="{Binding NewProviderSpecialty, Mode=TwoWay}" PlaceholderText="Cardiology" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" Margin="0,0,12,0">
+                    <TextBlock Text="PHONE" Style="{DynamicResource FieldLabel}" />
+                    <ui:TextBox Text="{Binding NewProviderPhone, Mode=TwoWay}" />
+                </StackPanel>
+                <StackPanel Grid.Column="3" Margin="0,0,12,0">
+                    <TextBlock Text="FACILITY" Style="{DynamicResource FieldLabel}" />
+                    <ui:TextBox Text="{Binding NewProviderFacility, Mode=TwoWay}" />
+                </StackPanel>
+                <ui:Button Grid.Column="4" Content="Add" Command="{Binding AddProviderCommand}" VerticalAlignment="Bottom" MinWidth="80" />
+            </Grid>
+        </Border>
+
+        <TextBlock Text="PROVIDERS" Style="{DynamicResource EyebrowText}" />
+        <Border Style="{DynamicResource SurfaceCard}" Padding="4,2" Margin="0,0,0,26">
+            <StackPanel>
+                <ItemsControl ItemsSource="{Binding Providers}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type data:Provider}">
+                            <Grid Margin="14,9">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" MinWidth="180" />
+                                    <ColumnDefinition Width="160" />
+                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="78" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding Name}" Style="{DynamicResource BodyText}" FontSize="13" VerticalAlignment="Center" Margin="0,0,12,0" />
+                                <TextBlock Grid.Column="1" Text="{Binding SpecialtyDisplay}" Style="{DynamicResource CaptionText}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="{Binding PhoneDisplay}" Style="{DynamicResource NumericText}" FontSize="12" HorizontalAlignment="Left" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="3" Text="{Binding FacilityDisplay}" Style="{DynamicResource CaptionText}" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
+                                <Button Grid.Column="4" Content="Remove" Style="{StaticResource RowAction}" HorizontalAlignment="Right" Click="DeleteProvider_Click" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="No providers recorded yet.">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource EmptyStateText}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasProviders}" Value="False">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+
+        <!-- Documents -->
+        <TextBlock Text="ATTACH A DOCUMENT" Style="{DynamicResource EyebrowText}" />
+        <Border Style="{DynamicResource SurfaceCard}" Padding="18,16" Margin="0,0,0,14">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" MinWidth="200" />
+                        <ColumnDefinition Width="190" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                        <TextBlock Text="TITLE" Style="{DynamicResource FieldLabel}" />
+                        <ui:TextBox Text="{Binding NewDocumentTitle, Mode=TwoWay}" PlaceholderText="Bloodwork Jan 2026" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Margin="0,0,12,0">
+                        <TextBlock Text="LINK TO VISIT" Style="{DynamicResource FieldLabel}" />
+                        <ComboBox ItemsSource="{Binding Visits}" DisplayMemberPath="ShortLabel" SelectedItem="{Binding NewDocumentVisit, Mode=TwoWay}" />
+                    </StackPanel>
+                    <ui:Button Grid.Column="2" Content="Choose file…" Click="ChooseFile_Click" VerticalAlignment="Bottom" Margin="0,0,8,0" />
+                    <ui:Button Grid.Column="3" Content="Attach" Command="{Binding AddDocumentCommand}" VerticalAlignment="Bottom" MinWidth="80" />
+                </Grid>
+                <!-- The chosen path only appears once there is one, so the card stays quiet until used. -->
+                <TextBlock
+                    Text="{Binding NewDocumentPath}"
+                    Style="{DynamicResource CaptionText}"
+                    Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                    TextTrimming="CharacterEllipsis"
+                    Margin="0,12,0,0"
+                    Visibility="{Binding HasChosenFile, Converter={StaticResource BoolToVis}}" />
+                <TextBlock
+                    Text="The file stays where it is — only its location is saved, so moving it will show as missing."
+                    Style="{DynamicResource CaptionText}"
+                    Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                    TextWrapping="Wrap"
+                    Margin="0,8,0,0" />
+            </StackPanel>
+        </Border>
+
+        <TextBlock Text="DOCUMENTS" Style="{DynamicResource EyebrowText}" />
+        <Border Style="{DynamicResource SurfaceCard}" Padding="4,2">
+            <StackPanel>
+                <ItemsControl ItemsSource="{Binding Documents}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type data:MedicalDocument}">
+                            <Grid Margin="14,9">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" MinWidth="190" />
+                                    <ColumnDefinition Width="170" />
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="130" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding Title}" Style="{DynamicResource BodyText}" FontSize="13" VerticalAlignment="Center" Margin="0,0,12,0" />
+                                <TextBlock Grid.Column="1" Text="{Binding VisitDisplay}" Style="{DynamicResource CaptionText}" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="{Binding AddedDisplay}" Style="{DynamicResource CaptionText}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="3" Text="{Binding StatusDisplay}" VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource CaptionText}">
+                                            <Setter Property="Foreground" Value="{DynamicResource MoneyIn}" />
+                                            <Style.Triggers>
+                                                <!-- A moved or deleted file is said plainly, not hidden. -->
+                                                <DataTrigger Binding="{Binding IsMissing}" Value="True">
+                                                    <Setter Property="Foreground" Value="{DynamicResource ExpiryPast}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <StackPanel Grid.Column="4" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <Button
+                                        Content="Open"
+                                        Style="{StaticResource RowAction}"
+                                        Click="OpenDocument_Click"
+                                        Visibility="{Binding FileExists, Converter={StaticResource BoolToVis}}" />
+                                    <Button Content="Remove" Style="{StaticResource RowAction}" Click="DeleteDocument_Click" />
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="Nothing attached yet.">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource EmptyStateText}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasDocuments}" Value="False">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+
+        <TextBlock Text="{Binding StatusMessage}" HorizontalAlignment="Right" Margin="0,12,4,0">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock" BasedOn="{StaticResource CaptionText}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding StatusMessage}" Value="">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
+    </StackPanel>
+</Page>

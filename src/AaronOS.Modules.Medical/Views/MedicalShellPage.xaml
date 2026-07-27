@@ -4,7 +4,24 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
     mc:Ignorable="d">
 
-    <TextBlock Text="Medical module coming soon" Style="{DynamicResource PageTitleText}" Margin="28,20" />
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="12,8" HorizontalAlignment="Left">
+            <ui:Button Content="Overview" Click="Overview_Click" Margin="0,0,8,0" />
+            <ui:Button Content="History" Click="History_Click" Margin="0,0,8,0" />
+            <ui:Button Content="Medications" Click="Medications_Click" Margin="0,0,8,0" />
+            <ui:Button Content="Visits" Click="Visits_Click" Margin="0,0,8,0" />
+            <ui:Button Content="Labs" Click="Labs_Click" Margin="0,0,8,0" />
+            <ui:Button Content="Import" Click="Import_Click" />
+        </StackPanel>
+
+        <Frame x:Name="ContentFrame" Grid.Row="1" NavigationUIVisibility="Hidden" />
+    </Grid>
 </Page>
