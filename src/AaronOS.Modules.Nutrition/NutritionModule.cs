@@ -18,5 +18,6 @@ public class NutritionModule : IAppModule
         services.AddSingleton<UsdaCredentialStore>();
         services.AddSingleton<UsdaApiClient>();
         services.AddTransient<IngredientsViewModel>();
+        services.AddTransient<RecipeEditViewModel>();
     }
 }

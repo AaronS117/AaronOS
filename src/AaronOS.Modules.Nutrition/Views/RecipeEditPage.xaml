@@ -1,0 +1,78 @@
+<Page
+    x:Class="AaronOS.Modules.Nutrition.Views.RecipeEditPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:data="clr-namespace:AaronOS.Modules.Nutrition.Data"
+    xmlns:calc="clr-namespace:AaronOS.Modules.Nutrition.Calculations"
+    mc:Ignorable="d">
+
+    <ScrollViewer Padding="24">
+        <StackPanel MaxWidth="760" HorizontalAlignment="Left">
+            <TextBlock Text="Recipe" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,16" />
+
+            <TextBlock Text="Name" Margin="0,0,0,4" />
+            <ui:TextBox Text="{Binding Name, Mode=TwoWay}" Margin="0,0,0,12" />
+
+            <TextBlock Text="Servings" Margin="0,0,0,4" />
+            <ui:NumberBox Value="{Binding Servings, Mode=TwoWay}" Margin="0,0,0,12" />
+
+            <TextBlock Text="Instructions" Margin="0,0,0,4" />
+            <TextBox Text="{Binding Instructions, Mode=TwoWay}" AcceptsReturn="True" Height="80" Margin="0,0,0,16" />
+
+            <TextBlock Text="Ingredients" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,8" />
+            <ItemsControl ItemsSource="{Binding Lines}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type data:RecipeIngredient}">
+                        <Grid Margin="0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="100" />
+                                <ColumnDefinition Width="140" />
+                                <ColumnDefinition Width="100" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="{Binding Ingredient.Name}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="{Binding QuantityGrams, StringFormat='{}{0}g'}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="2" Text="{Binding DisplayAmount}" Opacity="0.7" VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="3" Text="{Binding FormUsed}" Opacity="0.7" VerticalAlignment="Center" />
+                            <Button Grid.Column="4" Content="Remove" Click="RemoveLineButton_Click" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <ui:Card Margin="0,12,0,16">
+                <StackPanel Orientation="Horizontal">
+                    <ComboBox Width="220" ItemsSource="{Binding AvailableIngredients}" DisplayMemberPath="Name"
+                              SelectedItem="{Binding NewLineIngredient, Mode=TwoWay}" Margin="0,0,8,0" />
+                    <ui:NumberBox Width="100" PlaceholderText="Grams" Value="{Binding NewLineQuantityGrams, Mode=TwoWay}" Margin="0,0,8,0" />
+                    <ui:TextBox Width="140" PlaceholderText="e.g. 2 cups diced" Text="{Binding NewLineDisplayAmount, Mode=TwoWay}" Margin="0,0,8,0" />
+                    <ui:TextBox Width="100" PlaceholderText="Form used" Text="{Binding NewLineFormUsed, Mode=TwoWay}" Margin="0,0,8,0" />
+                    <ui:Button Content="Add Ingredient" Command="{Binding AddLineCommand}" />
+                </StackPanel>
+            </ui:Card>
+
+            <TextBlock Text="Per serving" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,8" />
+            <TextBlock Text="{Binding PerServingTotals.Calories, StringFormat='Calories: {0:0}'}" />
+            <TextBlock Text="{Binding PerServingTotals.Protein, StringFormat='Protein: {0:0.0}g'}" />
+            <TextBlock Text="{Binding PerServingTotals.Fat, StringFormat='Fat: {0:0.0}g'}" />
+            <TextBlock Text="{Binding PerServingTotals.Carbs, StringFormat='Carbs: {0:0.0}g'}" />
+            <TextBlock Text="{Binding PerServingTotals.Cost, StringFormat='Cost: {0:C}'}" Margin="0,0,0,16" />
+
+            <TextBlock Text="Preference notes" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,8" />
+            <ItemsControl ItemsSource="{Binding Concerns}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type calc:CompatibilityConcern}">
+                        <TextBlock Text="{Binding Message}" Margin="0,2" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <ui:Button Content="Save Recipe" Command="{Binding SaveCommand}" Appearance="Primary" Margin="0,16,0,0" />
+            <TextBlock Text="{Binding StatusMessage}" Opacity="0.7" Margin="0,8,0,0" />
+        </StackPanel>
+    </ScrollViewer>
+</Page>
