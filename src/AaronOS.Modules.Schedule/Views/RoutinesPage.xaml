@@ -1,0 +1,62 @@
+<Page
+    x:Class="AaronOS.Modules.Schedule.Views.RoutinesPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    mc:Ignorable="d">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="16">
+            <ui:TextBlock Text="Routines" FontTypography="Subtitle" Margin="0,0,0,12" />
+
+            <ItemsControl ItemsSource="{Binding Rows}" Margin="0,0,0,16">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <ui:Card Margin="0,0,0,8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <ui:TextBlock Text="{Binding Name, Mode=OneWay}" FontTypography="BodyStrong" />
+                                    <!-- RoutineRow is a record with get-only members; Run.Text is
+                                         BindsTwoWayByDefault in WPF, so the default binding mode
+                                         throws at runtime against these read-only record properties.
+                                         Mode=OneWay fixes it. -->
+                                    <TextBlock>
+                                        <Run Text="{Binding Cadence, Mode=OneWay}" />
+                                        <Run Text=" · " />
+                                        <Run Text="{Binding DueDisplay, Mode=OneWay}" />
+                                        <Run Text=" · " />
+                                        <Run Text="{Binding LastDoneDisplay, Mode=OneWay}" />
+                                    </TextBlock>
+                                </StackPanel>
+                                <ui:Button Grid.Column="1" Content="Done" Appearance="Primary"
+                                           Click="Complete_Click" Margin="0,0,8,0" />
+                                <ui:Button Grid.Column="2" Content="Delete" Click="Delete_Click" />
+                            </Grid>
+                        </ui:Card>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <ui:Card>
+                <StackPanel>
+                    <ui:TextBlock Text="Add a routine" FontTypography="BodyStrong" Margin="0,0,0,8" />
+                    <ui:TextBox PlaceholderText="Name (e.g. Scoop litter box)" Text="{Binding NewName, Mode=TwoWay}" Margin="0,0,0,8" />
+                    <ComboBox ItemsSource="{Binding Categories}" SelectedItem="{Binding NewCategory, Mode=TwoWay}" Margin="0,0,0,8" />
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <ui:NumberBox PlaceholderText="Every N days" Value="{Binding NewIntervalDays, Mode=TwoWay}" Width="140" Margin="0,0,8,0" />
+                        <ui:NumberBox PlaceholderText="Minutes" Value="{Binding NewEstimatedMinutes, Mode=TwoWay}" Width="140" />
+                    </StackPanel>
+                    <ui:TextBlock Text="{Binding ValidationMessage}" Foreground="{DynamicResource SystemFillColorCriticalBrush}" Margin="0,0,0,8" />
+                    <ui:Button Content="Add routine" Appearance="Primary" Command="{Binding SaveRoutineCommand}" HorizontalAlignment="Left" />
+                </StackPanel>
+            </ui:Card>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

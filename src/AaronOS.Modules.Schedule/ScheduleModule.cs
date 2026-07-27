@@ -16,5 +16,6 @@ public class ScheduleModule : IAppModule
     {
         services.AddTransient<TodayViewModel>();
         services.AddTransient<WeekViewModel>();
+        services.AddTransient<RoutinesViewModel>();
     }
 }
