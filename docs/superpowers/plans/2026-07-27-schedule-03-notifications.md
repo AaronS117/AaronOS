@@ -6,7 +6,7 @@
 
 **Architecture:** The decision of *what* to notify about is a pure function (`NotificationPlanner`) over the current suggestions, the clock, and a record of what has already been sent today — so the deduplication rules are testable without a timer or a tray icon. Delivery sits behind a one-method `INotificationSink`, implemented by `TrayNotificationSink` as a thin wrapper over `System.Windows.Forms.NotifyIcon`. A `PeriodicTimer` loop (`ScheduleBackgroundWorker`) ticks once a minute. The spec calls this piece `NotificationService`; splitting it into an interface plus one implementation is what lets the tick loop avoid a Windows Forms dependency and lets a future toast implementation drop in.
 
-**Tech Stack:** Unchanged, plus `System.Windows.Forms.NotifyIcon` from the .NET Windows Desktop SDK (`UseWindowsForms` was already set in Plan 1's csproj) and `System.Drawing.Icon`.
+**Tech Stack:** Unchanged, plus `System.Windows.Forms.NotifyIcon` from the .NET Windows Desktop SDK and `System.Drawing.Icon`. **Task 3 adds `<UseWindowsForms>true</UseWindowsForms>` to the module csproj** — Plan 1 deliberately does not set it, because nothing before this task uses Windows Forms and no sibling module sets it.
 
 **Spec:** `docs/superpowers/specs/2026-07-27-schedule-module-design.md` — this plan covers phase 6.
 
@@ -14,7 +14,7 @@
 
 ## Global Constraints
 
-- Target framework `net8.0-windows`; `UseWPF` and `UseWindowsForms` both true; `LangVersion` `13.0`; `Nullable` `enable`.
+- Target framework `net8.0-windows`; `UseWPF` true; `LangVersion` `13.0`; `Nullable` `enable`. **`UseWindowsForms` is not set on the module yet — Task 3 adds it**, since this is the first task that uses Windows Forms.
 - **Never use the partial-property `[ObservableProperty]` form.**
 - Pure services take the current time as a parameter. **`NotificationPlanner` must never read `DateTime.Now`** — the tick loop passes it in. Every dedup rule depends on being testable at an arbitrary instant.
 - `NotifyIcon` is a Windows Forms component. It must be created and mutated on the UI thread; a call from the timer's thread pool context throws. Marshal via `System.Windows.Application.Current.Dispatcher`.
@@ -402,6 +402,7 @@ git commit -m "Add NotificationPlanner deciding what to notify about"
 ## Task 3: Tray notification sink
 
 **Files:**
+- Modify: `src/AaronOS.Modules.Schedule/AaronOS.Modules.Schedule.csproj` (add `UseWindowsForms`)
 - Create: `src/AaronOS.Modules.Schedule/Notifications/INotificationSink.cs`
 - Create: `src/AaronOS.Modules.Schedule/Notifications/TrayNotificationSink.cs`
 - Modify: `src/AaronOS.Modules.Schedule/ScheduleModule.cs`
@@ -533,7 +534,13 @@ with `using AaronOS.Modules.Schedule.Notifications;` at the top. Registering the
 Run: `dotnet build AaronOS.slnx --nologo`
 Expected: `Build succeeded`.
 
-If this fails with `CS0234: The type or namespace name 'Forms' does not exist in the namespace 'System.Windows'`, the module's csproj is missing `<UseWindowsForms>true</UseWindowsForms>` — add it (Plan 1 Task 1 includes it, but confirm).
+**This task owns the `UseWindowsForms` change**, so make it before writing the sink — otherwise the code above fails with `CS0234: The type or namespace name 'Forms' does not exist in the namespace 'System.Windows'`. Add the property to the module csproj's existing `PropertyGroup`, directly after `<UseWPF>true</UseWPF>`:
+
+```xml
+    <UseWindowsForms>true</UseWindowsForms>
+```
+
+Plan 1 deliberately left it out: no sibling module sets it, it is not in `docs/MODULE_GUIDELINES.md`'s required-properties list, and nothing before this task uses Windows Forms — carrying it earlier was speculative configuration a review correctly rejected.
 
 The `using Application = System.Windows.Application;` alias is load-bearing: `System.Windows.Forms` also defines `Application`, and with both namespaces imported the bare name is ambiguous (`CS0104`).
 

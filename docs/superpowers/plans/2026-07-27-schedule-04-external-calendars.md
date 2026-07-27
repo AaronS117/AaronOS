@@ -6,7 +6,7 @@
 
 **Architecture:** Two sources behind one `IExternalCalendarSource` interface, a pure `ExternalEventMerger` that decides the resulting row set, and a `ScheduleSyncService` that orchestrates fetch → merge → persist per calendar and records success or failure on the row. Google's OAuth token lands in the app database under DPAPI via a small `IDataStore`, matching how Plaid and USDA credentials are already stored.
 
-**Tech Stack:** Adds `Ical.Net` 5.2.3, `Google.Apis.Calendar.v3` 1.75.0, `Google.Apis.Auth`, and `System.Security.Cryptography.ProtectedData` (already referenced from Plan 1).
+**Tech Stack:** Adds `Ical.Net` 5.2.3, `Google.Apis.Calendar.v3` 1.75.0, `Google.Apis.Auth`, and `System.Security.Cryptography.ProtectedData` — the last of these is added by **Task 7**, the first task that needs DPAPI. Plan 1 deliberately does not reference it.
 
 **Spec:** `docs/superpowers/specs/2026-07-27-schedule-module-design.md` — this plan covers phases 7 and 8.
 
@@ -1720,9 +1720,12 @@ git commit -m "Merge cached external events into the agenda and sync periodicall
 ```xml
     <PackageReference Include="Google.Apis.Calendar.v3" Version="1.75.0.4206" />
     <PackageReference Include="Google.Apis.Auth" Version="1.75.0" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.10" />
 ```
 
 Confirm the `Google.Apis.Auth` version resolves; if NuGet reports it missing, use the version that `Google.Apis.Calendar.v3` brings in transitively and drop the explicit reference.
+
+**This task owns the `ProtectedData` reference.** Plan 1 deliberately does not include it — an unused package reference on a module that has no secrets to protect is speculative configuration, and a review correctly rejected carrying it early. `TokenProtector` below is the first code that needs it, which is why it arrives here. The version matches what `Finance` and `Nutrition` already use for the same purpose.
 
 - [ ] **Step 2: Write the failing test**
 
