@@ -129,6 +129,18 @@
                         </Style>
                     </TextBlock.Style>
                 </TextBlock>
+
+                <!--
+                    Standing reminder of the hardware plan, parked next to the field it replaces.
+                    ponytail: static text, not a wishlist table — there is exactly one thing to remember,
+                    and it lives where it will actually be seen every time sleep gets typed in.
+                -->
+                <Border Style="{DynamicResource RowDivider}" Margin="0,16,0,12" />
+                <TextBlock
+                    Style="{DynamicResource CaptionText}"
+                    Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                    TextWrapping="Wrap"
+                    Text="Sleep is typed by hand for now. To buy: Withings Sleep Analyzer — an under-mattress pad, about $130, no subscription. Its free OAuth API can fill this field automatically, along with sleep stages and a breathing disturbance index." />
             </StackPanel>
         </Border>
 
