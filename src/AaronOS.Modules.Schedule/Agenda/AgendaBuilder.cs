@@ -20,13 +20,48 @@ public static class AgendaBuilder
 
         for (var date = from; date <= to; date = date.AddDays(1))
         {
+            var dayExceptions = exceptions.Where(e => e.Date == date).ToList();
             var entries = new List<AgendaEntry>();
 
             foreach (var block in blocks)
             {
                 if (!IsActiveOn(block, date)) continue;
+
+                var over = dayExceptions.FirstOrDefault(e => e.ScheduleBlockId == block.Id);
+                if (over is null)
+                {
+                    entries.Add(new AgendaEntry(
+                        block.StartTime, block.EndTime, block.Kind, block.Label, AgendaEntrySource.Block));
+                    continue;
+                }
+
+                if (over.IsCancelled) continue;
+
                 entries.Add(new AgendaEntry(
-                    block.StartTime, block.EndTime, block.Kind, block.Label, AgendaEntrySource.Block));
+                    over.StartTime ?? block.StartTime,
+                    over.EndTime ?? block.EndTime,
+                    over.Kind ?? block.Kind,
+                    over.Label ?? block.Label,
+                    AgendaEntrySource.Exception));
+            }
+
+            foreach (var standalone in dayExceptions.Where(e => e.IsStandalone && !e.IsCancelled))
+            {
+                // A standalone entry without times is meaningless; skip rather than guess.
+                if (standalone.StartTime is not { } start || standalone.EndTime is not { } end) continue;
+
+                entries.Add(new AgendaEntry(
+                    start,
+                    end,
+                    standalone.Kind ?? ScheduleBlockKind.Personal,
+                    standalone.Label ?? "(untitled)",
+                    AgendaEntrySource.Exception));
+            }
+
+            foreach (var external in externalEvents.Where(e => e.Date == date && e.IsBusy))
+            {
+                entries.Add(new AgendaEntry(
+                    external.Start, external.End, ScheduleBlockKind.Personal, external.Title, AgendaEntrySource.External));
             }
 
             entries.Sort(CompareByStart);
