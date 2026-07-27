@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="AaronOS.Modules.BodyMeasurements.Views.CheckInPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <ScrollViewer Padding="24">
+        <StackPanel Spacing="16" MaxWidth="480" HorizontalAlignment="Left">
+            <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Check In" />
+
+            <DatePicker Header="Date" Date="{x:Bind ViewModel.Date, Mode=TwoWay}" />
+            <NumberBox Header="Weight (lb)" Value="{x:Bind ViewModel.WeightLb, Mode=TwoWay}" SpinButtonPlacementMode="Compact" />
+
+            <TextBlock Text="Measurements (in)" Style="{StaticResource SubtitleTextBlockStyle}" />
+            <Grid ColumnSpacing="12" RowSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition />
+                    <RowDefinition />
+                    <RowDefinition />
+                    <RowDefinition />
+                    <RowDefinition />
+                </Grid.RowDefinitions>
+
+                <NumberBox Grid.Row="0" Grid.Column="0" Header="Neck" Value="{x:Bind ViewModel.NeckIn, Mode=TwoWay}" SpinButtonPlacementMode="Compact" />
+                <NumberBox Grid.Row="0" Grid.Column="1" Header="Chest" Value="{x:Bind ViewModel.ChestIn, Mode=TwoWay}" SpinButtonPlacementMode="Compact" />
+
+                <NumberBox Grid.Row="1" Grid.Column="0" Header="Waist" Value="{x:Bind ViewModel.WaistIn, Mode=TwoWay}" SpinButtonPlacementMode="Compact" />
+                <NumberBox Grid.Row="1" Grid.Column="1" Header="Hips" Value="{x:Bind ViewModel.HipsIn, Mode=TwoWay}" SpinButtonPlacementMode="Compact" />
+
+                <NumberBox Grid.Row="2" Grid.Column="0" Header="Bicep (L)" Value="{x:Bind ViewModel.BicepLeftIn, Mode=TwoWay}" SpinButtonPlacementMode="Compact" />
+                <NumberBox Grid.Row="2" Grid.Column="1" Header="Bicep (R)" Value="{x:Bind ViewModel.BicepRightIn, Mode=TwoWay}" SpinButtonPlacementMode="Compact" />
+
+                <NumberBox Grid.Row="3" Grid.Column="0" Header="Thigh (L)" Value="{x:Bind ViewModel.ThighLeftIn, Mode=TwoWay}" SpinButtonPlacementMode="Compact" />
+                <NumberBox Grid.Row="3" Grid.Column="1" Header="Thigh (R)" Value="{x:Bind ViewModel.ThighRightIn, Mode=TwoWay}" SpinButtonPlacementMode="Compact" />
+
+                <NumberBox Grid.Row="4" Grid.Column="0" Header="Calf (L)" Value="{x:Bind ViewModel.CalfLeftIn, Mode=TwoWay}" SpinButtonPlacementMode="Compact" />
+                <NumberBox Grid.Row="4" Grid.Column="1" Header="Calf (R)" Value="{x:Bind ViewModel.CalfRightIn, Mode=TwoWay}" SpinButtonPlacementMode="Compact" />
+            </Grid>
+
+            <TextBox Header="Notes" Text="{x:Bind ViewModel.Notes, Mode=TwoWay}" AcceptsReturn="True" Height="72" />
+
+            <Button Content="Save Check-In" Command="{x:Bind ViewModel.SaveCommand}" Style="{StaticResource AccentButtonStyle}" />
+            <TextBlock Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}" Opacity="0.7" />
+        </StackPanel>
+    </ScrollViewer>
+</Page>

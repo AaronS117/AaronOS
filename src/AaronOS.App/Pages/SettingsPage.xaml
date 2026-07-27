@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="AaronOS_App.Pages.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:AaronOS_App.Pages"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <StackPanel Padding="24" Spacing="16" MaxWidth="360" HorizontalAlignment="Left">
+        <TextBlock Style="{StaticResource TitleTextBlockStyle}" Text="Settings" />
+        <NumberBox Header="Height (in)" Value="{x:Bind ViewModel.HeightInches, Mode=TwoWay}" SpinButtonPlacementMode="Compact" />
+        <Button Content="Save" Command="{x:Bind ViewModel.SaveCommand}" Style="{StaticResource AccentButtonStyle}" />
+        <TextBlock Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}" Opacity="0.7" />
+    </StackPanel>
+</Page>

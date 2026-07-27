@@ -1,0 +1,22 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+AppPackages/
+BundleArtifacts/
+AppX/
+*.appx
+*.appxsym
+*.appxupload
+*.msix
+*.cer
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+
+# EF Core local database (personal data — never commit)
+*.db
+*.db-shm
+*.db-wal

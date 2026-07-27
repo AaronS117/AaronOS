@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "AaronOS.App (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "AaronOS.App (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

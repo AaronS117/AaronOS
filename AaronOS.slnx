@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AaronOS.App/AaronOS.App.csproj" />
+    <Project Path="src/AaronOS.Core/AaronOS.Core.csproj" />
+    <Project Path="src/AaronOS.Modules.BodyMeasurements/AaronOS.Modules.BodyMeasurements.csproj" />
+  </Folder>
+</Solution>
