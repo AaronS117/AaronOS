@@ -58,7 +58,7 @@
             Margin="12,0,12,8" />
 
         <TextBlock
-            Text="Drag to rotate"
+            Text="Drag to rotate · scroll to zoom"
             Style="{DynamicResource CaptionText}"
             Foreground="{DynamicResource TextFillColorTertiaryBrush}"
             Opacity="0.7"

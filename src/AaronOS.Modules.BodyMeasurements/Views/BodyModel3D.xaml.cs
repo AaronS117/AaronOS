@@ -23,13 +23,19 @@ public partial class BodyModel3D : UserControl
     private readonly AxisAngleRotation3D _yaw = new(new Vector3D(0, 1, 0), 20);
     private readonly AxisAngleRotation3D _pitch = new(new Vector3D(1, 0, 0), 0);
 
-    /// <summary>Which measurement each mesh stands for, so a hit can be routed to a field.</summary>
-    private readonly Dictionary<GeometryModel3D, GoalMetric?> _partsByModel = [];
-
     private Point _dragOrigin;
     private double _dragDistance;
     private bool _dragging;
     private double _heightInches = 70;
+
+    // 1.0 frames the whole figure; below that moves in, above pulls back.
+    private double _zoom = 1.0;
+    private const double MinZoom = 0.32;
+    private const double MaxZoom = 1.8;
+
+    /// <summary>How much of the panel's height the whole figure takes at zoom 1.0, leaving a margin so
+    /// the head and feet are not flush against the edges.</summary>
+    private const double FillFraction = 0.88;
 
     /// <summary>Raised when a body part is clicked (as opposed to dragged) with a part that maps to a
     /// measurement.</summary>
@@ -39,6 +45,10 @@ public partial class BodyModel3D : UserControl
     {
         InitializeComponent();
         Cursor = Cursors.Hand;
+
+        // The framing depends on the panel's shape, so it has to be recomputed whenever that changes.
+        Viewport.SizeChanged += (_, _) => PositionCamera();
+
         Apply(null, null);
     }
 
@@ -51,25 +61,25 @@ public partial class BodyModel3D : UserControl
         _heightInches = measurements.HeightInches;
         NoDataLabel.Visibility = hasData ? Visibility.Collapsed : Visibility.Visible;
 
-        _partsByModel.Clear();
-        var figure = new Model3DGroup();
-        foreach (var (model, metric) in BodyFigureBuilder.Build(measurements, CreateMaterial(hasData)))
-        {
-            figure.Children.Add(model);
-            _partsByModel[model] = metric;
-        }
+        var material = CreateMaterial(hasData);
 
-        // Orbit is applied to the whole figure, pivoting about its middle so it turns on the spot
-        // rather than swinging away from the camera.
+        // Orbit lives on the visual, not on the model. A hit test reports its point in the containing
+        // Visual3D's coordinate space, so keeping the rotation above the model means clicks arrive in
+        // the figure's own upright space and can be matched against anatomy directly.
         var pivot = _heightInches * 0.5;
         var transforms = new Transform3DGroup();
         transforms.Children.Add(new TranslateTransform3D(0, -pivot, 0));
         transforms.Children.Add(new RotateTransform3D(_pitch));
         transforms.Children.Add(new RotateTransform3D(_yaw));
         transforms.Children.Add(new TranslateTransform3D(0, pivot, 0));
-        figure.Transform = transforms;
+        FigureVisual.Transform = transforms;
 
-        FigureVisual.Content = figure;
+        FigureVisual.Content = new GeometryModel3D(BodyMeshDeformer.Build(measurements), material)
+        {
+            // Set even though the mesh is closed and correctly wound: without it, a single inverted
+            // triangle would show as a hole straight through the figure.
+            BackMaterial = material,
+        };
         PositionCamera();
     }
 
@@ -99,12 +109,45 @@ public partial class BodyModel3D : UserControl
         };
     }
 
+    /// <summary>
+    /// Frames the figure from its own height, so a tall and a short person both fill the panel, and
+    /// from the panel's current shape.
+    ///
+    /// The aspect term is the part that matters: WPF's <see cref="PerspectiveCamera.FieldOfView"/> is
+    /// the <em>horizontal</em> angle, so the vertical angle — the one that decides whether a standing
+    /// figure fits — changes as the window is resized. Deriving the distance from the live viewport
+    /// size keeps the framing steady instead of cropping the head on a wide window.
+    /// </summary>
     private void PositionCamera()
     {
-        // Framed from the figure's own height so a tall and a short person both fill the panel.
+        var aspect = Viewport.ActualWidth > 0 && Viewport.ActualHeight > 0
+            ? Viewport.ActualHeight / Viewport.ActualWidth
+            : 1.6;
+
+        var verticalHalfTan = Math.Tan(Camera.FieldOfView * Math.PI / 360) * aspect;
+        var distance = _heightInches / (2 * verticalHalfTan * FillFraction) * _zoom;
+
         var target = new Point3D(0, _heightInches * 0.50, 0);
-        Camera.Position = new Point3D(0, target.Y + _heightInches * 0.02, _heightInches * 1.62);
+        Camera.Position = new Point3D(0, target.Y + (_heightInches * 0.02), distance);
         Camera.LookDirection = target - Camera.Position;
+    }
+
+    protected override void OnMouseWheel(MouseWheelEventArgs e)
+    {
+        base.OnMouseWheel(e);
+
+        var previous = _zoom;
+        _zoom = Math.Clamp(_zoom * (e.Delta > 0 ? 0.90 : 1.0 / 0.90), MinZoom, MaxZoom);
+
+        if (Math.Abs(_zoom - previous) < 1e-9)
+        {
+            // Already at the near or far limit: leave the event unhandled so the wheel falls through
+            // to the page scroller instead of feeling stuck.
+            return;
+        }
+
+        PositionCamera();
+        e.Handled = true;
     }
 
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
@@ -156,20 +199,17 @@ public partial class BodyModel3D : UserControl
 
     private void RaiseHitPart(Point position)
     {
-        if (VisualTreeHelper.HitTest(Viewport, position) is not RayMeshGeometry3DHitTestResult hit
-            || hit.ModelHit is not GeometryModel3D model
-            || !_partsByModel.TryGetValue(model, out var metric)
-            || metric is null)
+        if (VisualTreeHelper.HitTest(Viewport, position) is not RayMeshGeometry3DHitTestResult hit)
         {
             return;
         }
 
-        // The torso is a single mesh spanning several measurements, so resolve it by where on the body
-        // the ray actually landed.
-        var resolved = metric == GoalMetric.Chest
-            ? BodyFigureBuilder.ResolveTorsoPart(hit.PointHit.Y, _heightInches)
-            : metric.Value;
-
-        PartClicked?.Invoke(resolved);
+        // The figure is one continuous mesh, so which measurement was clicked comes from where on the
+        // body the ray landed. PointHit is in the mesh's own space, which is the undeformed pose in
+        // inches — the orbit rotation sits on the group above it and so does not interfere.
+        if (BodyMeshDeformer.ResolveMetric(hit.PointHit, _heightInches) is { } metric)
+        {
+            PartClicked?.Invoke(metric);
+        }
     }
 }

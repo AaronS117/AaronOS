@@ -6,6 +6,11 @@
     <PackageReference Include="LiveChartsCore.SkiaSharpView.WPF" Version="2.0.5" />
     <PackageReference Include="WPF-UI" Version="4.3.0" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Embedded rather than copied to output: the figure must render even if the install directory
+         is incomplete, and the name is set explicitly so a folder rename cannot break the loader. -->
+    <EmbeddedResource Include="Assets\human-base.mesh" LogicalName="AaronOS.BodyMeasurements.HumanBase" />
+  </ItemGroup>
   <PropertyGroup>
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>

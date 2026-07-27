@@ -82,7 +82,7 @@
             <TextBlock Grid.Column="0" Text="BODY" Style="{DynamicResource EyebrowText}" Margin="0" />
             <TextBlock
                 Grid.Column="1"
-                Text="Drag to rotate · click a body part to edit it"
+                Text="Drag to rotate · scroll to zoom · click a part to edit"
                 Style="{DynamicResource CaptionText}"
                 Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
         </Grid>
