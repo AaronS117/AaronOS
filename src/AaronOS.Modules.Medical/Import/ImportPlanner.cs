@@ -56,20 +56,27 @@ public static class ImportPlanner
 
         void Add(string section, string description, string? externalId, string naturalKey, HashSet<string> known)
         {
-            var key = externalId ?? naturalKey;
-
-            // Sections are keyed separately: the same source id can legitimately appear for a
-            // condition and a lab, and those must not shadow one another.
-            if (!seen.Add($"{section}|{key}"))
+            // Collapse on the natural key, not the source id. A record that exists at more than one
+            // health system carries a *different* id from each, so keying on the id left the same
+            // childhood vaccination sitting in the review table five times over. Sections are keyed
+            // separately, since one id can legitimately belong to both a condition and a lab.
+            if (!seen.Add($"{section}|{naturalKey}"))
             {
-                return; // the same record appearing twice in one document
+                return;
             }
 
+            // Recognised by either route: the id proves it came from a document already imported, the
+            // natural key catches the same real-world record arriving under a new id.
+            var known2 = (externalId is not null && known.Contains(externalId)) || known.Contains(naturalKey);
+
+            // Key is the *dedupe* key, deliberately the natural key rather than the source id. The
+            // commit step matches on this, and matching on the id instead let every id-sharing copy
+            // of a deduped record through — a review saying "364 new" once wrote 1,215 rows.
             rows.Add(new ImportRow(
                 section,
                 description,
-                key,
-                known.Contains(key) ? ImportStatus.AlreadyImported : ImportStatus.New));
+                naturalKey,
+                known2 ? ImportStatus.AlreadyImported : ImportStatus.New));
         }
 
         foreach (var c in parsed.Conditions)

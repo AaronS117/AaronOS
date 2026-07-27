@@ -18,8 +18,11 @@ public partial class ImportViewModel(IDbContextFactory<AaronOsDbContext> dbConte
     public ObservableCollection<ImportRow> Rows { get; } = [];
     public ObservableCollection<string> Warnings { get; } = [];
 
+    private string[] _paths = [];
+
     [ObservableProperty] private string _filePath = "";
     [ObservableProperty] private bool _hasFile;
+    [ObservableProperty] private string _sourceSummary = "";
     [ObservableProperty] private bool _hasParsed;
     [ObservableProperty] private bool _hasWarnings;
     [ObservableProperty] private bool _hasError;
@@ -31,11 +34,19 @@ public partial class ImportViewModel(IDbContextFactory<AaronOsDbContext> dbConte
     [ObservableProperty] private bool _canCommit;
     [ObservableProperty] private string _summaryText = "";
 
-    /// <summary>Called from the page's code-behind after an OpenFileDialog.</summary>
-    public void SetFile(string path)
+    /// <summary>Called from the page's code-behind after an OpenFileDialog. Accepts several files
+    /// because a record spread across health systems means one export per system.</summary>
+    public void SetFiles(params string[] paths)
     {
-        FilePath = path;
-        HasFile = !string.IsNullOrWhiteSpace(path);
+        _paths = paths.Where(p => !string.IsNullOrWhiteSpace(p)).ToArray();
+        HasFile = _paths.Length > 0;
+        FilePath = _paths.Length switch
+        {
+            0 => "",
+            1 => _paths[0],
+            _ => $"{_paths.Length} files selected"
+        };
+        SourceSummary = "";
 
         // Any previous review belongs to a different file, so clear it rather than leave a stale
         // table on screen next to a new filename.
@@ -66,8 +77,18 @@ public partial class ImportViewModel(IDbContextFactory<AaronOsDbContext> dbConte
         ErrorMessage = "";
         try
         {
-            var xml = await File.ReadAllTextAsync(FilePath);
-            _parsed = CcdaParser.Parse(xml);
+            // A MyChart download is a zip of many documents, so each selected file can contribute
+            // several. Everything is parsed together and reviewed as one import.
+            var documents = new List<string>();
+            foreach (var path in _paths)
+            {
+                documents.AddRange(await Task.Run(() => CcdaPackage.ReadDocuments(path)));
+            }
+
+            _parsed = CcdaParser.ParseMany(documents);
+            SourceSummary = _paths.Length == 1
+                ? $"{_parsed.DocumentCount} document(s) read from 1 file"
+                : $"{_parsed.DocumentCount} document(s) read from {_paths.Length} files";
 
             var existing = await SnapshotExistingKeysAsync();
             _plan = ImportPlanner.BuildPlan(_parsed, existing);
@@ -91,9 +112,11 @@ public partial class ImportViewModel(IDbContextFactory<AaronOsDbContext> dbConte
             HasParsed = true;
             CanCommit = NewCount > 0;
 
+            var absences = _parsed.TotalAbsenceStatements;
+            var absenceNote = absences > 0 ? $" · {absences} non-result entries ignored" : "";
             SummaryText = NewCount > 0
-                ? $"{NewCount} new · {AlreadyImportedCount} already held · {SkippedCount} unreadable"
-                : $"Nothing new to import · {AlreadyImportedCount} already held · {SkippedCount} unreadable";
+                ? $"{NewCount} new · {AlreadyImportedCount} already held · {SkippedCount} unreadable{absenceNote}"
+                : $"Nothing new to import · {AlreadyImportedCount} already held · {SkippedCount} unreadable{absenceNote}";
         }
         catch (FormatException ex)
         {
@@ -206,9 +229,15 @@ public partial class ImportViewModel(IDbContextFactory<AaronOsDbContext> dbConte
 
             // Only the rows the review table showed as New get written, keyed exactly as the planner
             // keyed them — so what is committed can never disagree with what was reviewed.
-            var newConditions = _plan.NewKeysIn("Conditions");
+            //
+            // "Written" tracks keys already committed in this pass. Several parsed records collapse to
+            // one review row, so without it every copy would be written and the database would end up
+            // with far more rows than the review promised.
+            var written = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            bool Take(string section, string key) =>
+                _plan.NewKeysIn(section).Contains(key) && written.Add($"{section}|{key}");
             foreach (var c in _parsed.Conditions.Where(c =>
-                newConditions.Contains(c.ExternalId ?? ImportPlanner.NaturalKey(c.Name, c.Onset))))
+                Take("Conditions", ImportPlanner.NaturalKey(c.Name, c.Onset))))
             {
                 db.Add(new MedicalCondition
                 {
@@ -222,9 +251,8 @@ public partial class ImportViewModel(IDbContextFactory<AaronOsDbContext> dbConte
                 });
             }
 
-            var newMedications = _plan.NewKeysIn("Medications");
             foreach (var m in _parsed.Medications.Where(m =>
-                newMedications.Contains(m.ExternalId ?? ImportPlanner.NaturalKey(m.Name, m.Start))))
+                Take("Medications", ImportPlanner.NaturalKey(m.Name, m.Start))))
             {
                 db.Add(new Medication
                 {
@@ -238,9 +266,7 @@ public partial class ImportViewModel(IDbContextFactory<AaronOsDbContext> dbConte
                 });
             }
 
-            var newAllergies = _plan.NewKeysIn("Allergies");
-            foreach (var a in _parsed.Allergies.Where(a =>
-                newAllergies.Contains(a.ExternalId ?? a.Substance)))
+            foreach (var a in _parsed.Allergies.Where(a => Take("Allergies", a.Substance)))
             {
                 db.Add(new Allergy
                 {
@@ -252,9 +278,8 @@ public partial class ImportViewModel(IDbContextFactory<AaronOsDbContext> dbConte
                 });
             }
 
-            var newImmunizations = _plan.NewKeysIn("Immunizations");
             foreach (var i in _parsed.Immunizations.Where(i =>
-                newImmunizations.Contains(i.ExternalId ?? ImportPlanner.NaturalKey(i.Vaccine, i.Given))))
+                Take("Immunizations", ImportPlanner.NaturalKey(i.Vaccine, i.Given))))
             {
                 db.Add(new Immunization
                 {
@@ -265,9 +290,8 @@ public partial class ImportViewModel(IDbContextFactory<AaronOsDbContext> dbConte
                 });
             }
 
-            var newProcedures = _plan.NewKeysIn("Procedures");
             foreach (var p in _parsed.Procedures.Where(p =>
-                newProcedures.Contains(p.ExternalId ?? ImportPlanner.NaturalKey(p.Name, p.Date))))
+                Take("Procedures", ImportPlanner.NaturalKey(p.Name, p.Date))))
             {
                 db.Add(new MedicalProcedure
                 {
@@ -279,9 +303,8 @@ public partial class ImportViewModel(IDbContextFactory<AaronOsDbContext> dbConte
                 });
             }
 
-            var newVisits = _plan.NewKeysIn("Visits");
-            foreach (var v in _parsed.Visits.Where(v => newVisits.Contains(
-                v.ExternalId ?? ImportPlanner.NaturalKey(v.Facility ?? v.VisitType ?? "Visit", v.Date))))
+            foreach (var v in _parsed.Visits.Where(v => Take(
+                "Visits", ImportPlanner.NaturalKey(v.Facility ?? v.VisitType ?? "Visit", v.Date))))
             {
                 db.Add(new MedicalVisit
                 {
@@ -294,9 +317,8 @@ public partial class ImportViewModel(IDbContextFactory<AaronOsDbContext> dbConte
                 });
             }
 
-            var newLabs = _plan.NewKeysIn("Labs");
             foreach (var l in _parsed.Labs.Where(l =>
-                newLabs.Contains(l.ExternalId ?? ImportPlanner.LabNaturalKey(l))))
+                Take("Labs", ImportPlanner.LabNaturalKey(l))))
             {
                 db.Add(new LabResult
                 {
@@ -312,13 +334,13 @@ public partial class ImportViewModel(IDbContextFactory<AaronOsDbContext> dbConte
                 });
             }
 
-            var written = await db.SaveChangesAsync();
+            var rowsWritten = await db.SaveChangesAsync();
 
             // Re-plan against the database we just wrote. Everything should now read as already held,
             // which both proves idempotency to the user and stops the screen inviting a second import.
             // ParseAsync overwrites the counts, so the message is composed after it returns.
             await ParseAsync();
-            StatusMessage = $"Imported {written} records.";
+            StatusMessage = $"Imported {rowsWritten} records.";
         }
         finally
         {

@@ -23,13 +23,16 @@ public sealed partial class ImportPage : Page
     {
         var dialog = new OpenFileDialog
         {
-            Title = "Choose a MyChart record export",
-            Filter = "Health records (*.xml;*.ccda;*.cda)|*.xml;*.ccda;*.cda|All files (*.*)|*.*"
+            Title = "Choose your MyChart record export(s)",
+            // A MyChart health-summary download is a .zip in IHE XDM layout, so that is the default.
+            // Multiselect because a record spread across health systems means one export per system.
+            Filter = "MyChart exports (*.zip;*.xml;*.ccda;*.cda)|*.zip;*.xml;*.ccda;*.cda|All files (*.*)|*.*",
+            Multiselect = true
         };
 
         if (dialog.ShowDialog() == true)
         {
-            ViewModel.SetFile(dialog.FileName);
+            ViewModel.SetFiles(dialog.FileNames);
         }
     }
 }
