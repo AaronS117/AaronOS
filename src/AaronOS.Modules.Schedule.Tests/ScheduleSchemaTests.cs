@@ -43,17 +43,29 @@ public class ScheduleSchemaTests : IDisposable
         await using var verify = CreateContext();
         var loaded = await verify.Set<ScheduleBlock>().SingleAsync();
         Assert.Equal(ScheduleBlockKind.Work, loaded.Kind);
+        Assert.Equal("Core hours", loaded.Label);
         Assert.Equal(DayOfWeekFlags.Monday | DayOfWeekFlags.Friday, loaded.DaysOfWeek);
         Assert.Equal(new TimeSpan(8, 0, 0), loaded.StartTime);
+        Assert.Equal(new TimeSpan(17, 0, 0), loaded.EndTime);
+        Assert.Equal(new DateOnly(2026, 1, 1), loaded.EffectiveFrom);
         Assert.Null(loaded.EffectiveTo);
+        Assert.True(loaded.IsActive);
     }
 
     [Fact]
     public void DayOfWeekFlags_MapsEveryDayOfWeek()
     {
-        Assert.Equal(DayOfWeekFlags.Sunday, DayOfWeekFlagsExtensions.From(DayOfWeek.Sunday));
-        Assert.Equal(DayOfWeekFlags.Wednesday, DayOfWeekFlagsExtensions.From(DayOfWeek.Wednesday));
-        Assert.Equal(DayOfWeekFlags.Saturday, DayOfWeekFlagsExtensions.From(DayOfWeek.Saturday));
+        // Named flags, independent of the shift expression this test is guarding.
+        DayOfWeekFlags[] expectedByOrdinal =
+        [
+            DayOfWeekFlags.Sunday, DayOfWeekFlags.Monday, DayOfWeekFlags.Tuesday, DayOfWeekFlags.Wednesday,
+            DayOfWeekFlags.Thursday, DayOfWeekFlags.Friday, DayOfWeekFlags.Saturday,
+        ];
+
+        foreach (var day in Enum.GetValues<DayOfWeek>())
+        {
+            Assert.Equal(expectedByOrdinal[(int)day], DayOfWeekFlagsExtensions.From(day));
+        }
     }
 
     [Fact]
@@ -106,6 +118,71 @@ public class ScheduleSchemaTests : IDisposable
         Assert.Equal(blockId, loaded[0].ScheduleBlockId);
         Assert.Null(loaded[1].ScheduleBlockId);
         Assert.Equal("Deploy window", loaded[1].Label);
+    }
+
+    [Fact]
+    public async Task DeletingABlock_RemovesOnlyItsDependentExceptions()
+    {
+        // There is deliberately no FK between ScheduleException.ScheduleBlockId and ScheduleBlock,
+        // so WeekViewModel.DeleteBlockAsync reclaims dependent rows by hand. This test pins that
+        // contract at the data layer.
+        int blockId;
+        await using (var db = CreateContext())
+        {
+            await db.Database.EnsureCreatedAsync();
+
+            var block = new ScheduleBlock
+            {
+                Kind = ScheduleBlockKind.Work,
+                Label = "Core hours",
+                DaysOfWeek = DayOfWeekFlags.Weekdays,
+                StartTime = new TimeSpan(8, 0, 0),
+                EndTime = new TimeSpan(17, 0, 0),
+                EffectiveFrom = new DateOnly(2026, 1, 1),
+            };
+            db.Add(block);
+            await db.SaveChangesAsync();
+            blockId = block.Id;
+
+            // Dependent on the block that will be deleted.
+            db.Add(new ScheduleException
+            {
+                Date = new DateOnly(2026, 7, 6),
+                ScheduleBlockId = blockId,
+                IsCancelled = true,
+                Note = "PTO",
+            });
+            // Unrelated standalone exception (no ScheduleBlockId) — must survive.
+            db.Add(new ScheduleException
+            {
+                Date = new DateOnly(2026, 7, 7),
+                Kind = ScheduleBlockKind.Work,
+                Label = "Deploy window",
+                StartTime = new TimeSpan(20, 0, 0),
+                EndTime = new TimeSpan(23, 0, 0),
+            });
+            await db.SaveChangesAsync();
+        }
+
+        // Mirrors WeekViewModel.DeleteBlockAsync exactly: dependents removed by hand, then the
+        // block, in one SaveChangesAsync.
+        await using (var db = CreateContext())
+        {
+            var dependents = await db.Set<ScheduleException>()
+                .Where(e => e.ScheduleBlockId == blockId)
+                .ToListAsync();
+            db.RemoveRange(dependents);
+
+            db.Remove(await db.Set<ScheduleBlock>().SingleAsync(b => b.Id == blockId));
+            await db.SaveChangesAsync();
+        }
+
+        // Fresh context: forces a genuine reload, so this checks what SQLite actually stored.
+        await using var verify = CreateContext();
+        var survivor = Assert.Single(await verify.Set<ScheduleException>().ToListAsync());
+        Assert.Null(survivor.ScheduleBlockId);
+        Assert.Equal("Deploy window", survivor.Label);
+        Assert.Equal(0, await verify.Set<ScheduleBlock>().CountAsync());
     }
 
     [Fact]

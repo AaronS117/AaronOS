@@ -112,7 +112,9 @@ public class AgendaBuilderTests
         var days = AgendaBuilder.Build(Monday, Monday, [Work(DayOfWeekFlags.Weekdays)], [shortDay], []);
 
         var entry = Assert.Single(days[0].Entries);
+        Assert.Equal(new TimeSpan(8, 0, 0), entry.Start);
         Assert.Equal(new TimeSpan(12, 0, 0), entry.End);
+        Assert.Equal(ScheduleBlockKind.Work, entry.Kind);
         Assert.Equal(AgendaEntrySource.Exception, entry.Source);
         Assert.Equal("Core hours", entry.Label); // label carries over from the block
     }

@@ -33,6 +33,9 @@ public partial class TodayViewModel(IDbContextFactory<AaronOsDbContext> dbContex
             // Materialise before handing to AgendaBuilder: it works on plain lists, and DateOnly
             // comparisons plus the computed properties on these entities are not translatable.
             var blocks = await db.Set<ScheduleBlock>().Where(b => b.IsActive).ToListAsync();
+            // Also fetch yesterday's exceptions: AgendaBuilder expands a warm-up day before
+            // `today` so a block wrapping past midnight can carry its tail forward, and a
+            // cancellation on the night before must be visible to suppress that tail.
             var exceptions = await db.Set<ScheduleException>()
                 .Where(e => e.Date == today || e.Date == today.AddDays(-1))
                 .ToListAsync();

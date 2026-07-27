@@ -54,6 +54,8 @@ public sealed record AgendaDay(
 /// A cached external calendar event, flattened to a single day. Deliberately a plain record rather
 /// than the ExternalEvent entity so the agenda logic carries no dependency on the external-calendar
 /// tables — those arrive in a later phase and map their rows into this shape.
+/// An all-day source event (its entity's IsAllDay flag set) must map to Start = 00:00, End = 24:00.
+/// Mapping it to End = 00:00 would make it a zero-duration span, which AddSpan's guard discards silently.
 /// </summary>
 public sealed record ExternalEventEntry(
     DateOnly Date,

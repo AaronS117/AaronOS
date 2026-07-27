@@ -22,7 +22,7 @@
                                         <ColumnDefinition Width="140" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="{Binding Start, StringFormat='{}{0:hh\\:mm}'}" />
+                                    <TextBlock Grid.Column="0" Text="{Binding StartDisplay}" />
                                     <TextBlock Grid.Column="1" Text="{Binding Label}" />
                                 </Grid>
                             </DataTemplate>

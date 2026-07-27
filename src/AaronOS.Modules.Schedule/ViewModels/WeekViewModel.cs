@@ -75,6 +75,9 @@ public partial class WeekViewModel(IDbContextFactory<AaronOsDbContext> dbContext
 
             await using var db = await dbContextFactory.CreateDbContextAsync();
             var blocks = await db.Set<ScheduleBlock>().ToListAsync();
+            // Query from WeekStart.AddDays(-1): AgendaBuilder expands a warm-up day before
+            // WeekStart so a block wrapping past midnight can carry its tail forward, and a
+            // cancellation on the night before must be visible to suppress that tail.
             var exceptions = await db.Set<ScheduleException>()
                 .Where(e => e.Date >= WeekStart.AddDays(-1) && e.Date <= end)
                 .ToListAsync();
@@ -120,6 +123,14 @@ public partial class WeekViewModel(IDbContextFactory<AaronOsDbContext> dbContext
             ValidationMessage = "Enter times as HH:mm.";
             return;
         }
+        // TimeSpan.TryParse reads a bare integer as a day count ("8" -> 8.00:00:00) and accepts
+        // negative spans; reject anything outside a single wall-clock day so a value like "8" or
+        // "17" typed against an HH:mm box doesn't silently persist as a corrupt block.
+        if (start < TimeSpan.Zero || start >= TimeSpan.FromDays(1) || end < TimeSpan.Zero || end >= TimeSpan.FromDays(1))
+        {
+            ValidationMessage = "Enter times as HH:mm, between 00:00 and 23:59.";
+            return;
+        }
         if (start == end)
         {
             ValidationMessage = "Start and end can't be the same time.";
@@ -163,7 +174,11 @@ public partial class WeekViewModel(IDbContextFactory<AaronOsDbContext> dbContext
             .ToListAsync();
         db.RemoveRange(dependents);
 
-        db.Remove(await db.Set<ScheduleBlock>().SingleAsync(b => b.Id == block.Id));
+        // The row may already be gone (e.g. a second delete click); that's the orphan-cleanup
+        // case above still applies, so let it proceed rather than throwing on a missing row.
+        var row = await db.Set<ScheduleBlock>().FirstOrDefaultAsync(b => b.Id == block.Id);
+        if (row is not null) db.Remove(row);
+
         await db.SaveChangesAsync();
         await LoadAsync();
     }

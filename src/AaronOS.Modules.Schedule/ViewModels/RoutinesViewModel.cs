@@ -116,7 +116,12 @@ public partial class RoutinesViewModel(IDbContextFactory<AaronOsDbContext> dbCon
     private async Task DeleteRoutineAsync(RoutineRow row)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync();
-        db.Remove(await db.Set<Routine>().SingleAsync(r => r.Id == row.Routine.Id));
+
+        // The row may already be gone (e.g. a second delete click); skip rather than throw.
+        var routine = await db.Set<Routine>().FirstOrDefaultAsync(r => r.Id == row.Routine.Id);
+        if (routine is null) return;
+
+        db.Remove(routine);
         await db.SaveChangesAsync();
         await LoadAsync();
     }
