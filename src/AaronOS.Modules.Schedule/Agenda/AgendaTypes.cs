@@ -15,7 +15,20 @@ public sealed record AgendaEntry(
 /// <summary>An uncommitted span. Sleep counts as committed, so gaps are naturally waking hours.</summary>
 public sealed record FreeGap(TimeSpan Start, TimeSpan End)
 {
+    private static readonly TimeSpan FullDay = TimeSpan.FromHours(24);
+
     public int Minutes => (int)(End - Start).TotalMinutes;
+
+    public string StartDisplay => Format(Start);
+    public string EndDisplay => Format(End);
+
+    /// <summary>
+    /// The `hh` format specifier reads the Hours component after Days are stripped, so a TimeSpan
+    /// of exactly one day would render as "00" — making a full-day gap read "00:00 - 00:00"
+    /// alongside its own 1440-minute count. Midnight-as-end is spelled 24:00 here for that reason.
+    /// </summary>
+    private static string Format(TimeSpan value) =>
+        value == FullDay ? "24:00" : value.ToString(@"hh\:mm");
 }
 
 public sealed record AgendaDay(

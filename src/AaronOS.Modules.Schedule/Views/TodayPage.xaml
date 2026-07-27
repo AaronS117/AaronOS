@@ -40,9 +40,9 @@
                                 <TextBlock Margin="0,2">
                                     <!-- ponytail: Run.Text binds TwoWay by default (unlike TextBlock.Text), which
                                          throws at runtime against these read-only record properties. Mode=OneWay fixes it. -->
-                                    <Run Text="{Binding Start, StringFormat='{}{0:hh\\:mm}', Mode=OneWay}" />
+                                    <Run Text="{Binding StartDisplay, Mode=OneWay}" />
                                     <Run Text="–" />
-                                    <Run Text="{Binding End, StringFormat='{}{0:hh\\:mm}', Mode=OneWay}" />
+                                    <Run Text="{Binding EndDisplay, Mode=OneWay}" />
                                     <Run Text=" (" /><Run Text="{Binding Minutes, Mode=OneWay}" /><Run Text=" min)" />
                                 </TextBlock>
                             </DataTemplate>
