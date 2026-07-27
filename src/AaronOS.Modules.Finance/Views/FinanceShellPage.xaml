@@ -15,8 +15,7 @@
 
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="12,8" HorizontalAlignment="Left">
             <ui:Button Content="Dashboard" Click="Dashboard_Click" Margin="0,0,8,0" />
-            <ui:Button Content="Transactions" Click="Transactions_Click" Margin="0,0,8,0" />
-            <ui:Button Content="Link Account" Click="LinkAccount_Click" />
+            <ui:Button Content="Transactions" Click="Transactions_Click" />
         </StackPanel>
 
         <Frame x:Name="ContentFrame" Grid.Row="1" NavigationUIVisibility="Hidden" />

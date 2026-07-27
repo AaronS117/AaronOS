@@ -1,0 +1,40 @@
+<UserControl
+    x:Class="AaronOS.Modules.Finance.Views.LinkAccountSection"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+    mc:Ignorable="d">
+
+    <StackPanel>
+        <TextBlock
+            Text="Connect a bank through Plaid. Your credentials go to your bank, never to AaronOS."
+            Style="{DynamicResource CaptionText}"
+            TextWrapping="Wrap"
+            Margin="0,0,0,12" />
+
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+            <ui:Button
+                Content="Link a bank account"
+                Command="{Binding CreateLinkTokenCommand}"
+                Appearance="Primary"
+                Margin="0,0,12,0" />
+            <TextBlock
+                Text="{Binding StatusMessage}"
+                Style="{DynamicResource CaptionText}"
+                VerticalAlignment="Center"
+                TextWrapping="Wrap" />
+        </StackPanel>
+
+        <!-- Only takes up room once Plaid Link is actually running. -->
+        <Border
+            Height="560"
+            CornerRadius="6"
+            ClipToBounds="True"
+            Visibility="{Binding IsLinkFlowOpen, Converter={StaticResource BoolToVis}}">
+            <wv2:WebView2 x:Name="WebView" />
+        </Border>
+    </StackPanel>
+</UserControl>

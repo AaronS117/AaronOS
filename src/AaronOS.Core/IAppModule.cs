@@ -18,5 +18,18 @@ public interface IAppModule
     string IconGlyph { get; }
 
     Type HomePageType { get; }
+
+    /// <summary>
+    /// Optional: a <c>UserControl</c> type this module contributes to the app's Settings page, for
+    /// configuration that belongs to the module rather than to a day-to-day workflow page (linking a
+    /// bank account, for instance). Return null — the default — when a module has no settings.
+    ///
+    /// A default implementation keeps this non-breaking for existing modules, and it exists as a
+    /// contract member rather than the Settings page referencing a module's page directly, because
+    /// the shell must not reach into a module's internal pages (see docs/MODULE_GUIDELINES.md).
+    /// A UserControl rather than a Page because the Settings page composes several of these inline.
+    /// </summary>
+    Type? SettingsContentType => null;
+
     void RegisterServices(IServiceCollection services);
 }

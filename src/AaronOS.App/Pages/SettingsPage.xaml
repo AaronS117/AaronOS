@@ -5,17 +5,53 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:local="clr-namespace:AaronOS_App.Pages"
     mc:Ignorable="d">
 
-    <Border Padding="24">
-        <StackPanel MaxWidth="360" HorizontalAlignment="Left">
-            <TextBlock Text="Settings" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,16" />
+    <StackPanel MaxWidth="780" HorizontalAlignment="Left" Margin="28,20,28,32">
 
-            <TextBlock Text="Height (in)" Margin="0,0,0,4" />
-            <ui:NumberBox Value="{Binding HeightInches, Mode=TwoWay}" Margin="0,0,0,16" />
+        <TextBlock Text="Settings" Style="{DynamicResource PageTitleText}" Margin="0,0,0,22" />
 
-            <ui:Button Content="Save" Command="{Binding SaveCommand}" Appearance="Primary" />
-            <TextBlock Text="{Binding StatusMessage}" Opacity="0.7" Margin="0,8,0,0" />
-        </StackPanel>
-    </Border>
+        <!-- Shared profile: values more than one module needs. -->
+        <TextBlock Text="PROFILE" Style="{DynamicResource EyebrowText}" />
+        <Border Style="{DynamicResource SurfaceCard}" Padding="18,16" Margin="0,0,0,26">
+            <StackPanel>
+                <TextBlock
+                    Text="Your height is used to work out BMI on the Body Measurements dashboard."
+                    Style="{DynamicResource CaptionText}"
+                    TextWrapping="Wrap"
+                    Margin="0,0,0,12" />
+                <StackPanel Orientation="Horizontal">
+                    <StackPanel Width="180" Margin="0,0,12,0">
+                        <TextBlock Text="Height (inches)" Style="{DynamicResource CaptionText}" Margin="0,0,0,5" />
+                        <ui:NumberBox Value="{Binding HeightInches, Mode=TwoWay}" />
+                    </StackPanel>
+                    <ui:Button
+                        Content="Save"
+                        Command="{Binding SaveCommand}"
+                        Appearance="Primary"
+                        VerticalAlignment="Bottom" />
+                </StackPanel>
+                <TextBlock Text="{Binding StatusMessage}" Style="{DynamicResource CaptionText}" Margin="0,10,0,0" />
+            </StackPanel>
+        </Border>
+
+        <!--
+            Module-contributed settings. Each module optionally returns a UserControl from
+            IAppModule.SettingsContentType; the shell renders them here without knowing what any of
+            them are, so a module's internal pages stay its own business.
+        -->
+        <ItemsControl ItemsSource="{Binding ModuleSections, RelativeSource={RelativeSource AncestorType=Page}}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type local:ModuleSettingsSection}">
+                    <StackPanel Margin="0,0,0,26">
+                        <TextBlock Text="{Binding Title}" Style="{DynamicResource EyebrowText}" />
+                        <Border Style="{DynamicResource SurfaceCard}" Padding="18,16">
+                            <ContentControl Content="{Binding Content}" />
+                        </Border>
+                    </StackPanel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </StackPanel>
 </Page>

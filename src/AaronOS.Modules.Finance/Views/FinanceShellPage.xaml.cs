@@ -15,5 +15,4 @@ public sealed partial class FinanceShellPage : Page
 
     private void Dashboard_Click(object sender, RoutedEventArgs e) => ContentFrame.Navigate(new FinanceDashboardPage());
     private void Transactions_Click(object sender, RoutedEventArgs e) => ContentFrame.Navigate(new FinanceTransactionsPage());
-    private void LinkAccount_Click(object sender, RoutedEventArgs e) => ContentFrame.Navigate(new LinkAccountPage());
 }

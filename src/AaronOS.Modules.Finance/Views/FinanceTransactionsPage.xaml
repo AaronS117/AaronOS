@@ -7,37 +7,161 @@
     xmlns:data="clr-namespace:AaronOS.Modules.Finance.Data"
     mc:Ignorable="d">
 
-    <Border Padding="24">
-        <Grid>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
+    <Page.Resources>
+        <Style x:Key="EmptyStateText" TargetType="TextBlock" BasedOn="{StaticResource CaptionText}">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Setter Property="Margin" Value="14,12" />
+        </Style>
+    </Page.Resources>
 
-            <TextBlock Grid.Row="0" Text="Transactions" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,12" />
+    <!-- No ScrollViewer / ListView here: the shell's own scroller owns scrolling for the page
+         (see the note in FinanceDashboardPage.xaml). -->
+    <StackPanel MaxWidth="780" HorizontalAlignment="Left" Margin="28,20,28,32">
 
-            <ComboBox Grid.Row="1" ItemsSource="{Binding Accounts}" SelectedItem="{Binding SelectedAccount, Mode=TwoWay}"
-                      DisplayMemberPath="Name" Width="240" HorizontalAlignment="Left" Margin="0,0,0,12" />
+        <TextBlock Text="Transactions" Style="{DynamicResource PageTitleText}" Margin="0,0,0,22" />
 
-            <ListView Grid.Row="2" ItemsSource="{Binding Transactions}" MaxWidth="720" HorizontalAlignment="Left">
-                <ListView.ItemTemplate>
-                    <DataTemplate DataType="{x:Type data:FinanceTransaction}">
-                        <Grid Margin="0,4">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="100" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="140" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="{Binding Date}" />
-                            <TextBlock Grid.Column="1" Text="{Binding Name}" Margin="8,0" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Grid.Column="2" Text="{Binding CategoryDisplay}" Opacity="0.7" />
-                            <TextBlock Grid.Column="3" Text="{Binding Amount, StringFormat=C}" />
-                        </Grid>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
-        </Grid>
-    </Border>
+        <!-- Money in / money out for the current filter, matching the dashboard's readout style. -->
+        <Border Style="{DynamicResource SurfaceCard}" Padding="22,18" Margin="0,0,0,20">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="MONEY OUT" Style="{DynamicResource EyebrowText}" Margin="0,0,0,4" />
+                    <TextBlock
+                        Text="{Binding TotalOut, StringFormat=C}"
+                        Style="{DynamicResource HeroMetricText}"
+                        FontSize="26" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1">
+                    <TextBlock Text="MONEY IN" Style="{DynamicResource EyebrowText}" Margin="0,0,0,4" />
+                    <TextBlock
+                        Text="{Binding TotalIn, StringFormat=C}"
+                        Style="{DynamicResource HeroMetricText}"
+                        FontSize="26"
+                        Foreground="{DynamicResource MoneyIn}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" VerticalAlignment="Bottom">
+                    <TextBlock
+                        Text="{Binding TotalCount, StringFormat='{}{0} transactions'}"
+                        Style="{DynamicResource CaptionText}"
+                        HorizontalAlignment="Right" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Filter -->
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,18">
+            <StackPanel Width="240">
+                <TextBlock Text="ACCOUNT" Style="{DynamicResource EyebrowText}" Margin="0,0,0,6" />
+                <ComboBox
+                    ItemsSource="{Binding AccountFilters}"
+                    SelectedItem="{Binding SelectedFilter, Mode=TwoWay}"
+                    DisplayMemberPath="Label" />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Ledger -->
+        <Border Style="{DynamicResource SurfaceCard}" Padding="4,2">
+            <StackPanel>
+                <!-- Column headings, so the mono figures read as a ledger rather than a list. -->
+                <Grid Margin="14,10,14,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="58" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="92" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="DATE" Style="{DynamicResource EyebrowText}" Margin="0" />
+                    <TextBlock Grid.Column="1" Text="DESCRIPTION" Style="{DynamicResource EyebrowText}" Margin="8,0,12,0" />
+                    <TextBlock Grid.Column="2" Text="CATEGORY" Style="{DynamicResource EyebrowText}" Margin="0,0,12,0" />
+                    <TextBlock Grid.Column="3" Text="AMOUNT" Style="{DynamicResource EyebrowText}" Margin="0" HorizontalAlignment="Right" />
+                </Grid>
+                <Border Height="1" Background="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="14,0,14,4" />
+
+                <ItemsControl ItemsSource="{Binding Transactions}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type data:FinanceTransaction}">
+                            <Grid Margin="14,9">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="58" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="92" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    Text="{Binding DateDisplay}"
+                                    Style="{DynamicResource CaptionText}"
+                                    VerticalAlignment="Center" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Text="{Binding Name}"
+                                    Style="{DynamicResource BodyText}"
+                                    FontSize="13"
+                                    VerticalAlignment="Center"
+                                    Margin="8,0,12,0" />
+                                <TextBlock
+                                    Grid.Column="2"
+                                    Text="{Binding CategoryDisplay}"
+                                    Style="{DynamicResource CaptionText}"
+                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                    VerticalAlignment="Center"
+                                    Margin="0,0,12,0" />
+                                <TextBlock Grid.Column="3" Text="{Binding AmountDisplay}" VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource NumericText}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsInflow}" Value="True">
+                                                    <Setter Property="Foreground" Value="{DynamicResource MoneyIn}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Pending}" Value="True">
+                                                    <Setter Property="Opacity" Value="0.55" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Text="No transactions yet. Link a bank in Settings, then choose Sync now on the dashboard.">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource EmptyStateText}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasTransactions}" Value="False">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+
+        <!-- Says so when the list is capped, rather than quietly showing a subset. -->
+        <TextBlock
+            Text="{Binding ShownCount, StringFormat='Showing the {0} most recent. Filter by account to narrow it down.'}"
+            HorizontalAlignment="Right"
+            Margin="0,10,4,0">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock" BasedOn="{StaticResource CaptionText}">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsTruncated}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
+    </StackPanel>
 </Page>

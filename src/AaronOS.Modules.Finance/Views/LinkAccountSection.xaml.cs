@@ -9,14 +9,19 @@ using System.Windows.Controls;
 
 namespace AaronOS.Modules.Finance.Views;
 
-public sealed partial class LinkAccountPage : Page
+/// <summary>
+/// The Finance module's contribution to the app's Settings page (see IAppModule.SettingsContentType):
+/// linking a bank is configuration you do once, not a day-to-day workflow, so it belongs in Settings
+/// rather than in the module's own sub-navigation.
+/// </summary>
+public sealed partial class LinkAccountSection : UserControl
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     private const string VirtualHost = "aaronos.plaidlink.local";
 
     public LinkAccountViewModel ViewModel { get; }
 
-    public LinkAccountPage()
+    public LinkAccountSection()
     {
         ViewModel = AppServices.Provider.GetRequiredService<LinkAccountViewModel>();
         DataContext = ViewModel;
@@ -40,7 +45,6 @@ public sealed partial class LinkAccountPage : Page
         WebView.CoreWebView2.WebMessageReceived += CoreWebView2_WebMessageReceived;
         WebView.CoreWebView2.NewWindowRequested -= CoreWebView2_NewWindowRequested;
         WebView.CoreWebView2.NewWindowRequested += CoreWebView2_NewWindowRequested;
-        Console.WriteLine("[LinkDiag] LoadPlaidLinkAsync starting, token=" + linkToken[..Math.Min(12, linkToken.Length)] + "...");
 
         // Plaid Link's own iframe uses postMessage internally and expects a real origin —
         // NavigateToString gives the page a null/opaque origin, which breaks that. Serving the
@@ -83,22 +87,20 @@ public sealed partial class LinkAccountPage : Page
     // docs). WebView2 doesn't create a window for that automatically — the host must handle
     // NewWindowRequested itself, or the popup silently fails to appear. This must be a genuinely
     // separate window (not the same WebView), since the popup talks back to this page via
-    // window.opener once OAuth completes.
+    // window.opener once OAuth completes, and that window's CoreWebView2 must be initialised
+    // after Show() or EnsureCoreWebView2Async never returns.
     private async void CoreWebView2_NewWindowRequested(object? sender, CoreWebView2NewWindowRequestedEventArgs e)
     {
-        Console.WriteLine("[LinkDiag] NewWindowRequested fired, uri=" + e.Uri);
         var deferral = e.GetDeferral();
         try
         {
             var popup = new OAuthPopupWindow { Owner = System.Windows.Window.GetWindow(this) };
-            Console.WriteLine("[LinkDiag] popup window constructed, initializing CoreWebView2...");
             await popup.InitializeAsync();
-            Console.WriteLine("[LinkDiag] popup CoreWebView2 ready");
             e.NewWindow = popup.WebView.CoreWebView2;
         }
         catch (Exception ex)
         {
-            Console.WriteLine("[LinkDiag] NewWindowRequested handler threw: " + ex);
+            ViewModel.StatusMessage = $"Could not open the bank login window: {ex.Message}";
         }
         finally
         {

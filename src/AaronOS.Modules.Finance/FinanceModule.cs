@@ -13,6 +13,10 @@ public class FinanceModule : IAppModule
     public string IconGlyph => "Wallet24";
     public Type HomePageType => typeof(FinanceShellPage);
 
+    /// <summary>Linking a bank is one-time configuration, so it lives in Settings rather than in
+    /// this module's own sub-navigation.</summary>
+    public Type? SettingsContentType => typeof(LinkAccountSection);
+
     public void RegisterServices(IServiceCollection services)
     {
         services.AddSingleton<PlaidCredentialStore>();

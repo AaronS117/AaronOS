@@ -18,7 +18,13 @@ public partial class LinkAccountViewModel(
     [ObservableProperty]
     private string _statusMessage = "";
 
-    /// <summary>Raised once a bank connection has been saved, so the hosting page can navigate away.</summary>
+    /// <summary>Drives whether the embedded Plaid Link browser is given any room on screen — it
+    /// stays collapsed until a link is actually started, so Settings isn't dominated by a big
+    /// blank panel.</summary>
+    [ObservableProperty]
+    private bool _isLinkFlowOpen;
+
+    /// <summary>Raised once a bank connection has been saved, so the host can refresh or collapse.</summary>
     public event Action? AccountLinked;
 
     [RelayCommand]
@@ -29,6 +35,7 @@ public partial class LinkAccountViewModel(
         try
         {
             LinkToken = await plaidApiClient.CreateLinkTokenAsync();
+            IsLinkFlowOpen = true;
         }
         catch (Exception ex)
         {
@@ -81,7 +88,8 @@ public partial class LinkAccountViewModel(
 
             await db.SaveChangesAsync();
 
-            StatusMessage = $"Linked {institutionName}.";
+            StatusMessage = $"Linked {institutionName}. Open Finance and choose Sync now to pull transactions.";
+            IsLinkFlowOpen = false;
             AccountLinked?.Invoke();
         }
         catch (Exception ex)
