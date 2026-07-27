@@ -2,15 +2,21 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add manual sleep logging with a derived bedtime recommendation and 14-day sleep debt, generic goals with milestones, dated release tracking, and a ranked suggestion list surfaced on the Today page.
+**Goal:** Add a bedtime recommendation derived from tomorrow's first commitment, generic goals with milestones, dated release tracking, and a ranked suggestion list surfaced on the Today page.
 
-**Architecture:** Same shape as Plan 1 — two more pure static services (`SleepPlanner`, `SuggestionEngine`) that take materialised lists and return values, plus four entities and two pages. `SuggestionEngine` is the one place that combines agenda gaps, routine due states, sleep, releases, and milestones; nothing else ranks anything.
+**Architecture:** Same shape as Plan 1 — two more pure static services (`SleepPlanner`, `SuggestionEngine`) that take materialised lists and return values, plus four entities and two pages. `SuggestionEngine` is the one place that combines agenda gaps, routine due states, releases, and milestones; nothing else ranks anything.
+
+**Sleep scope — read this before Task 1.** This module does NOT store sleep history. The Medical module already owns it, twice: `MoodEntry` carries self-reported nightly hours, `SleepNight` carries measured hours imported from a Withings sleep pad, and `MoodStatistics.SleepFor` resolves which one to display. Adding a third store here would mean entering sleep in two modules and would produce a second set of numbers that could disagree with the pad.
+
+So Schedule keeps only the half Medical does not have: a target-hours setting and the forward-looking question "given tomorrow's first commitment, when should I be in bed?" That needs no history at all — it reads the agenda, not the past.
+
+The consequence, stated plainly because it drops a feature the spec originally listed: there is **no sleep-debt tracking** in this plan. Debt requires actual hours slept, which live in Medical, and `docs/MODULE_GUIDELINES.md` forbids reading another module's entities. Adding debt later means promoting the nightly-sleep shape into `AaronOS.Core` so both modules share it — a deliberate, separate piece of work, not something to improvise inside this plan. Do not add a `SleepLog` entity, and do not reach into Medical's tables.
 
 **Tech Stack:** Unchanged from Plan 1 — .NET 8 `net8.0-windows`, WPF, WPF-UI 4.3.0, EF Core 8 + SQLite, CommunityToolkit.Mvvm, xUnit 2.5.3.
 
 **Spec:** `docs/superpowers/specs/2026-07-27-schedule-module-design.md` — this plan covers phases 3, 4, and 5.
 
-**Prerequisite:** Plan 1 complete — `AaronOS.Modules.Schedule` exists and is registered, `AgendaBuilder.Build` and `RoutineScheduler.EvaluateAll` are in place, and 32 tests pass.
+**Prerequisite:** Plan 1 complete — `AaronOS.Modules.Schedule` exists and is registered, `AgendaBuilder.Build` and `RoutineScheduler.EvaluateAll` are in place, and 34 tests pass.
 
 ## Global Constraints
 
@@ -54,7 +60,8 @@ Every task's requirements implicitly include this section. These repeat Plan 1's
   `db` used for both the write and the read, restructure it to the shape above. If an assertion then
   fails, that is a real mapping bug the single-context pattern was hiding — report it; do not adjust
   the assertion to match what you observe.
-- **Sleep advice is arithmetic, not diagnosis.** `SleepPlanner` computes a bedtime from the next day's commitments and a shortfall against a user-set target. It must not infer, recommend, or hard-code a target beyond the 8.0-hour default. No UI copy may imply a clinical recommendation.
+- **Sleep advice is arithmetic, not diagnosis.** `SleepPlanner` computes a bedtime by working backwards from the next day's first commitment against a user-set target. It must not infer, recommend, or hard-code a target beyond the 8.0-hour default. No UI copy may imply a clinical recommendation.
+- **No sleep history in this module.** Do not create a `SleepLog` entity, do not compute sleep debt, and do not read the Medical module's `MoodEntry` or `SleepNight` tables — cross-module entity access is forbidden by `docs/MODULE_GUIDELINES.md`. See the sleep-scope note in the header for why.
 
 ---
 
@@ -62,35 +69,34 @@ Every task's requirements implicitly include this section. These repeat Plan 1's
 
 | File | Responsibility |
 | --- | --- |
-| `src/AaronOS.Modules.Schedule/Data/SleepLog.cs` (+`Configuration`) | One night's self-reported sleep |
 | `src/AaronOS.Modules.Schedule/Data/SleepSettings.cs` (+`Configuration`) | Single-row target and lead times |
 | `src/AaronOS.Modules.Schedule/Data/Goal.cs` (+`Configuration`) | Generic dated goal |
 | `src/AaronOS.Modules.Schedule/Data/GoalMilestone.cs` (+`Configuration`) | A goal's checklist item |
 | `src/AaronOS.Modules.Schedule/Data/Release.cs` (+`Configuration`) | Media or product release date |
-| `src/AaronOS.Modules.Schedule/Sleep/SleepPlanner.cs` | Pure bedtime and debt computation |
-| `src/AaronOS.Modules.Schedule/Sleep/SleepSummary.cs` | Result record for the sleep page |
+| `src/AaronOS.Modules.Schedule/Sleep/SleepPlanner.cs` | Pure bedtime computation |
 | `src/AaronOS.Modules.Schedule/Suggestions/Suggestion.cs` | Result record, one ranked item |
 | `src/AaronOS.Modules.Schedule/Suggestions/SuggestionEngine.cs` | Pure ranking across every input |
 | `src/AaronOS.Modules.Schedule/ViewModels/SleepViewModel.cs` | Sleep page state |
 | `src/AaronOS.Modules.Schedule/ViewModels/GoalsViewModel.cs` | Goals and releases page state |
-| `src/AaronOS.Modules.Schedule/Views/SleepPage.xaml(.cs)` | Log sleep, edit target, show debt |
+| `src/AaronOS.Modules.Schedule/Views/SleepPage.xaml(.cs)` | Edit target and lead times, show tonight's bedtime |
 | `src/AaronOS.Modules.Schedule/Views/GoalsPage.xaml(.cs)` | Goals, milestones, releases |
-| `src/AaronOS.Modules.Schedule.Tests/SleepPlannerTests.cs` | Bedtime and debt tests |
+| `src/AaronOS.Modules.Schedule.Tests/SleepPlannerTests.cs` | Bedtime tests |
 | `src/AaronOS.Modules.Schedule.Tests/SuggestionEngineTests.cs` | Ranking tests |
 
 ---
 
-## Task 1: Sleep entities
+## Task 1: Sleep settings entity
+
+Settings only. There is no sleep-history entity in this module — see the sleep-scope note in the
+header. Do not add a `SleepLog`.
 
 **Files:**
-- Create: `src/AaronOS.Modules.Schedule/Data/SleepLog.cs`
-- Create: `src/AaronOS.Modules.Schedule/Data/SleepLogConfiguration.cs`
 - Create: `src/AaronOS.Modules.Schedule/Data/SleepSettings.cs`
 - Create: `src/AaronOS.Modules.Schedule/Data/SleepSettingsConfiguration.cs`
 - Modify: `src/AaronOS.Modules.Schedule.Tests/ScheduleSchemaTests.cs`
 
 **Interfaces:**
-- Produces: `SleepLog` with `Id`, `NightOf`, `BedTime`, `WakeTime`, `Quality`, `Note`, and computed `decimal Hours`. `SleepSettings` with `Id`, `TargetHours`, `SleepOnsetMinutes`, `MorningRoutineMinutes`, `WindDownLeadMinutes`, and a `static SleepSettings Default()`.
+- Produces: `SleepSettings` with `Id`, `TargetHours`, `SleepOnsetMinutes`, `MorningRoutineMinutes`, `WindDownLeadMinutes`, and a `static SleepSettings Default()`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -99,35 +105,6 @@ Add to the existing `ScheduleSchemaTests` class (it already has `CreateContext()
 > ⚠️ **The test code below uses one `db` for both the write and the read. That is stale — restructure it before running.** EF Core's identity resolution returns the already-tracked entity, so asserting through the context that performed the insert checks the object the test constructed, not what SQLite stored: a broken value converter would pass. Write in one context, dispose it, then verify through a fresh `CreateContext()` against the same `_dbPath`. And where a test deletes to prove a cascade, the deleting context must not load or track the children — otherwise it proves EF's client-side cascade rather than the database foreign key. Use `ExecuteDeleteAsync` or a key-only attached stub there.
 
 ```csharp
-    [Fact]
-    public async Task SleepLog_EnforcesOneRowPerNight()
-    {
-        await using var db = CreateContext();
-        await db.Database.EnsureCreatedAsync();
-
-        db.Add(new SleepLog
-        {
-            NightOf = new DateOnly(2026, 7, 6),
-            BedTime = new DateTime(2026, 7, 6, 23, 15, 0),
-            WakeTime = new DateTime(2026, 7, 7, 6, 45, 0),
-            Quality = 4,
-        });
-        await db.SaveChangesAsync();
-
-        var loaded = await db.Set<SleepLog>().SingleAsync();
-        Assert.Equal(7.5m, loaded.Hours);
-
-        // A second log for the same night must be rejected by the unique index rather than
-        // silently producing two rows the debt calculation would double-count.
-        db.Add(new SleepLog
-        {
-            NightOf = new DateOnly(2026, 7, 6),
-            BedTime = new DateTime(2026, 7, 6, 22, 0, 0),
-            WakeTime = new DateTime(2026, 7, 7, 6, 0, 0),
-        });
-        await Assert.ThrowsAnyAsync<DbUpdateException>(() => db.SaveChangesAsync());
-    }
-
     [Fact]
     public void SleepSettings_DefaultsMatchTheSpec()
     {
@@ -138,63 +115,34 @@ Add to the existing `ScheduleSchemaTests` class (it already has `CreateContext()
         Assert.Equal(45, settings.MorningRoutineMinutes);
         Assert.Equal(30, settings.WindDownLeadMinutes);
     }
+
+    [Fact]
+    public async Task SleepSettings_RoundTripsItsDecimalPrecision()
+    {
+        // TargetHours is configured HasPrecision(4,2); a whole-number column type would read 7.5
+        // back as 7 or 8 and silently shift every bedtime this module recommends.
+        await using (var db = CreateContext())
+        {
+            await db.Database.EnsureCreatedAsync();
+            db.Add(new SleepSettings { TargetHours = 7.5m, SleepOnsetMinutes = 20, MorningRoutineMinutes = 50, WindDownLeadMinutes = 25 });
+            await db.SaveChangesAsync();
+        }
+
+        await using var verify = CreateContext();
+        var loaded = await verify.Set<SleepSettings>().SingleAsync();
+        Assert.Equal(7.5m, loaded.TargetHours);
+        Assert.Equal(20, loaded.SleepOnsetMinutes);
+        Assert.Equal(50, loaded.MorningRoutineMinutes);
+        Assert.Equal(25, loaded.WindDownLeadMinutes);
+    }
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `CS0246` for `SleepLog` and `SleepSettings`.
+Expected: `CS0246` for `SleepSettings`.
 
 - [ ] **Step 3: Write the implementation**
-
-`src/AaronOS.Modules.Schedule/Data/SleepLog.cs`:
-
-```csharp
-namespace AaronOS.Modules.Schedule.Data;
-
-/// <summary>
-/// One night of self-reported sleep. <see cref="NightOf"/> is the date the sleep *started*, which
-/// removes the perennial ambiguity of which calendar day a 1am bedtime belongs to.
-///
-/// Shaped so a wearable or phone importer can backfill these rows later without a schema change:
-/// nothing here depends on the values having been typed by hand.
-/// </summary>
-public class SleepLog
-{
-    public int Id { get; set; }
-    public DateOnly NightOf { get; set; }
-    public DateTime BedTime { get; set; }
-    public DateTime WakeTime { get; set; }
-
-    /// <summary>Optional self-rating, 1 (poor) to 5 (good).</summary>
-    public int? Quality { get; set; }
-
-    public string? Note { get; set; }
-
-    /// <summary>Rounded to two places so the debt sum doesn't accumulate float noise.</summary>
-    public decimal Hours => Math.Round((decimal)(WakeTime - BedTime).TotalHours, 2);
-}
-```
-
-`src/AaronOS.Modules.Schedule/Data/SleepLogConfiguration.cs`:
-
-```csharp
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-
-namespace AaronOS.Modules.Schedule.Data;
-
-public class SleepLogConfiguration : IEntityTypeConfiguration<SleepLog>
-{
-    public void Configure(EntityTypeBuilder<SleepLog> builder)
-    {
-        builder.HasKey(s => s.Id);
-        builder.HasIndex(s => s.NightOf).IsUnique();
-        builder.Property(s => s.Note).HasMaxLength(500);
-        builder.Ignore(s => s.Hours);
-    }
-}
-```
 
 `src/AaronOS.Modules.Schedule/Data/SleepSettings.cs`:
 
@@ -206,8 +154,12 @@ namespace AaronOS.Modules.Schedule.Data;
 /// nothing else needs it.
 ///
 /// <see cref="TargetHours"/> is the user's own choice. Nothing in this module infers it, and
-/// nothing should: computing a schedule and a shortfall against a stated target is arithmetic,
-/// whereas determining how much sleep a person needs is not something this app can know.
+/// nothing should: working a bedtime backwards from a stated target is arithmetic, whereas
+/// determining how much sleep a person needs is not something this app can know.
+///
+/// This is the only sleep table in the Schedule module. Hours actually slept live in the Medical
+/// module (self-reported on MoodEntry, measured on SleepNight) and are deliberately not duplicated
+/// or read from here.
 /// </summary>
 public class SleepSettings
 {
@@ -250,13 +202,13 @@ public class SleepSettingsConfiguration : IEntityTypeConfiguration<SleepSettings
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 34`
+Expected: `Passed! - Failed: 0, Passed: 36`
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add src/AaronOS.Modules.Schedule/Data src/AaronOS.Modules.Schedule.Tests/ScheduleSchemaTests.cs
-git commit -m "Add SleepLog and SleepSettings entities"
+git commit -m "Add the SleepSettings entity"
 ```
 
 ---
@@ -264,19 +216,19 @@ git commit -m "Add SleepLog and SleepSettings entities"
 ## Task 2: SleepPlanner
 
 **Files:**
-- Create: `src/AaronOS.Modules.Schedule/Sleep/SleepSummary.cs`
 - Create: `src/AaronOS.Modules.Schedule/Sleep/SleepPlanner.cs`
 - Test: `src/AaronOS.Modules.Schedule.Tests/SleepPlannerTests.cs`
 
 **Interfaces:**
-- Consumes: `AgendaDay` and `AgendaEntry` from Plan 1, `SleepLog`, `SleepSettings`.
+- Consumes: `AgendaDay` and `AgendaEntry` from Plan 1, `SleepSettings`.
 - Produces:
-  - `record SleepSummary(DateTime? RecommendedBedtime, decimal DebtHours, decimal AverageHours, int NightsLogged)`
   - `static DateTime? SleepPlanner.RecommendedBedtime(DateOnly tonight, AgendaDay tomorrow, SleepSettings settings)`
-  - `static decimal SleepPlanner.DebtHours(IReadOnlyList<SleepLog> logs, SleepSettings settings, DateOnly today, int windowNights = 14)`
-  - `static SleepSummary SleepPlanner.Summarize(DateOnly today, AgendaDay tomorrow, IReadOnlyList<SleepLog> logs, SleepSettings settings)`
 
   Plan 3's notification tick calls `RecommendedBedtime` with exactly this signature.
+
+This service is one method. There is no `SleepSummary` record and no `Summarize` — with debt and
+averages out of scope (see the header), a summary type would wrap a single nullable `DateTime`,
+which is noise. Callers call `RecommendedBedtime` directly.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -305,12 +257,6 @@ public class SleepPlannerTests
     private static AgendaEntry SleepEntry() =>
         new(TimeSpan.Zero, new TimeSpan(7, 0, 0), ScheduleBlockKind.Sleep, "Sleep", AgendaEntrySource.Block);
 
-    private static SleepLog Night(DateOnly nightOf, double hours) => new()
-    {
-        NightOf = nightOf,
-        BedTime = nightOf.ToDateTime(new TimeOnly(23, 0)),
-        WakeTime = nightOf.ToDateTime(new TimeOnly(23, 0)).AddHours(hours),
-    };
 
     [Fact]
     public void Bedtime_WorksBackFromTomorrowsFirstCommitment()
@@ -350,99 +296,15 @@ public class SleepPlannerTests
         Assert.Equal(new DateTime(2026, 7, 6, 23, 30, 0), bedtime);
     }
 
-    [Fact]
-    public void Debt_SumsShortfallsAcrossTheWindow()
-    {
-        var today = new DateOnly(2026, 7, 10);
-        var logs = new[]
-        {
-            Night(today.AddDays(-1), 6.0), // 2h short
-            Night(today.AddDays(-2), 7.5), // 0.5h short
-            Night(today.AddDays(-3), 8.0), // on target
-        };
-
-        Assert.Equal(2.5m, SleepPlanner.DebtHours(logs, Settings(), today));
-    }
-
-    [Fact]
-    public void Debt_DoesNotLetALongNightOffsetAShortOne()
-    {
-        var today = new DateOnly(2026, 7, 10);
-        var logs = new[]
-        {
-            Night(today.AddDays(-1), 5.0),  // 3h short
-            Night(today.AddDays(-2), 11.0), // 3h surplus — must NOT cancel the shortfall
-        };
-
-        Assert.Equal(3.0m, SleepPlanner.DebtHours(logs, Settings(), today));
-    }
-
-    [Fact]
-    public void Debt_ExcludesNightsOutsideTheWindow()
-    {
-        var today = new DateOnly(2026, 7, 20);
-        var logs = new[]
-        {
-            Night(today.AddDays(-1), 4.0),  // 4h short, inside
-            Night(today.AddDays(-14), 4.0), // 4h short, inside (boundary)
-            Night(today.AddDays(-15), 0.0), // outside — 8h short, excluded
-        };
-
-        Assert.Equal(8.0m, SleepPlanner.DebtHours(logs, Settings(), today));
-    }
-
-    [Fact]
-    public void Debt_IsZeroWithNoLogs()
-    {
-        Assert.Equal(0m, SleepPlanner.DebtHours([], Settings(), new DateOnly(2026, 7, 10)));
-    }
-
-    [Fact]
-    public void Summarize_ReportsAverageAndCountOverTheWindow()
-    {
-        var today = new DateOnly(2026, 7, 10);
-        var logs = new[] { Night(today.AddDays(-1), 6.0), Night(today.AddDays(-2), 8.0) };
-
-        var summary = SleepPlanner.Summarize(today, Day(Work(8)), logs, Settings());
-
-        Assert.Equal(2, summary.NightsLogged);
-        Assert.Equal(7.0m, summary.AverageHours);
-        Assert.Equal(2.0m, summary.DebtHours);
-        Assert.NotNull(summary.RecommendedBedtime);
-    }
-
-    [Fact]
-    public void Summarize_AverageIsZeroRatherThanDividingByZero()
-    {
-        var summary = SleepPlanner.Summarize(new DateOnly(2026, 7, 10), Day(), [], Settings());
-
-        Assert.Equal(0, summary.NightsLogged);
-        Assert.Equal(0m, summary.AverageHours);
-    }
 }
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `CS0246` for `SleepPlanner` and `SleepSummary`.
+Expected: `CS0246` for `SleepPlanner`.
 
 - [ ] **Step 3: Write the implementation**
-
-`src/AaronOS.Modules.Schedule/Sleep/SleepSummary.cs`:
-
-```csharp
-namespace AaronOS.Modules.Schedule.Sleep;
-
-/// <param name="RecommendedBedtime">Null when tomorrow has no commitment to work back from.</param>
-/// <param name="DebtHours">Total shortfall against the target across the window, never negative.</param>
-/// <param name="AverageHours">Mean logged hours across the window; zero when nothing is logged.</param>
-public sealed record SleepSummary(
-    DateTime? RecommendedBedtime,
-    decimal DebtHours,
-    decimal AverageHours,
-    int NightsLogged);
-```
 
 `src/AaronOS.Modules.Schedule/Sleep/SleepPlanner.cs`:
 
@@ -453,16 +315,18 @@ using AaronOS.Modules.Schedule.Data;
 namespace AaronOS.Modules.Schedule.Sleep;
 
 /// <summary>
-/// Arithmetic over the user's own numbers: when to go to bed given what tomorrow demands, and how
-/// far behind a target they've fallen. Deliberately not in the business of deciding what the target
-/// should be — that is <see cref="SleepSettings.TargetHours"/>, which the user sets.
+/// Arithmetic over the user's own numbers: when to go to bed given what tomorrow demands.
+/// Deliberately not in the business of deciding what the target should be — that is
+/// <see cref="SleepSettings.TargetHours"/>, which the user sets.
+///
+/// Hours actually slept are not this module's concern; the Medical module records them. So there is
+/// nothing here about debt, averages, or history — only the forward-looking recommendation, which
+/// needs the agenda and the settings and nothing else.
 ///
 /// Pure: takes dates as parameters and never reads the clock, so every rule is testable at any date.
 /// </summary>
 public static class SleepPlanner
 {
-    public const int DefaultWindowNights = 14;
-
     /// <summary>
     /// Works backward from tomorrow's first non-sleep commitment: minus the morning routine, minus
     /// the nightly target, minus the time it takes to fall asleep. Returns null when tomorrow has
@@ -479,60 +343,24 @@ public static class SleepPlanner
             .AddHours(-(double)settings.TargetHours)
             .AddMinutes(-settings.SleepOnsetMinutes);
     }
-
-    /// <summary>
-    /// Sum of (target − actual) across the window, floored at zero per night. A long night does not
-    /// offset a short one: eleven hours on Saturday does not undo five hours on Friday, and letting
-    /// it cancel out would report "no debt" for a week that plainly had some.
-    /// </summary>
-    public static decimal DebtHours(
-        IReadOnlyList<SleepLog> logs,
-        SleepSettings settings,
-        DateOnly today,
-        int windowNights = DefaultWindowNights)
-    {
-        var earliest = today.AddDays(-windowNights);
-
-        return logs
-            .Where(l => l.NightOf >= earliest && l.NightOf < today)
-            .Sum(l => Math.Max(0m, settings.TargetHours - l.Hours));
-    }
-
-    public static SleepSummary Summarize(
-        DateOnly today,
-        AgendaDay tomorrow,
-        IReadOnlyList<SleepLog> logs,
-        SleepSettings settings,
-        int windowNights = DefaultWindowNights)
-    {
-        var earliest = today.AddDays(-windowNights);
-        var inWindow = logs.Where(l => l.NightOf >= earliest && l.NightOf < today).ToList();
-
-        var average = inWindow.Count == 0
-            ? 0m
-            : Math.Round(inWindow.Sum(l => l.Hours) / inWindow.Count, 2);
-
-        return new SleepSummary(
-            RecommendedBedtime(today, tomorrow, settings),
-            DebtHours(logs, settings, today, windowNights),
-            average,
-            inWindow.Count);
-    }
 }
 ```
 
-The window is `>= today - 14 && < today`: tonight is not yet logged, so including `today` would count an absent row as a full night's shortfall the moment the date rolled over.
+Note the returned `DateTime` can land on either calendar day: a 09:00 start with an 8-hour target
+puts bedtime just after midnight, so it belongs to tomorrow's date, not tonight's. The
+`Bedtime_IgnoresSleepEntriesWhenPickingTheFirstCommitment` test pins exactly that case. Do not clamp
+the result to `tonight`.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 44`
+Expected: `Passed! - Failed: 0, Passed: 40`
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add src/AaronOS.Modules.Schedule/Sleep src/AaronOS.Modules.Schedule.Tests/SleepPlannerTests.cs
-git commit -m "Add SleepPlanner bedtime recommendation and sleep debt"
+git commit -m "Add SleepPlanner bedtime recommendation"
 ```
 
 ---
@@ -548,17 +376,20 @@ git commit -m "Add SleepPlanner bedtime recommendation and sleep debt"
 - Modify: `src/AaronOS.Modules.Schedule/ScheduleModule.cs`
 
 **Interfaces:**
-- Consumes: `SleepPlanner.Summarize`, `AgendaBuilder.Build`, `SleepLog`, `SleepSettings`.
-- Produces: `SleepViewModel` with `ObservableCollection<SleepLog> RecentNights`, summary display properties, `LoadCommand`, `LogNightCommand`, `SaveSettingsCommand`, `DeleteNightCommand`.
+- Consumes: `SleepPlanner.RecommendedBedtime`, `AgendaBuilder.Build`, `SleepSettings`.
+- Produces: `SleepViewModel` with the bedtime display, the four settings properties, `LoadCommand` and `SaveSettingsCommand`.
+
+This page edits settings and shows tonight's recommended bedtime. It does NOT log nights and shows
+no history — see the sleep-scope note in the header. Sleep history is the Medical module's Sleep and
+Mood pages.
 
 - [ ] **Step 1: Write the ViewModel**
 
-No unit test: the arithmetic is covered by 10 `SleepPlannerTests`. This is a database read plus a call into the planner.
+No unit test: the arithmetic is covered by the 4 `SleepPlannerTests`. This is a database read plus a call into the planner.
 
 `src/AaronOS.Modules.Schedule/ViewModels/SleepViewModel.cs`:
 
 ```csharp
-using System.Collections.ObjectModel;
 using AaronOS.Core;
 using AaronOS.Core.Data;
 using AaronOS.Modules.Schedule.Agenda;
@@ -572,33 +403,11 @@ namespace AaronOS.Modules.Schedule.ViewModels;
 
 public partial class SleepViewModel(IDbContextFactory<AaronOsDbContext> dbContextFactory) : ViewModelBase
 {
-    public ObservableCollection<SleepLog> RecentNights { get; } = [];
-
     [ObservableProperty]
     private string _bedtimeDisplay = "";
 
-    [ObservableProperty]
-    private string _debtDisplay = "";
-
-    [ObservableProperty]
-    private string _averageDisplay = "";
-
-    // Log-a-night editor. Defaults to last night, which is what you're logging when you open this.
-    [ObservableProperty]
-    private DateTime? _newNightOf = DateTime.Today.AddDays(-1);
-
-    [ObservableProperty]
-    private string _newBedTimeText = "23:00";
-
-    [ObservableProperty]
-    private string _newWakeTimeText = "07:00";
-
-    // Every property below is bound to a ui:NumberBox, so each is double? and null means
-    // "cleared" — see the Global Constraint. Do not narrow these to double.
-    [ObservableProperty]
-    private double? _newQuality;
-
-    // Settings editor.
+    // Settings editor. Every property below is bound to a ui:NumberBox, so each is double? and null
+    // means "cleared" — see the Global Constraint. Do not narrow these to double.
     [ObservableProperty]
     private double? _targetHours = 8;
 
@@ -637,85 +446,18 @@ public partial class SleepViewModel(IDbContextFactory<AaronOsDbContext> dbContex
                 .ToListAsync();
             var tomorrow = AgendaBuilder.Build(tomorrowDate, tomorrowDate, blocks, exceptions, []).Single();
 
-            var logs = await db.Set<SleepLog>()
-                .Where(l => l.NightOf >= today.AddDays(-SleepPlanner.DefaultWindowNights))
-                .ToListAsync();
+            var bedtime = SleepPlanner.RecommendedBedtime(today, tomorrow, settings);
 
-            var summary = SleepPlanner.Summarize(today, tomorrow, logs, settings);
-
-            BedtimeDisplay = summary.RecommendedBedtime is { } bedtime
-                ? $"Aim to be in bed by {bedtime:h:mm tt}"
+            // Show the date as well as the time. An early first commitment can push the
+            // recommendation past midnight, and "be in bed by 12:15 AM" is ambiguous without it.
+            BedtimeDisplay = bedtime is { } at
+                ? $"Aim to be in bed by {at:h:mm tt} on {at:ddd d MMM}"
                 : "No commitments tomorrow — no bedtime to work back from.";
-            DebtDisplay = $"{summary.DebtHours:0.#} h behind your {settings.TargetHours:0.#} h target over the last {SleepPlanner.DefaultWindowNights} nights";
-            AverageDisplay = summary.NightsLogged == 0
-                ? "Nothing logged yet."
-                : $"Averaging {summary.AverageHours:0.#} h across {summary.NightsLogged} logged night(s)";
-
-            RecentNights.Clear();
-            foreach (var log in logs.OrderByDescending(l => l.NightOf)) RecentNights.Add(log);
         }
         finally
         {
             IsBusy = false;
         }
-    }
-
-    [RelayCommand]
-    private async Task LogNightAsync()
-    {
-        ValidationMessage = null;
-
-        if (NewNightOf is not { } nightOfDate)
-        {
-            ValidationMessage = "Pick the night.";
-            return;
-        }
-        if (!TimeSpan.TryParse(NewBedTimeText, out var bed) || !TimeSpan.TryParse(NewWakeTimeText, out var wake))
-        {
-            ValidationMessage = "Enter times as HH:mm.";
-            return;
-        }
-
-        var nightOf = DateOnly.FromDateTime(nightOfDate);
-        var bedTime = nightOf.ToDateTime(TimeOnly.MinValue) + bed;
-        var wakeTime = nightOf.ToDateTime(TimeOnly.MinValue) + wake;
-        // Waking "before" bedtime means the wake time is on the following morning, which is the
-        // normal case for any bedtime after midnight-minus-target.
-        if (wakeTime <= bedTime) wakeTime = wakeTime.AddDays(1);
-
-        await using var db = await dbContextFactory.CreateDbContextAsync();
-
-        var existing = await db.Set<SleepLog>().SingleOrDefaultAsync(l => l.NightOf == nightOf);
-        if (existing is null)
-        {
-            db.Add(new SleepLog
-            {
-                NightOf = nightOf,
-                BedTime = bedTime,
-                WakeTime = wakeTime,
-                Quality = NewQuality is { } quality ? (int)quality : null,
-            });
-        }
-        else
-        {
-            // One row per night is a unique index, so re-logging the same night is an edit, not
-            // an error the user has to resolve.
-            existing.BedTime = bedTime;
-            existing.WakeTime = wakeTime;
-            existing.Quality = NewQuality is { } quality ? (int)quality : null;
-        }
-
-        await db.SaveChangesAsync();
-        await LoadAsync();
-    }
-
-    [RelayCommand]
-    private async Task DeleteNightAsync(SleepLog log)
-    {
-        await using var db = await dbContextFactory.CreateDbContextAsync();
-        db.Remove(await db.Set<SleepLog>().SingleAsync(l => l.Id == log.Id));
-        await db.SaveChangesAsync();
-        await LoadAsync();
     }
 
     [RelayCommand]
@@ -781,55 +523,11 @@ Register in `ScheduleModule.RegisterServices`:
 
             <ui:Card Margin="0,0,0,12">
                 <StackPanel>
-                    <ui:TextBlock Text="{Binding BedtimeDisplay}" FontTypography="BodyStrong" Margin="0,0,0,4" />
-                    <TextBlock Text="{Binding DebtDisplay}" Margin="0,0,0,2" />
-                    <TextBlock Text="{Binding AverageDisplay}" />
+                    <ui:TextBlock Text="{Binding BedtimeDisplay}" FontTypography="BodyStrong" />
                 </StackPanel>
             </ui:Card>
 
             <ui:Card Margin="0,0,0,12">
-                <StackPanel>
-                    <ui:TextBlock Text="Log a night" FontTypography="BodyStrong" Margin="0,0,0,8" />
-                    <DatePicker SelectedDate="{Binding NewNightOf, Mode=TwoWay}" Margin="0,0,0,8" />
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                        <ui:TextBox PlaceholderText="In bed HH:mm" Text="{Binding NewBedTimeText, Mode=TwoWay}" Width="130" Margin="0,0,8,0" />
-                        <ui:TextBox PlaceholderText="Awake HH:mm" Text="{Binding NewWakeTimeText, Mode=TwoWay}" Width="130" Margin="0,0,8,0" />
-                        <ui:NumberBox PlaceholderText="Quality 1-5" Value="{Binding NewQuality, Mode=TwoWay}" Width="130" />
-                    </StackPanel>
-                    <ui:TextBlock Text="{Binding ValidationMessage}" Foreground="{DynamicResource SystemFillColorCriticalBrush}" Margin="0,0,0,8" />
-                    <ui:Button Content="Save night" Appearance="Primary" Command="{Binding LogNightCommand}" HorizontalAlignment="Left" />
-                </StackPanel>
-            </ui:Card>
-
-            <ui:Card Margin="0,0,0,12">
-                <StackPanel>
-                    <ui:TextBlock Text="Recent nights" FontTypography="BodyStrong" Margin="0,0,0,8" />
-                    <ItemsControl ItemsSource="{Binding RecentNights}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Grid Margin="0,2">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" VerticalAlignment="Center">
-                                        <Run Text="{Binding NightOf, StringFormat='{}{0:ddd MMM d}', Mode=OneWay}" />
-                                        <Run Text=" · " />
-                                        <Run Text="{Binding Hours, StringFormat='{}{0:0.#} h', Mode=OneWay}" />
-                                        <Run Text=" · " />
-                                        <Run Text="{Binding BedTime, StringFormat='{}{0:h:mm tt}', Mode=OneWay}" />
-                                        <Run Text="→" />
-                                        <Run Text="{Binding WakeTime, StringFormat='{}{0:h:mm tt}', Mode=OneWay}" />
-                                    </TextBlock>
-                                    <ui:Button Grid.Column="1" Content="Delete" Click="DeleteNight_Click" />
-                                </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </StackPanel>
-            </ui:Card>
-
-            <ui:Card>
                 <StackPanel>
                     <ui:TextBlock Text="Your target" FontTypography="BodyStrong" Margin="0,0,0,4" />
                     <TextBlock TextWrapping="Wrap" Margin="0,0,0,8"
@@ -840,7 +538,16 @@ Register in `ScheduleModule.RegisterServices`:
                         <ui:NumberBox PlaceholderText="Morning min" Value="{Binding MorningRoutineMinutes, Mode=TwoWay}" Width="130" Margin="0,0,8,0" />
                         <ui:NumberBox PlaceholderText="Wind-down min" Value="{Binding WindDownLeadMinutes, Mode=TwoWay}" Width="130" />
                     </StackPanel>
-                    <ui:Button Content="Save target" Command="{Binding SaveSettingsCommand}" HorizontalAlignment="Left" />
+                    <ui:TextBlock Text="{Binding ValidationMessage}" Foreground="{DynamicResource SystemFillColorCriticalBrush}" Margin="0,0,0,8" />
+                    <ui:Button Content="Save target" Appearance="Primary" Command="{Binding SaveSettingsCommand}" HorizontalAlignment="Left" />
+                </StackPanel>
+            </ui:Card>
+
+            <ui:Card>
+                <StackPanel>
+                    <ui:TextBlock Text="Hours slept" FontTypography="BodyStrong" Margin="0,0,0,4" />
+                    <TextBlock TextWrapping="Wrap"
+                               Text="Nights slept are recorded in Medical — the Sleep page imports measured hours from the sleep pad, and the Mood page takes a self-report. This page only plans forward, so it deliberately doesn't ask you to enter the same thing twice." />
                 </StackPanel>
             </ui:Card>
         </StackPanel>
@@ -851,10 +558,8 @@ Register in `ScheduleModule.RegisterServices`:
 `src/AaronOS.Modules.Schedule/Views/SleepPage.xaml.cs`:
 
 ```csharp
-using System.Windows;
 using System.Windows.Controls;
 using AaronOS.Core;
-using AaronOS.Modules.Schedule.Data;
 using AaronOS.Modules.Schedule.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -870,14 +575,6 @@ public sealed partial class SleepPage : Page
         DataContext = ViewModel;
         InitializeComponent();
         Loaded += async (_, _) => await ViewModel.LoadCommand.ExecuteAsync(null);
-    }
-
-    private void DeleteNight_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is FrameworkElement { DataContext: SleepLog log })
-        {
-            _ = ViewModel.DeleteNightCommand.ExecuteAsync(log);
-        }
     }
 }
 ```
@@ -913,7 +610,7 @@ Close the app.
 - [ ] **Step 4: Run the tests to confirm nothing regressed**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 44`
+Expected: `Passed! - Failed: 0, Passed: 40`
 
 - [ ] **Step 5: Commit**
 
@@ -1149,7 +846,7 @@ public class ReleaseConfiguration : IEntityTypeConfiguration<Release>
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 46`
+Expected: `Passed! - Failed: 0, Passed: 42`
 
 - [ ] **Step 5: Commit**
 
@@ -1584,7 +1281,7 @@ public static class SuggestionEngine
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 58`
+Expected: `Passed! - Failed: 0, Passed: 54`
 
 - [ ] **Step 5: Commit**
 
@@ -2072,7 +1769,7 @@ Close the app.
 - [ ] **Step 4: Run the tests to confirm nothing regressed**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 58`
+Expected: `Passed! - Failed: 0, Passed: 54`
 
 - [ ] **Step 5: Commit**
 
@@ -2268,7 +1965,7 @@ Close the app.
 - [ ] **Step 5: Run the tests and commit**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 58`
+Expected: `Passed! - Failed: 0, Passed: 54`
 
 ```bash
 git add src/AaronOS.Modules.Schedule
@@ -2280,11 +1977,24 @@ git commit -m "Surface ranked suggestions on the Today page"
 ## Definition of done for Plan 2
 
 - `dotnet build AaronOS.slnx --nologo` succeeds.
-- `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo` reports 58 passing tests, 0 failing.
+- `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo` reports 54 passing tests, 0 failing.
 - Sleep, Goals, and Today all load against the real database; Today ranks routines, releases, milestones, and bedtime in one list.
-- Sleep logs, goals, milestones, and releases persist across an app restart.
+- Sleep settings, goals, milestones, and releases persist across an app restart.
+- No `SleepLog` entity exists, nothing computes sleep debt, and nothing in this module reads Medical's `MoodEntry` or `SleepNight`.
 - No external network call exists anywhere in the module.
 
 ## Deferred to later plans
 
 Notifications (Plan 3), external calendars (Plan 4), Gmail extraction (Plan 5). Also: a weekday picker in the routine editor, editing an existing goal's title or target date (only add and delete exist), and reordering milestones (`SortOrder` is set on insert and never changed).
+
+**Sleep debt**, deliberately unscheduled. It needs actual hours slept, which the Medical module owns
+on `MoodEntry` and `SleepNight`, and `docs/MODULE_GUIDELINES.md` forbids reading another module's
+entities. Doing it properly means promoting the nightly-sleep shape into `AaronOS.Core` and pointing
+both modules at it — worth a spec of its own, not a task bolted onto this plan.
+
+**A weekday-pinned routine editor**, carried over from Plan 1. `Routine.PreferredDaysOfWeek`,
+`RoutineScheduler.NextWeekdayDue` and the cadence display all support a fixed trash night, and are
+tested, but no UI writes them. Whichever plan adds that editor must also add the
+`IntervalDays`/`PreferredDaysOfWeek` exclusivity validation, because `RoutineScheduler.Evaluate`
+throws on a routine with neither set and `EvaluateAll` propagates it — which would fail the whole
+Routines page load rather than one row.

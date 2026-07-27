@@ -1678,6 +1678,7 @@ All nine spec phases are implemented across Plans 1–5. Deliberately not built,
 - Writing to any external calendar. Read-only throughout, by design.
 - Microsoft Graph as an Outlook transport. `IExternalCalendarSource` is the seam; whether it is needed depends on Plan 4's Task 0 gate.
 - Notifications while the app is closed. Needs a Windows Scheduled Task, out of scope per the spec.
-- Wearable or phone sleep import. `SleepLog` is shaped for a backfilling importer, but none exists.
+- Sleep history and sleep debt in this module. Hours slept live in the Medical module (`MoodEntry`
+  self-report, `SleepNight` measured from the Withings pad); Schedule only plans bedtime forward.
 - Actionable toast buttons. Needs `Microsoft.Toolkit.Uwp.Notifications` plus an AUMID shortcut and COM activator.
 - A weekday picker in the routine editor; editing an existing goal's title or target date; reordering milestones; selecting a non-primary Google calendar. All supported by the entities, none exposed in the UI.

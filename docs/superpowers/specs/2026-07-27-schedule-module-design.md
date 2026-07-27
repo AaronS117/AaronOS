@@ -31,8 +31,8 @@ In scope:
   exceptions, so the template plus exceptions model fits directly.
 - Recurring routines with an interval or a fixed weekday, completion logging, and next-due /
   overdue-by-N-days computation.
-- Manual sleep logging (bed time, wake time), a configurable nightly target, a recommended bedtime
-  derived from the next day's first commitment, and a rolling 14-day sleep debt figure.
+- A configurable nightly sleep target and a recommended bedtime derived from the next day's first
+  commitment. Hours actually slept are **not** recorded here — see "Sleep is forward-looking only".
 - Goals with optional target dates, progress, and milestones.
 - Release tracking for media (games, movies, shows) and products (hardware launches, restocks) in one
   dated-record table with a category.
@@ -49,8 +49,13 @@ Explicitly out of scope, noted so it is not silently forgotten:
   provider can be added later without reworking the module, but Graph is not built here.
 - **Toasts while the app is closed.** Notifications require the app to be running; a Windows
   Scheduled Task that wakes something up is a separate concern.
-- **Wearable or phone sleep import.** Sleep is self-reported. The `SleepLog` shape leaves room for an
-  importer to backfill it later without a schema change.
+- **Any record of hours slept.** The Medical module already owns that twice over: `MoodEntry` holds a
+  self-report and `SleepNight` holds measured hours imported from a Withings sleep pad, with
+  `MoodStatistics.SleepFor` deciding which to show. A third store here would mean entering sleep in
+  two modules and could disagree with the pad.
+- **Sleep debt.** It needs actual hours, which live in Medical, and `MODULE_GUIDELINES.md` forbids
+  reading another module's entities. Adding it means first promoting the nightly-sleep shape into
+  `AaronOS.Core` so both modules share one definition — deliberately its own piece of work.
 - **Body-composition goals.** Those already live in `BodyMeasurements`, and `MODULE_GUIDELINES.md`
   forbids reaching across module boundaries. `Goal` here is a generic dated-goal record; the two
   coexist without referencing each other.
@@ -191,12 +196,20 @@ deleted.
 
 ### Sleep
 
-**`SleepLog`** — `Id`, `NightOf` (`DateOnly`, the date the sleep *started*), `BedTime` (`DateTime`),
-`WakeTime` (`DateTime`), `Quality` (int? 1–5), `Note` (string?). Unique index on `NightOf`. Duration
-is computed, not stored.
+**Sleep is forward-looking only.** This module stores a target and computes a bedtime from it. It
+does not store hours slept, and there is no `SleepLog` entity.
 
-`NightOf` rather than a plain date avoids the perennial ambiguity of which calendar day a 1 a.m.
-bedtime belongs to.
+The Medical module already records nightly sleep twice: `MoodEntry` carries a self-reported figure
+alongside mood and energy, and `SleepNight` carries measured hours, stages, heart rate and a sleep
+score imported from a Withings sleep pad, with `MoodStatistics.SleepFor` resolving which to display.
+Duplicating that here would ask for the same data in two places and produce a second set of numbers
+that could contradict the pad. So Schedule keeps only the half Medical lacks — "given tomorrow's
+first commitment, when should I be in bed?" — which reads the agenda and needs no history at all.
+
+The cost is that sleep debt is out of scope, since debt needs actual hours. Closing that gap means
+promoting the nightly-sleep shape into `AaronOS.Core` so both modules depend on one definition, per
+the cross-module rule in `MODULE_GUIDELINES.md`. That is a separate design decision, not something to
+improvise while building this module.
 
 **`SleepSettings`** — single-row table, following the `UserProfile` pattern but kept in this module
 since nothing else needs it: `Id`, `TargetHours` (`decimal`, default 8.0), `SleepOnsetMinutes` (int,
@@ -303,9 +316,8 @@ weekday-pinned routines are due on the next matching weekday not already covered
   from tomorrow's first committed entry: minus `MorningRoutineMinutes`, minus `TargetHours`, minus
   `SleepOnsetMinutes`. When tomorrow has no commitments, falls back to the active `Sleep`
   `ScheduleBlock`.
-- `SleepDebt(IReadOnlyList<SleepLog> last14Nights, SleepSettings settings)` — sum of
-  `TargetHours − actual` over the window, floored at zero per night so a long night does not silently
-  cancel a short one.
+`RecommendedBedtime` is the whole service — one method, no result record. There is no debt or average
+computation, because this module holds no sleep history to compute them from.
 
 ### `SuggestionEngine` (pure)
 
@@ -431,8 +443,8 @@ integrations.
    editing UI. Register in `AaronOS.App`. Usable immediately.
 2. **Routines.** `Routine`, `RoutineCompletion`, `RoutineScheduler`, Routines page with completion
    logging and next-due display.
-3. **Sleep.** `SleepLog`, `SleepSettings`, `SleepPlanner`, Sleep page with logging, target
-   configuration, recommended bedtime, and the 14-day debt figure.
+3. **Sleep.** `SleepSettings`, `SleepPlanner`, Sleep page with target configuration and the
+   recommended bedtime. No logging, no debt figure.
 4. **Goals and releases.** `Goal`, `GoalMilestone`, `Release`, the Goals & Releases page.
 5. **Suggestions.** `SuggestionEngine` wired into the Today panel.
 6. **Notifications.** `NotificationService`, tray icon, `PeriodicTimer` tick for overdue routines and
