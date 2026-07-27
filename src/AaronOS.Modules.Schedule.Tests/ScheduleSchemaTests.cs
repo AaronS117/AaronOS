@@ -111,45 +111,68 @@ public class ScheduleSchemaTests : IDisposable
     [Fact]
     public async Task Routine_CascadeDeletesItsCompletions()
     {
-        await using var db = CreateContext();
-        await db.Database.EnsureCreatedAsync();
-
-        var litter = new Routine
+        int routineId;
+        await using (var seed = CreateContext())
         {
-            Name = "Scoop litter box",
-            Category = RoutineCategory.LitterBox,
-            IntervalDays = 2,
-            EstimatedMinutes = 5,
-        };
-        db.Add(litter);
-        await db.SaveChangesAsync();
+            await seed.Database.EnsureCreatedAsync();
+            var litter = new Routine
+            {
+                Name = "Scoop litter box",
+                Category = RoutineCategory.LitterBox,
+                IntervalDays = 2,
+                EstimatedMinutes = 5,
+            };
+            seed.Add(litter);
+            await seed.SaveChangesAsync();
+            routineId = litter.Id;
 
-        db.Add(new RoutineCompletion { RoutineId = litter.Id, CompletedAt = new DateTime(2026, 7, 6, 21, 0, 0) });
-        await db.SaveChangesAsync();
-        Assert.Equal(1, await db.Set<RoutineCompletion>().CountAsync());
+            seed.Add(new RoutineCompletion { RoutineId = routineId, CompletedAt = new DateTime(2026, 7, 6, 21, 0, 0) });
+            await seed.SaveChangesAsync();
+        }
 
-        db.Remove(litter);
-        await db.SaveChangesAsync();
+        // Verify the completion was inserted
+        await using (var verifySeeded = CreateContext())
+        {
+            Assert.Equal(1, await verifySeeded.Set<RoutineCompletion>().CountAsync());
+        }
 
-        Assert.Equal(0, await db.Set<RoutineCompletion>().CountAsync());
+        // Delete the routine in a fresh context that has no completions tracked.
+        // This forces the delete to rely on the ON DELETE CASCADE in the SQLite schema,
+        // not on EF's client-side cascade of tracked entities.
+        await using (var deleter = CreateContext())
+        {
+            await deleter.Set<Routine>().Where(r => r.Id == routineId).ExecuteDeleteAsync();
+        }
+
+        // Verify both routine and its completions were deleted
+        await using (var verifyDeleted = CreateContext())
+        {
+            Assert.Equal(0, await verifyDeleted.Set<RoutineCompletion>().CountAsync());
+            Assert.Equal(0, await verifyDeleted.Set<Routine>().CountAsync());
+        }
     }
 
     [Fact]
     public async Task Routine_StoresAWeekdayPinnedShape()
     {
-        await using var db = CreateContext();
-        await db.Database.EnsureCreatedAsync();
-
-        db.Add(new Routine
+        await using (var db = CreateContext())
         {
-            Name = "Take out trash",
-            Category = RoutineCategory.Trash,
-            PreferredDaysOfWeek = DayOfWeekFlags.Tuesday,
-            PreferredTimeOfDay = new TimeSpan(20, 0, 0),
-        });
-        await db.SaveChangesAsync();
+            await db.Database.EnsureCreatedAsync();
 
-        var loaded = await db.Set<Routine>().SingleAsync();
+            db.Add(new Routine
+            {
+                Name = "Take out trash",
+                Category = RoutineCategory.Trash,
+                PreferredDaysOfWeek = DayOfWeekFlags.Tuesday,
+                PreferredTimeOfDay = new TimeSpan(20, 0, 0),
+            });
+            await db.SaveChangesAsync();
+        }
+
+        // Fresh context against the same file: forces a genuine reload, so the assertions
+        // below check what SQLite actually stored, not the objects this test constructed.
+        await using var verify = CreateContext();
+        var loaded = await verify.Set<Routine>().SingleAsync();
         Assert.Null(loaded.IntervalDays);
         Assert.Equal(DayOfWeekFlags.Tuesday, loaded.PreferredDaysOfWeek);
     }
