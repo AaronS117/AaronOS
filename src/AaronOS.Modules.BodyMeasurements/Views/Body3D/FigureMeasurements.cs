@@ -1,3 +1,4 @@
+using AaronOS.Core.Data;
 using AaronOS.Modules.BodyMeasurements.Data;
 
 namespace AaronOS.Modules.BodyMeasurements.Views.Body3D;
@@ -10,25 +11,36 @@ public readonly record struct FigureMeasurements(
     double ThighLeft, double ThighRight,
     double CalfLeft, double CalfRight)
 {
-    /// <summary>Average adult proportions, used for whichever values have not been recorded. Applied
-    /// per measurement rather than all-or-nothing, so a check-in with only a waist still shows that
-    /// waist truthfully against an otherwise average figure.</summary>
+    /// <summary>
+    /// Average adult proportions, used for whichever values have not been recorded. Applied per
+    /// measurement rather than all-or-nothing, so a check-in with only a waist still shows that waist
+    /// truthfully against an otherwise average figure.
+    ///
+    /// A value outside human range is treated the same as a missing one. That is not paranoia: a height
+    /// of 6 was once stored meaning six feet, and because every measurement is scaled relative to
+    /// height, the figure inflated to its limits everywhere at once. Falling back to the average keeps
+    /// the figure readable, and the settings page is where the value gets refused outright.
+    /// </summary>
     public static FigureMeasurements FromCheckIn(BodyCheckIn? c, decimal? heightInches)
     {
-        double V(decimal? value, double fallback) => (double)(value ?? (decimal)fallback);
+        double Height(decimal? value, double fallback) =>
+            value is { } v && BodyMetrics.IsPlausibleHeight(v) ? (double)v : fallback;
+
+        double Girth(decimal? value, double fallback) =>
+            value is { } v && BodyMetrics.IsPlausibleCircumference(v) ? (double)v : fallback;
 
         return new FigureMeasurements(
-            HeightInches: V(heightInches, 70),
-            Neck: V(c?.NeckIn, 15),
-            Chest: V(c?.ChestIn, 40),
-            Waist: V(c?.WaistIn, 34),
-            Hips: V(c?.HipsIn, 40),
-            BicepLeft: V(c?.BicepLeftIn, 13),
-            BicepRight: V(c?.BicepRightIn, 13),
-            ThighLeft: V(c?.ThighLeftIn, 22),
-            ThighRight: V(c?.ThighRightIn, 22),
-            CalfLeft: V(c?.CalfLeftIn, 15),
-            CalfRight: V(c?.CalfRightIn, 15));
+            HeightInches: Height(heightInches, 70),
+            Neck: Girth(c?.NeckIn, 15),
+            Chest: Girth(c?.ChestIn, 40),
+            Waist: Girth(c?.WaistIn, 34),
+            Hips: Girth(c?.HipsIn, 40),
+            BicepLeft: Girth(c?.BicepLeftIn, 13),
+            BicepRight: Girth(c?.BicepRightIn, 13),
+            ThighLeft: Girth(c?.ThighLeftIn, 22),
+            ThighRight: Girth(c?.ThighRightIn, 22),
+            CalfLeft: Girth(c?.CalfLeftIn, 15),
+            CalfRight: Girth(c?.CalfRightIn, 15));
     }
 
     public static bool HasAnyMeasurement(BodyCheckIn? c) =>

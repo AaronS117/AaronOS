@@ -250,11 +250,68 @@ public class BodyFigureTests
             value => Assert.True(value > 0, "every dimension needs a usable default so the model always renders"));
     }
 
+    /// <summary>
+    /// The bug this pins actually happened. A height of 6 was entered meaning six feet and stored as
+    /// six inches. Because every measurement is a ratio against the base mesh scaled to height, a
+    /// six-inch body made every ratio enormous, all of them pinned at the upper clamp, and the figure
+    /// rendered as an inflated blob with fins where the arms met the shoulders.
+    /// </summary>
+    [Theory]
+    [InlineData(6)]      // feet typed into an inches field, the case that occurred
+    [InlineData(0)]
+    [InlineData(-70)]
+    [InlineData(5000)]
+    public void Figure_ImplausibleHeightFallsBackToTheAverageInsteadOfInflating(double badHeight)
+    {
+        var checkIn = new BodyCheckIn
+        {
+            NeckIn = 12m, ChestIn = 45m, WaistIn = 12m, HipsIn = 12m,
+            BicepLeftIn = 12m, BicepRightIn = 12m,
+            ThighLeftIn = 12m, ThighRightIn = 12m,
+            CalfLeftIn = 12m, CalfRightIn = 12m,
+        };
+
+        var m = FigureMeasurements.FromCheckIn(checkIn, (decimal)badHeight);
+        Assert.Equal(70, m.HeightInches);
+
+        // With a sane height, those same measurements shrink the figure rather than inflating it. The
+        // blob came from every factor pinning at the upper clamp at once.
+        var figure = BodyMeshDeformer.Build(m);
+        var average = BodyMeshDeformer.Build(FigureMeasurements.FromCheckIn(null, 70m));
+
+        Assert.True(SpanAtHeight(figure, 0.615, 70) < SpanAtHeight(average, 0.615, 70),
+            "a 12 inch waist should narrow the figure, never widen it");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-30)]
+    [InlineData(900)]
+    public void Figure_ImplausibleCircumferenceIsTreatedAsMissing(decimal bad)
+    {
+        var m = FigureMeasurements.FromCheckIn(new BodyCheckIn { WaistIn = bad }, 70m);
+
+        Assert.Equal(34, m.Waist);   // the average, same as if it had never been recorded
+    }
+
     [Fact]
     public void Figure_WeightOnlyCheckInCountsAsNoMeasurements()
     {
         // A weigh-in with no tape measurements should still show the dimmed reference figure.
         Assert.False(FigureMeasurements.HasAnyMeasurement(new BodyCheckIn { WeightLb = 185m }));
+    }
+
+    [Fact]
+    public void Bmi_IsCorrectForAKnownPairAndRefusesAnImpossibleHeight()
+    {
+        // 240 lb at 6 ft: 703 * 240 / 72^2 = 32.55, rounded to 32.5.
+        Assert.Equal(32.5m, BmiCalculator.Calculate(240m, 72m));
+
+        // The same weight against the height that was actually stored produced a BMI near 4,700.
+        // Height is squared in the denominator, so a wrong height does not give a slightly wrong BMI.
+        Assert.Null(BmiCalculator.Calculate(240m, 6m));
+        Assert.Null(BmiCalculator.Calculate(240m, null));
+        Assert.Null(BmiCalculator.Calculate(null, 72m));
     }
 
     [Fact]
