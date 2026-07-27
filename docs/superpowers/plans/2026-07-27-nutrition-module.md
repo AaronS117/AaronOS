@@ -2038,15 +2038,23 @@ public partial class IngredientsViewModel(
             return;
         }
 
-        await using var db = await dbContextFactory.CreateDbContextAsync();
-        var ingredient = new Ingredient { Name = NewIngredientName };
-        db.Add(ingredient);
-        await db.SaveChangesAsync();
+        try
+        {
+            await using var db = await dbContextFactory.CreateDbContextAsync();
+            var ingredient = new Ingredient { Name = NewIngredientName };
+            db.Add(ingredient);
+            await db.SaveChangesAsync();
 
-        _allIngredients.Add(ingredient);
-        RefreshVisible();
-        SelectedIngredient = ingredient;
-        NewIngredientName = "";
+            _allIngredients.Add(ingredient);
+            RefreshVisible();
+            SelectedIngredient = ingredient;
+            NewIngredientName = "";
+        }
+        catch (Exception ex)
+        {
+            // Ingredient.Name has a unique index — a duplicate lands here rather than crashing.
+            StatusMessage = $"Couldn't add ingredient: {ex.InnerException?.Message ?? ex.Message}";
+        }
     }
 
     [RelayCommand]
@@ -2281,7 +2289,7 @@ public class NutritionModule : IAppModule
 Run: `dotnet build AaronOS.slnx`
 Expected: builds with no errors.
 
-Manually run the app. The Nutrition nav item still shows the Task 1 placeholder (`NutritionShellPage` hasn't been rewired to navigate anywhere yet — that's Task 11) — for now, temporarily edit `NutritionShellPage.xaml.cs`'s constructor to `InitializeComponent(); Loaded += (_, _) => Content = new IngredientsPage();` just to exercise this page manually, confirm the preloaded ~135 ingredients list, filtering, selecting one, editing rating/tags/nutrition/cost, and saving all work, then **revert that temporary edit** before committing (Task 11 does this rewiring for real).
+Manually run the app. The Nutrition nav item still shows the Task 1 placeholder (`NutritionShellPage` hasn't been rewired to navigate anywhere yet — that's Task 11) — for now, temporarily change `NutritionModule.HomePageType` to `typeof(IngredientsPage)` (a `Page` can't be set as another `Page`'s `Content` — WPF only tolerates a `Window` or `Frame` parent for pages, so routing through the module's `HomePageType` is the clean throwaway trick). Confirm the preloaded ~135 ingredients list, filtering, selecting one, editing rating/tags/nutrition/cost, and saving all work — note the preload only exists if the Dashboard has run once (it owns seeding, Task 11); before that, expect an empty list and verify add/edit only. Then **revert that temporary edit** before committing.
 
 - [ ] **Step 6: Commit**
 
@@ -2624,7 +2632,7 @@ services.AddTransient<RecipeEditViewModel>();
 Run: `dotnet build AaronOS.slnx`
 Expected: builds with no errors.
 
-Manually run the app, temporarily point `NutritionShellPage`'s `Loaded` handler at `new RecipeEditPage()` (same throwaway technique as Task 8, revert before committing), and confirm: adding ingredient lines updates the per-serving totals and cost live; adding a `Dislike`-rated ingredient (rate one via the Ingredients page first) shows a "Contains disliked ingredient" note; saving and re-opening the same recipe id round-trips its lines correctly.
+Manually run the app, temporarily change `NutritionModule.HomePageType` to `typeof(RecipeEditPage)` (same throwaway technique as Task 8 — revert before committing), and confirm: adding ingredient lines updates the per-serving totals and cost live; adding a `Dislike`-rated ingredient (rate one via the Ingredients page first) shows a "Contains disliked ingredient" note; saving and re-opening the same recipe id round-trips its lines correctly.
 
 - [ ] **Step 6: Commit**
 
@@ -2662,6 +2670,7 @@ No automated test — same rationale as Tasks 8/9. Verification is manual: add a
 
 ```csharp
 using System.Globalization;
+using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
 
@@ -2669,14 +2678,16 @@ namespace AaronOS.Modules.Nutrition.Views;
 
 /// <summary>Small, purpose-specific IValueConverter for expiration color-coding — date-vs-today
 /// comparison isn't representable by the NumberBox NaN-sentinel pattern used elsewhere in this
-/// codebase, so a converter is the right tool here rather than a workaround.</summary>
+/// codebase, so a converter is the right tool here rather than a workaround. Returns
+/// DependencyProperty.UnsetValue (NOT a Transparent brush) for the "fine" case, so the TextBlock
+/// keeps its normal theme foreground instead of rendering invisible text.</summary>
 public class ExpirationBrushConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         if (value is not DateOnly expiresOn)
         {
-            return Brushes.Transparent;
+            return DependencyProperty.UnsetValue;
         }
 
         var daysLeft = expiresOn.DayNumber - DateOnly.FromDateTime(DateTime.Now).DayNumber;
@@ -2684,7 +2695,7 @@ public class ExpirationBrushConverter : IValueConverter
         {
             < 0 => Brushes.IndianRed,
             <= 3 => Brushes.Orange,
-            _ => Brushes.Transparent
+            _ => DependencyProperty.UnsetValue
         };
     }
 
@@ -2947,7 +2958,7 @@ services.AddTransient<InventoryViewModel>();
 Run: `dotnet build AaronOS.slnx`
 Expected: builds with no errors.
 
-Manually run the app (same throwaway `NutritionShellPage` redirect technique as Tasks 8/9, pointing at `new InventoryPage()`, reverted before committing) and confirm: picking an ingredient like "Chicken breast, raw" with today's date and Fridge storage suggests an expiration ~2 days out (per `ShelfLifeReference.json`); adding it lists it; setting the date acquired further back than the shelf-life window shows red, within 3 days shows amber via `ExpirationBrushConverter`.
+Manually run the app (same throwaway `HomePageType` redirect technique as Tasks 8/9, pointing at `typeof(InventoryPage)`, reverted before committing) and confirm: picking an ingredient like "Chicken breast, raw" with today's date and Fridge storage suggests an expiration ~2 days out (per `ShelfLifeReference.json`); adding it lists it; setting the date acquired further back than the shelf-life window shows red, within 3 days shows amber via `ExpirationBrushConverter`.
 
 - [ ] **Step 7: Commit**
 
