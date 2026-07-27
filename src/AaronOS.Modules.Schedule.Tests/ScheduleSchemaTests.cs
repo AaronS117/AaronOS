@@ -108,6 +108,52 @@ public class ScheduleSchemaTests : IDisposable
         Assert.Equal("Deploy window", loaded[1].Label);
     }
 
+    [Fact]
+    public async Task Routine_CascadeDeletesItsCompletions()
+    {
+        await using var db = CreateContext();
+        await db.Database.EnsureCreatedAsync();
+
+        var litter = new Routine
+        {
+            Name = "Scoop litter box",
+            Category = RoutineCategory.LitterBox,
+            IntervalDays = 2,
+            EstimatedMinutes = 5,
+        };
+        db.Add(litter);
+        await db.SaveChangesAsync();
+
+        db.Add(new RoutineCompletion { RoutineId = litter.Id, CompletedAt = new DateTime(2026, 7, 6, 21, 0, 0) });
+        await db.SaveChangesAsync();
+        Assert.Equal(1, await db.Set<RoutineCompletion>().CountAsync());
+
+        db.Remove(litter);
+        await db.SaveChangesAsync();
+
+        Assert.Equal(0, await db.Set<RoutineCompletion>().CountAsync());
+    }
+
+    [Fact]
+    public async Task Routine_StoresAWeekdayPinnedShape()
+    {
+        await using var db = CreateContext();
+        await db.Database.EnsureCreatedAsync();
+
+        db.Add(new Routine
+        {
+            Name = "Take out trash",
+            Category = RoutineCategory.Trash,
+            PreferredDaysOfWeek = DayOfWeekFlags.Tuesday,
+            PreferredTimeOfDay = new TimeSpan(20, 0, 0),
+        });
+        await db.SaveChangesAsync();
+
+        var loaded = await db.Set<Routine>().SingleAsync();
+        Assert.Null(loaded.IntervalDays);
+        Assert.Equal(DayOfWeekFlags.Tuesday, loaded.PreferredDaysOfWeek);
+    }
+
     public void Dispose()
     {
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
