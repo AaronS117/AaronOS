@@ -154,6 +154,15 @@ public partial class WeekViewModel(IDbContextFactory<AaronOsDbContext> dbContext
     private async Task DeleteBlockAsync(ScheduleBlock block)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync();
+
+        // There is deliberately no FK between ScheduleException.ScheduleBlockId and ScheduleBlock
+        // (AgendaBuilder tolerates orphaned exceptions by design), so removing a block's dependent
+        // exceptions is this code's job rather than the database's.
+        var dependents = await db.Set<ScheduleException>()
+            .Where(e => e.ScheduleBlockId == block.Id)
+            .ToListAsync();
+        db.RemoveRange(dependents);
+
         db.Remove(await db.Set<ScheduleBlock>().SingleAsync(b => b.Id == block.Id));
         await db.SaveChangesAsync();
         await LoadAsync();
@@ -165,7 +174,13 @@ public partial class WeekViewModel(IDbContextFactory<AaronOsDbContext> dbContext
     private async Task AddExceptionAsync(DateOnly date)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync();
-        var existing = await db.Set<ScheduleException>().Where(e => e.Date == date).ToListAsync();
+
+        // Only clear prior full-day cancellations this feature owns — not time-override "short day"
+        // exceptions or standalone one-off entries, which are different shapes of ScheduleException
+        // that nothing writes yet but a later plan will.
+        var existing = await db.Set<ScheduleException>()
+            .Where(e => e.Date == date && e.ScheduleBlockId != null && e.IsCancelled)
+            .ToListAsync();
         db.RemoveRange(existing);
 
         foreach (var block in Blocks.Where(b => b.Kind != ScheduleBlockKind.Sleep))
