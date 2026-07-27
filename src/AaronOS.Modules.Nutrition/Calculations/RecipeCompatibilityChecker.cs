@@ -4,7 +4,11 @@ namespace AaronOS.Modules.Nutrition.Calculations;
 
 public enum CompatibilityLevel { Clear, Caution, Blocked }
 
-public record CompatibilityConcern(CompatibilityLevel Level, string Message);
+public record CompatibilityConcern(CompatibilityLevel Level, string Message)
+{
+    /// <summary>Lets XAML colour a hard flag differently from a soft one with a single DataTrigger.</summary>
+    public bool IsBlocked => Level == CompatibilityLevel.Blocked;
+}
 
 /// <summary>
 /// Flags a recipe's ingredients against preferences: a hard flag for anything rated Dislike, a

@@ -24,7 +24,7 @@ public static class RecipeStockChecker
         IEnumerable<RecipeIngredient> recipeIngredients,
         IEnumerable<InventoryItem> inventory,
         DateOnly today,
-        int expiringSoonWithinDays = 3)
+        int expiringSoonWithinDays = InventoryItem.ExpiringSoonWithinDays)
     {
         var inventoryByIngredient = inventory
             .GroupBy(i => i.IngredientId)

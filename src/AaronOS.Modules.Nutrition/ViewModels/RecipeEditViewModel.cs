@@ -44,6 +44,15 @@ public partial class RecipeEditViewModel(IDbContextFactory<AaronOsDbContext> dbC
     [ObservableProperty]
     private RecipeNutritionTotals? _perServingTotals;
 
+    [ObservableProperty]
+    private bool _hasLines;
+
+    [ObservableProperty]
+    private bool _hasConcerns;
+
+    [ObservableProperty]
+    private string _servingsSummary = "";
+
     public void SetRecipeId(int? recipeId) => _recipeId = recipeId;
 
     partial void OnServingsChanged(double value) => Recalculate();
@@ -98,6 +107,15 @@ public partial class RecipeEditViewModel(IDbContextFactory<AaronOsDbContext> dbC
         {
             Concerns.Add(concern);
         }
+
+        HasLines = Lines.Count > 0;
+        HasConcerns = Concerns.Count > 0;
+
+        var servings = Math.Max((int)Servings, 1);
+        var totalGrams = Lines.Sum(l => l.QuantityGrams);
+        ServingsSummary = Lines.Count == 0
+            ? ""
+            : $"{totalGrams:0}g total over {servings} {(servings == 1 ? "serving" : "servings")}";
     }
 
     [RelayCommand]

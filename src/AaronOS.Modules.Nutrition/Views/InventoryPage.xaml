@@ -6,65 +6,239 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
     xmlns:data="clr-namespace:AaronOS.Modules.Nutrition.Data"
-    xmlns:views="clr-namespace:AaronOS.Modules.Nutrition.Views"
     mc:Ignorable="d">
 
     <Page.Resources>
-        <views:ExpirationBrushConverter x:Key="ExpirationBrushConverter" />
+        <Style x:Key="EmptyStateText" TargetType="TextBlock" BasedOn="{StaticResource CaptionText}">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Setter Property="Margin" Value="14,12" />
+        </Style>
+        <Style x:Key="FieldLabel" TargetType="TextBlock" BasedOn="{StaticResource EyebrowText}">
+            <Setter Property="Margin" Value="0,0,0,6" />
+        </Style>
     </Page.Resources>
 
-    <Grid Margin="24">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="320" />
-            <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
+    <!-- No ScrollViewer / ListView: the shell's DynamicScrollViewer owns page scrolling
+         (see the note in FinanceDashboardPage.xaml). -->
+    <StackPanel MaxWidth="780" HorizontalAlignment="Left" Margin="28,20,28,32">
 
-        <StackPanel Grid.Column="0" Margin="0,0,32,0">
-            <TextBlock Text="Add to Inventory" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,12" />
+        <TextBlock Text="Inventory" Style="{DynamicResource PageTitleText}" Margin="0,0,0,22" />
 
-            <TextBlock Text="Ingredient" Margin="0,0,0,4" />
-            <ComboBox ItemsSource="{Binding AvailableIngredients}" DisplayMemberPath="Name"
-                      SelectedItem="{Binding NewIngredient, Mode=TwoWay}"
-                      IsEditable="True" IsTextSearchEnabled="True" Margin="0,0,0,12" />
+        <!-- What's on hand, and how much of it is running out of time. -->
+        <Border Style="{DynamicResource SurfaceCard}" Padding="22,18" Margin="0,0,0,20">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
 
-            <TextBlock Text="Storage location" Margin="0,0,0,4" />
-            <ComboBox ItemsSource="{Binding StorageLocations}" SelectedItem="{Binding NewStorageLocation, Mode=TwoWay}" Margin="0,0,0,12" />
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="ON HAND" Style="{DynamicResource EyebrowText}" Margin="0,0,0,4" />
+                    <TextBlock Text="{Binding OnHandCount}" Style="{DynamicResource HeroMetricText}" FontSize="26" />
+                </StackPanel>
 
-            <TextBlock Text="Date acquired" Margin="0,0,0,4" />
-            <DatePicker SelectedDate="{Binding NewDateAcquired, Mode=TwoWay}" Margin="0,0,0,12" />
+                <StackPanel Grid.Column="1">
+                    <TextBlock Text="USE SOON" Style="{DynamicResource EyebrowText}" Margin="0,0,0,4" />
+                    <TextBlock
+                        Text="{Binding ExpiringSoonCount}"
+                        Style="{DynamicResource HeroMetricText}"
+                        FontSize="26"
+                        Foreground="{DynamicResource ExpirySoon}" />
+                </StackPanel>
 
-            <TextBlock Text="Expires on (suggested, editable)" Margin="0,0,0,4" />
-            <DatePicker SelectedDate="{Binding NewExpiresOn, Mode=TwoWay}" Margin="0,0,0,12" />
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="EXPIRED" Style="{DynamicResource EyebrowText}" Margin="0,0,0,4" />
+                    <TextBlock
+                        Text="{Binding ExpiredCount}"
+                        Style="{DynamicResource HeroMetricText}"
+                        FontSize="26"
+                        Foreground="{DynamicResource ExpiryPast}" />
+                </StackPanel>
+            </Grid>
+        </Border>
 
-            <TextBlock Text="Quantity (optional)" Margin="0,0,0,4" />
-            <ui:TextBox Text="{Binding NewQuantityLabel, Mode=TwoWay}" PlaceholderText="e.g. 1 lb" Margin="0,0,0,12" />
+        <!-- Add form: expiry is suggested from the shelf-life table, and stays editable. -->
+        <TextBlock Text="ADD TO INVENTORY" Style="{DynamicResource EyebrowText}" Margin="0,0,0,10" />
+        <Border Style="{DynamicResource SurfaceCard}" Padding="18,16" Margin="0,0,0,26">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="130" />
+                        <ColumnDefinition Width="130" />
+                    </Grid.ColumnDefinitions>
 
-            <ui:Button Content="Add" Command="{Binding AddCommand}" Appearance="Primary" />
-            <TextBlock Text="{Binding StatusMessage}" Opacity="0.7" Margin="0,8,0,0" />
-        </StackPanel>
+                    <StackPanel Grid.Column="0" Margin="0,0,14,0">
+                        <TextBlock Text="INGREDIENT" Style="{DynamicResource FieldLabel}" />
+                        <ComboBox
+                            ItemsSource="{Binding AvailableIngredients}"
+                            DisplayMemberPath="Name"
+                            SelectedItem="{Binding NewIngredient, Mode=TwoWay}"
+                            IsEditable="True"
+                            IsTextSearchEnabled="True" />
+                    </StackPanel>
 
-        <ListView Grid.Column="1" ItemsSource="{Binding Items}">
-            <ListView.ItemTemplate>
-                <DataTemplate DataType="{x:Type data:InventoryItem}">
-                    <Grid Margin="0,8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="200" />
-                            <ColumnDefinition Width="100" />
-                            <ColumnDefinition Width="100" />
-                            <ColumnDefinition Width="100" />
-                            <ColumnDefinition Width="120" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="{Binding Ingredient.Name}" FontWeight="SemiBold" />
-                        <TextBlock Grid.Column="1" Text="{Binding StorageLocation}" Opacity="0.7" />
-                        <TextBlock Grid.Column="2" Text="{Binding DateAcquired}" Opacity="0.7" />
-                        <TextBlock Grid.Column="3" Text="{Binding ExpiresOn, TargetNullValue='—'}"
-                                   Foreground="{Binding ExpiresOn, Converter={StaticResource ExpirationBrushConverter}}" />
-                        <TextBlock Grid.Column="4" Text="{Binding QuantityLabel}" Opacity="0.7" />
-                        <Button Grid.Column="5" Content="Delete" Click="DeleteButton_Click" />
-                    </Grid>
-                </DataTemplate>
-            </ListView.ItemTemplate>
-        </ListView>
-    </Grid>
+                    <StackPanel Grid.Column="1" Margin="0,0,14,0">
+                        <TextBlock Text="WHERE" Style="{DynamicResource FieldLabel}" />
+                        <ComboBox
+                            ItemsSource="{Binding StorageLocations}"
+                            SelectedItem="{Binding NewStorageLocation, Mode=TwoWay}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="QUANTITY" Style="{DynamicResource FieldLabel}" />
+                        <ui:TextBox Text="{Binding NewQuantityLabel, Mode=TwoWay}" PlaceholderText="1 lb" />
+                    </StackPanel>
+                </Grid>
+
+                <Grid Margin="0,14,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Margin="0,0,14,0">
+                        <TextBlock Text="ACQUIRED" Style="{DynamicResource FieldLabel}" />
+                        <DatePicker SelectedDate="{Binding NewDateAcquired, Mode=TwoWay}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Margin="0,0,14,0">
+                        <TextBlock Text="EXPIRES · SUGGESTED" Style="{DynamicResource FieldLabel}" />
+                        <DatePicker SelectedDate="{Binding NewExpiresOn, Mode=TwoWay}" />
+                    </StackPanel>
+
+                    <ui:Button
+                        Grid.Column="2"
+                        Content="Add"
+                        Command="{Binding AddCommand}"
+                        Appearance="Primary"
+                        VerticalAlignment="Bottom"
+                        MinWidth="88" />
+                </Grid>
+
+                <TextBlock Text="{Binding StatusMessage}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource CaptionText}">
+                            <Setter Property="Margin" Value="0,12,0,0" />
+                            <Style.Triggers>
+                                <!-- Nothing to say yet, so it takes no vertical space. -->
+                                <DataTrigger Binding="{Binding StatusMessage}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+
+        <!-- Ledger -->
+        <TextBlock Text="IN THE KITCHEN" Style="{DynamicResource EyebrowText}" Margin="0,0,0,10" />
+        <Border Style="{DynamicResource SurfaceCard}" Padding="4,2">
+            <StackPanel>
+                <Grid Margin="14,10,14,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="78" />
+                        <ColumnDefinition Width="72" />
+                        <ColumnDefinition Width="66" />
+                        <ColumnDefinition Width="126" />
+                        <ColumnDefinition Width="78" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="ITEM" Style="{DynamicResource EyebrowText}" Margin="0,0,12,0" />
+                    <TextBlock Grid.Column="1" Text="WHERE" Style="{DynamicResource EyebrowText}" Margin="0" />
+                    <TextBlock Grid.Column="2" Text="QTY" Style="{DynamicResource EyebrowText}" Margin="0" />
+                    <TextBlock Grid.Column="3" Text="EXPIRES" Style="{DynamicResource EyebrowText}" Margin="0" />
+                    <TextBlock Grid.Column="4" Text="FRESHNESS" Style="{DynamicResource EyebrowText}" Margin="0" HorizontalAlignment="Right" />
+                </Grid>
+                <Border Height="1" Background="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="14,0,14,4" />
+
+                <ItemsControl ItemsSource="{Binding Items}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type data:InventoryItem}">
+                            <Grid Margin="14,9">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="78" />
+                                    <ColumnDefinition Width="72" />
+                                    <ColumnDefinition Width="66" />
+                                    <ColumnDefinition Width="126" />
+                                    <ColumnDefinition Width="78" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock
+                                    Grid.Column="0"
+                                    Text="{Binding Ingredient.Name}"
+                                    Style="{DynamicResource BodyText}"
+                                    FontSize="13"
+                                    VerticalAlignment="Center"
+                                    Margin="0,0,12,0" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Text="{Binding StorageLocation}"
+                                    Style="{DynamicResource CaptionText}"
+                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                    VerticalAlignment="Center" />
+                                <TextBlock
+                                    Grid.Column="2"
+                                    Text="{Binding QuantityLabel}"
+                                    Style="{DynamicResource CaptionText}"
+                                    VerticalAlignment="Center" />
+                                <TextBlock
+                                    Grid.Column="3"
+                                    Text="{Binding ExpiresDisplay}"
+                                    Style="{DynamicResource CaptionText}"
+                                    VerticalAlignment="Center" />
+
+                                <!-- Freshness carries the colour, so urgent rows stand out on a scan. -->
+                                <TextBlock Grid.Column="4" Text="{Binding FreshnessText}" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource CaptionText}">
+                                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsExpiringSoon}" Value="True">
+                                                    <Setter Property="Foreground" Value="{DynamicResource ExpirySoon}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsExpired}" Value="True">
+                                                    <Setter Property="Foreground" Value="{DynamicResource ExpiryPast}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <Button
+                                    Grid.Column="5"
+                                    Content="Remove"
+                                    Click="DeleteButton_Click"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Padding="6,2"
+                                    Margin="12,0,0,0"
+                                    Cursor="Hand"
+                                    VerticalAlignment="Center"
+                                    HorizontalAlignment="Right"
+                                    FontSize="12"
+                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Text="Nothing tracked yet. Add what's in your fridge, freezer or pantry above.">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource EmptyStateText}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasItems}" Value="False">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+    </StackPanel>
 </Page>

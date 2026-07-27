@@ -15,4 +15,25 @@ public class Ingredient
     public decimal? CostPer100g { get; set; }
     public int? FdcId { get; set; }
     public List<Tag> Tags { get; set; } = [];
+
+    // Read-only computed display members. EF ignores getter-only properties, so no [NotMapped] is
+    // needed — same convention as FinanceAccount.SignedBalance/IsLiability.
+
+    public bool IsLiked => Rating == Data.Rating.Like;
+    public bool IsDisliked => Rating == Data.Rating.Dislike;
+
+    public string RatingDisplay => Rating switch
+    {
+        Data.Rating.Like => "Like",
+        Data.Rating.Dislike => "Dislike",
+        Data.Rating.Neutral => "Neutral",
+        _ => "—"
+    };
+
+    /// <summary>Requires Tags to have been Include()d; shows an em dash when untagged.</summary>
+    public string TagsDisplay => Tags.Count == 0 ? "—" : string.Join(", ", Tags.Select(t => t.Name));
+
+    public string CaloriesDisplay => CaloriesPer100g?.ToString("0") ?? "—";
+
+    public string CostDisplay => CostPer100g is { } cost ? cost.ToString("C") : "—";
 }

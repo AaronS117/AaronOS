@@ -5,98 +5,302 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:data="clr-namespace:AaronOS.Modules.Nutrition.Data"
     xmlns:usda="clr-namespace:AaronOS.Modules.Nutrition.Usda"
     mc:Ignorable="d">
 
-    <Grid Margin="24">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="280" />
-            <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
+    <Page.Resources>
+        <Style x:Key="EmptyStateText" TargetType="TextBlock" BasedOn="{StaticResource CaptionText}">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Setter Property="Margin" Value="14,12" />
+        </Style>
+        <Style x:Key="FieldLabel" TargetType="TextBlock" BasedOn="{StaticResource EyebrowText}">
+            <Setter Property="Margin" Value="0,0,0,6" />
+        </Style>
+    </Page.Resources>
 
-        <StackPanel Grid.Column="0" Margin="0,0,24,0">
-            <TextBlock Text="Ingredients" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,12" />
+    <!-- No page-level ScrollViewer: the shell's DynamicScrollViewer owns that (see the note in
+         FinanceDashboardPage.xaml). The catalogue below does get its own scroller, but with an
+         explicit Height — a *bounded* inner scroller works correctly; it was the unbounded kind
+         that could never scroll while still swallowing the wheel. -->
+    <StackPanel MaxWidth="780" HorizontalAlignment="Left" Margin="28,20,28,32">
 
-            <ui:TextBox Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" PlaceholderText="Filter by name" Margin="0,0,0,12" />
-            <ListBox ItemsSource="{Binding VisibleIngredients}" DisplayMemberPath="Name"
-                     SelectedItem="{Binding SelectedIngredient, Mode=TwoWay}" Height="360" Margin="0,0,0,16" />
+        <!-- Title row -->
+        <Grid Margin="0,0,0,22">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="Ingredients" Style="{DynamicResource PageTitleText}" VerticalAlignment="Center" />
+            <TextBlock
+                Grid.Column="1"
+                Text="{Binding CatalogSummary}"
+                Style="{DynamicResource CaptionText}"
+                Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                VerticalAlignment="Bottom"
+                Margin="0,0,0,4" />
+        </Grid>
 
-            <TextBlock Text="Add manually" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8" />
-            <ui:TextBox Text="{Binding NewIngredientName, Mode=TwoWay}" PlaceholderText="New ingredient name" Margin="0,0,0,8" />
-            <ui:Button Content="Add" Command="{Binding AddManuallyCommand}" Margin="0,0,0,16" />
+        <!-- Catalogue -->
+        <ui:TextBox
+            Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+            PlaceholderText="Filter by name"
+            Margin="0,0,0,12" />
 
-            <TextBlock Text="Search USDA FoodData Central" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8" />
-            <ui:TextBox Text="{Binding UsdaSearchQuery, Mode=TwoWay}" PlaceholderText="e.g. chicken breast raw" Margin="0,0,0,8" />
-            <ui:Button Content="Search" Command="{Binding SearchUsdaCommand}" Margin="0,0,0,8" />
-            <ListBox ItemsSource="{Binding SearchResults}" Height="160">
-                <ListBox.ItemTemplate>
-                    <DataTemplate DataType="{x:Type usda:UsdaSearchResult}">
-                        <Button Content="{Binding Description}" Click="UsdaResult_Click"
-                                HorizontalContentAlignment="Left" Background="Transparent" BorderThickness="0" />
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+        <Border Style="{DynamicResource SurfaceCard}" Padding="4,2" Margin="0,0,0,26">
+            <StackPanel>
+                <Grid Margin="14,10,14,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="74" />
+                        <ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="56" />
+                        <ColumnDefinition Width="66" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="INGREDIENT" Style="{DynamicResource EyebrowText}" Margin="0,0,12,0" />
+                    <TextBlock Grid.Column="1" Text="RATING" Style="{DynamicResource EyebrowText}" Margin="0" />
+                    <TextBlock Grid.Column="2" Text="TAGS" Style="{DynamicResource EyebrowText}" Margin="0" />
+                    <TextBlock Grid.Column="3" Text="CAL" Style="{DynamicResource EyebrowText}" Margin="0" HorizontalAlignment="Right" />
+                    <TextBlock Grid.Column="4" Text="COST" Style="{DynamicResource EyebrowText}" Margin="0" HorizontalAlignment="Right" />
+                </Grid>
+                <Border Height="1" Background="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="14,0,14,0" />
+
+                <ListBox
+                    ItemsSource="{Binding VisibleIngredients}"
+                    SelectedItem="{Binding SelectedIngredient, Mode=TwoWay}"
+                    Height="300"
+                    HorizontalContentAlignment="Stretch"
+                    Background="Transparent"
+                    BorderThickness="0">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type data:Ingredient}">
+                            <Grid Margin="4,3">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="74" />
+                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="56" />
+                                    <ColumnDefinition Width="66" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock
+                                    Grid.Column="0"
+                                    Text="{Binding Name}"
+                                    Style="{DynamicResource BodyText}"
+                                    FontSize="13"
+                                    VerticalAlignment="Center"
+                                    Margin="0,0,12,0" />
+
+                                <!-- Rating colours match the rest of the app: green for a keeper,
+                                     red for one to avoid, quiet grey when it hasn't been judged. -->
+                                <TextBlock Grid.Column="1" Text="{Binding RatingDisplay}" VerticalAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource CaptionText}">
+                                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorTertiaryBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsLiked}" Value="True">
+                                                    <Setter Property="Foreground" Value="{DynamicResource MoneyIn}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsDisliked}" Value="True">
+                                                    <Setter Property="Foreground" Value="{DynamicResource ExpiryPast}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <TextBlock
+                                    Grid.Column="2"
+                                    Text="{Binding TagsDisplay}"
+                                    Style="{DynamicResource CaptionText}"
+                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                    VerticalAlignment="Center"
+                                    Margin="0,0,10,0" />
+                                <TextBlock
+                                    Grid.Column="3"
+                                    Text="{Binding CaloriesDisplay}"
+                                    Style="{DynamicResource NumericText}"
+                                    FontSize="12"
+                                    VerticalAlignment="Center" />
+                                <TextBlock
+                                    Grid.Column="4"
+                                    Text="{Binding CostDisplay}"
+                                    Style="{DynamicResource NumericText}"
+                                    FontSize="12"
+                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                    VerticalAlignment="Center" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </StackPanel>
+        </Border>
+
+        <!-- Editor for the selected row -->
+        <StackPanel Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}}">
+            <TextBlock Text="{Binding SelectedIngredient.Name}" Style="{DynamicResource EyebrowText}" Margin="0,0,0,10" />
+            <Border Style="{DynamicResource SurfaceCard}" Padding="18,16" Margin="0,0,0,26">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="150" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Margin="0,0,14,0">
+                            <TextBlock Text="RATING" Style="{DynamicResource FieldLabel}" />
+                            <ComboBox
+                                ItemsSource="{Binding RatingOptions}"
+                                DisplayMemberPath="Label"
+                                SelectedValuePath="Value"
+                                SelectedValue="{Binding EditRating, Mode=TwoWay}" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Margin="0,0,14,0">
+                            <TextBlock Text="PREFERRED FORM" Style="{DynamicResource FieldLabel}" />
+                            <ui:TextBox Text="{Binding EditPreferredForm, Mode=TwoWay}" PlaceholderText="fresh, canned, diced" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="TAGS · COMMA SEPARATED" Style="{DynamicResource FieldLabel}" />
+                            <ui:TextBox Text="{Binding TagsText, Mode=TwoWay}" PlaceholderText="fungi, dairy" />
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="PER 100 G" Style="{DynamicResource EyebrowText}" Margin="0,20,0,10" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition />
+                            <RowDefinition />
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,12,12">
+                            <TextBlock Text="CALORIES" Style="{DynamicResource FieldLabel}" />
+                            <ui:NumberBox Value="{Binding EditCalories, Mode=TwoWay}" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,12,12">
+                            <TextBlock Text="PROTEIN G" Style="{DynamicResource FieldLabel}" />
+                            <ui:NumberBox Value="{Binding EditProtein, Mode=TwoWay}" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="0" Grid.Column="2" Margin="0,0,12,12">
+                            <TextBlock Text="FAT G" Style="{DynamicResource FieldLabel}" />
+                            <ui:NumberBox Value="{Binding EditFat, Mode=TwoWay}" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="0" Grid.Column="3" Margin="0,0,0,12">
+                            <TextBlock Text="CARBS G" Style="{DynamicResource FieldLabel}" />
+                            <ui:NumberBox Value="{Binding EditCarbs, Mode=TwoWay}" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,12,0">
+                            <TextBlock Text="FIBER G" Style="{DynamicResource FieldLabel}" />
+                            <ui:NumberBox Value="{Binding EditFiber, Mode=TwoWay}" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,12,0">
+                            <TextBlock Text="SODIUM MG" Style="{DynamicResource FieldLabel}" />
+                            <ui:NumberBox Value="{Binding EditSodium, Mode=TwoWay}" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,0,12,0">
+                            <TextBlock Text="COST $" Style="{DynamicResource FieldLabel}" />
+                            <ui:NumberBox Value="{Binding EditCost, Mode=TwoWay}" />
+                        </StackPanel>
+                        <ui:Button
+                            Grid.Row="1"
+                            Grid.Column="3"
+                            Content="Save"
+                            Command="{Binding SaveSelectedCommand}"
+                            Appearance="Primary"
+                            VerticalAlignment="Bottom"
+                            HorizontalAlignment="Stretch" />
+                    </Grid>
+                </StackPanel>
+            </Border>
         </StackPanel>
 
-        <ScrollViewer Grid.Column="1">
-            <StackPanel MaxWidth="480" HorizontalAlignment="Left">
-                <TextBlock Text="{Binding SelectedIngredient.Name}" FontSize="22" FontWeight="SemiBold" Margin="0,0,0,16" />
-
-                <TextBlock Text="Rating" Margin="0,0,0,4" />
-                <ComboBox ItemsSource="{Binding RatingOptions}" SelectedItem="{Binding EditRating, Mode=TwoWay}" Margin="0,0,0,12" />
-
-                <TextBlock Text="Preferred form" Margin="0,0,0,4" />
-                <ui:TextBox Text="{Binding EditPreferredForm, Mode=TwoWay}" PlaceholderText="e.g. fresh, canned, diced" Margin="0,0,0,12" />
-
-                <TextBlock Text="Tags (comma separated)" Margin="0,0,0,4" />
-                <ui:TextBox Text="{Binding TagsText, Mode=TwoWay}" PlaceholderText="e.g. fungi, dairy" Margin="0,0,0,16" />
-
-                <TextBlock Text="Nutrition (per 100g)" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,8" />
+        <!-- Add something new -->
+        <TextBlock Text="ADD AN INGREDIENT" Style="{DynamicResource EyebrowText}" Margin="0,0,0,10" />
+        <Border Style="{DynamicResource SurfaceCard}" Padding="18,16">
+            <StackPanel>
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition />
-                        <RowDefinition />
-                        <RowDefinition />
-                    </Grid.RowDefinitions>
-
-                    <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,12,12">
-                        <TextBlock Text="Calories" Margin="0,0,0,4" />
-                        <ui:NumberBox Value="{Binding EditCalories, Mode=TwoWay}" />
+                    <StackPanel Grid.Column="0" Margin="0,0,14,0">
+                        <TextBlock Text="BY NAME" Style="{DynamicResource FieldLabel}" />
+                        <ui:TextBox Text="{Binding NewIngredientName, Mode=TwoWay}" PlaceholderText="Something homemade" />
                     </StackPanel>
-                    <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,12">
-                        <TextBlock Text="Protein (g)" Margin="0,0,0,4" />
-                        <ui:NumberBox Value="{Binding EditProtein, Mode=TwoWay}" />
-                    </StackPanel>
-
-                    <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,12,12">
-                        <TextBlock Text="Fat (g)" Margin="0,0,0,4" />
-                        <ui:NumberBox Value="{Binding EditFat, Mode=TwoWay}" />
-                    </StackPanel>
-                    <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,12">
-                        <TextBlock Text="Carbs (g)" Margin="0,0,0,4" />
-                        <ui:NumberBox Value="{Binding EditCarbs, Mode=TwoWay}" />
-                    </StackPanel>
-
-                    <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,12,12">
-                        <TextBlock Text="Fiber (g)" Margin="0,0,0,4" />
-                        <ui:NumberBox Value="{Binding EditFiber, Mode=TwoWay}" />
-                    </StackPanel>
-                    <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,0,0,12">
-                        <TextBlock Text="Sodium (mg)" Margin="0,0,0,4" />
-                        <ui:NumberBox Value="{Binding EditSodium, Mode=TwoWay}" />
-                    </StackPanel>
+                    <ui:Button
+                        Grid.Column="1"
+                        Content="Add"
+                        Command="{Binding AddManuallyCommand}"
+                        VerticalAlignment="Bottom"
+                        MinWidth="88" />
                 </Grid>
 
-                <TextBlock Text="Cost per 100g ($)" Margin="0,0,0,4" />
-                <ui:NumberBox Value="{Binding EditCost, Mode=TwoWay}" Margin="0,0,0,16" />
+                <Grid Margin="0,16,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Margin="0,0,14,0">
+                        <TextBlock Text="LOOK UP IN USDA FOODDATA CENTRAL" Style="{DynamicResource FieldLabel}" />
+                        <ui:TextBox Text="{Binding UsdaSearchQuery, Mode=TwoWay}" PlaceholderText="chicken breast raw" />
+                    </StackPanel>
+                    <ui:Button
+                        Grid.Column="1"
+                        Content="Search"
+                        Command="{Binding SearchUsdaCommand}"
+                        VerticalAlignment="Bottom"
+                        MinWidth="88" />
+                </Grid>
 
-                <ui:Button Content="Save Ingredient" Command="{Binding SaveSelectedCommand}" Appearance="Primary" />
-                <TextBlock Text="{Binding StatusMessage}" Opacity="0.7" Margin="0,8,0,0" />
+                <!-- Results only take up room once there are some. -->
+                <Border
+                    Style="{DynamicResource SurfaceCard}"
+                    Padding="4,4"
+                    Margin="0,14,0,0"
+                    Visibility="{Binding HasSearchResults, Converter={StaticResource BoolToVis}}">
+                    <ItemsControl ItemsSource="{Binding SearchResults}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type usda:UsdaSearchResult}">
+                                <Button
+                                    Click="UsdaResult_Click"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Padding="10,7"
+                                    Cursor="Hand"
+                                    HorizontalContentAlignment="Left">
+                                    <TextBlock
+                                        Text="{Binding Description}"
+                                        Style="{DynamicResource CaptionText}"
+                                        TextTrimming="CharacterEllipsis" />
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+
+                <TextBlock Text="{Binding StatusMessage}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource CaptionText}">
+                            <Setter Property="Margin" Value="0,12,0,0" />
+                            <Setter Property="TextWrapping" Value="Wrap" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding StatusMessage}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
             </StackPanel>
-        </ScrollViewer>
-    </Grid>
+        </Border>
+    </StackPanel>
 </Page>

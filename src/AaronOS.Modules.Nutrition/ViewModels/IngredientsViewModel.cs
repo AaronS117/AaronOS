@@ -9,6 +9,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AaronOS.Modules.Nutrition.ViewModels;
 
+/// <summary>
+/// A labelled rating choice. Binding a ComboBox straight to Rating? renders the unrated case as a
+/// blank row, so the option carries its own wording and the ComboBox binds SelectedValue.
+/// </summary>
+public record RatingOption(string Label, Rating? Value);
+
 public partial class IngredientsViewModel(
     IDbContextFactory<AaronOsDbContext> dbContextFactory,
     UsdaApiClient usdaApiClient) : ViewModelBase
@@ -16,8 +22,15 @@ public partial class IngredientsViewModel(
     private List<Ingredient> _allIngredients = [];
 
     public ObservableCollection<Ingredient> VisibleIngredients { get; } = [];
-    public IReadOnlyList<Rating?> RatingOptions { get; } = [null, Rating.Like, Rating.Neutral, Rating.Dislike];
     public ObservableCollection<UsdaSearchResult> SearchResults { get; } = [];
+
+    public IReadOnlyList<RatingOption> RatingOptions { get; } =
+    [
+        new("Unrated", null),
+        new("Like", Rating.Like),
+        new("Neutral", Rating.Neutral),
+        new("Dislike", Rating.Dislike)
+    ];
 
     [ObservableProperty]
     private string _filterText = "";
@@ -64,6 +77,18 @@ public partial class IngredientsViewModel(
     [ObservableProperty]
     private string _statusMessage = "";
 
+    [ObservableProperty]
+    private bool _hasSelection;
+
+    [ObservableProperty]
+    private bool _hasSearchResults;
+
+    [ObservableProperty]
+    private int _catalogCount;
+
+    [ObservableProperty]
+    private string _catalogSummary = "";
+
     private static double ToDouble(decimal? value) => value is null ? double.NaN : (double)value.Value;
     private static decimal? ToDecimal(double value) => double.IsNaN(value) ? null : (decimal)value;
 
@@ -71,6 +96,7 @@ public partial class IngredientsViewModel(
 
     partial void OnSelectedIngredientChanged(Ingredient? value)
     {
+        HasSelection = value is not null;
         TagsText = value is null ? "" : string.Join(", ", value.Tags.Select(t => t.Name));
         EditRating = value?.Rating;
         EditPreferredForm = value?.PreferredForm ?? "";
@@ -94,6 +120,12 @@ public partial class IngredientsViewModel(
         {
             VisibleIngredients.Add(ingredient);
         }
+
+        CatalogCount = _allIngredients.Count;
+        var rated = _allIngredients.Count(i => i.Rating is not null);
+        CatalogSummary = VisibleIngredients.Count == CatalogCount
+            ? $"{CatalogCount} ingredients · {rated} rated"
+            : $"{VisibleIngredients.Count} of {CatalogCount} shown · {rated} rated";
     }
 
     [RelayCommand]
@@ -129,6 +161,7 @@ public partial class IngredientsViewModel(
             {
                 SearchResults.Add(result);
             }
+            HasSearchResults = SearchResults.Count > 0;
             StatusMessage = results.Count == 0 ? "No USDA matches found." : "";
         }
         catch (Exception ex)
@@ -167,6 +200,7 @@ public partial class IngredientsViewModel(
             RefreshVisible();
             SelectedIngredient = ingredient;
             SearchResults.Clear();
+            HasSearchResults = false;
             StatusMessage = $"Added {ingredient.Name} from USDA.";
         }
         catch (Exception ex)

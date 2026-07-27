@@ -28,6 +28,14 @@
             <SolidColorBrush x:Key="MoneyIn" Color="#5FD98C" />
 
             <!--
+                Freshness signals, pitched at the same saturation as MoneyIn so a Nutrition page
+                reads as the same instrument panel as a Finance one. Amber warns, red has already
+                lapsed — the two states stay distinguishable by hue rather than by wording alone.
+            -->
+            <SolidColorBrush x:Key="ExpirySoon" Color="#E8B04B" />
+            <SolidColorBrush x:Key="ExpiryPast" Color="#E5646D" />
+
+            <!--
                 WPF-UI themes the controls it ships (Button, TextBox, ListView, …) but NOT a plain
                 Page, so a Page falls back to WPF's raw defaults — Foreground black, which is why
                 text was invisible on a dark backdrop. Background stays Transparent so the window's

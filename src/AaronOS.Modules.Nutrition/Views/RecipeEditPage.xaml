@@ -9,70 +9,290 @@
     xmlns:calc="clr-namespace:AaronOS.Modules.Nutrition.Calculations"
     mc:Ignorable="d">
 
-    <ScrollViewer Padding="24">
-        <StackPanel MaxWidth="760" HorizontalAlignment="Left">
-            <TextBlock Text="Recipe" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,16" />
+    <Page.Resources>
+        <Style x:Key="EmptyStateText" TargetType="TextBlock" BasedOn="{StaticResource CaptionText}">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Setter Property="Margin" Value="14,12" />
+        </Style>
+        <Style x:Key="FieldLabel" TargetType="TextBlock" BasedOn="{StaticResource EyebrowText}">
+            <Setter Property="Margin" Value="0,0,0,6" />
+        </Style>
+        <Style x:Key="MacroValue" TargetType="TextBlock" BasedOn="{StaticResource NumericText}">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+        </Style>
+    </Page.Resources>
 
-            <TextBlock Text="Name" Margin="0,0,0,4" />
-            <ui:TextBox Text="{Binding Name, Mode=TwoWay}" Margin="0,0,0,12" />
+    <!-- No ScrollViewer: the shell's DynamicScrollViewer owns page scrolling
+         (see the note in FinanceDashboardPage.xaml). -->
+    <StackPanel MaxWidth="780" HorizontalAlignment="Left" Margin="28,20,28,32">
 
-            <TextBlock Text="Servings" Margin="0,0,0,4" />
-            <ui:NumberBox Value="{Binding Servings, Mode=TwoWay}" Margin="0,0,0,12" />
+        <!-- Title row -->
+        <Grid Margin="0,0,0,22">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="Recipe" Style="{DynamicResource PageTitleText}" VerticalAlignment="Center" />
+            <ui:Button
+                Grid.Column="1"
+                Content="Save recipe"
+                Command="{Binding SaveCommand}"
+                Appearance="Primary"
+                VerticalAlignment="Center" />
+        </Grid>
 
-            <TextBlock Text="Instructions" Margin="0,0,0,4" />
-            <TextBox Text="{Binding Instructions, Mode=TwoWay}" AcceptsReturn="True" Height="80" Margin="0,0,0,16" />
-
-            <TextBlock Text="Ingredients" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,8" />
-            <ItemsControl ItemsSource="{Binding Lines}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="{x:Type data:RecipeIngredient}">
-                        <Grid Margin="0,4">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="100" />
-                                <ColumnDefinition Width="140" />
-                                <ColumnDefinition Width="100" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="{Binding Ingredient.Name}" VerticalAlignment="Center" />
-                            <TextBlock Grid.Column="1" Text="{Binding QuantityGrams, StringFormat='{}{0}g'}" VerticalAlignment="Center" />
-                            <TextBlock Grid.Column="2" Text="{Binding DisplayAmount}" Opacity="0.7" VerticalAlignment="Center" />
-                            <TextBlock Grid.Column="3" Text="{Binding FormUsed}" Opacity="0.7" VerticalAlignment="Center" />
-                            <Button Grid.Column="4" Content="Remove" Click="RemoveLineButton_Click" />
-                        </Grid>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-
-            <ui:Card Margin="0,12,0,16">
+        <!-- Per serving, computed live as lines come and go. -->
+        <Border Style="{DynamicResource SurfaceCard}" Padding="22,18" Margin="0,0,0,14">
+            <StackPanel>
+                <TextBlock Text="PER SERVING" Style="{DynamicResource EyebrowText}" Margin="0,0,0,4" />
                 <StackPanel Orientation="Horizontal">
-                    <ComboBox Width="220" ItemsSource="{Binding AvailableIngredients}" DisplayMemberPath="Name"
-                              SelectedItem="{Binding NewLineIngredient, Mode=TwoWay}" Margin="0,0,8,0" />
-                    <ui:NumberBox Width="100" PlaceholderText="Grams" Value="{Binding NewLineQuantityGrams, Mode=TwoWay}" Margin="0,0,8,0" />
-                    <ui:TextBox Width="140" PlaceholderText="e.g. 2 cups diced" Text="{Binding NewLineDisplayAmount, Mode=TwoWay}" Margin="0,0,8,0" />
-                    <ui:TextBox Width="100" PlaceholderText="Form used" Text="{Binding NewLineFormUsed, Mode=TwoWay}" Margin="0,0,8,0" />
-                    <ui:Button Content="Add Ingredient" Command="{Binding AddLineCommand}" />
+                    <TextBlock Text="{Binding PerServingTotals.Calories, StringFormat='{}{0:0}', TargetNullValue='0'}" Style="{DynamicResource HeroMetricText}" />
+                    <TextBlock
+                        Text="cal"
+                        Style="{DynamicResource CaptionText}"
+                        Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                        VerticalAlignment="Bottom"
+                        Margin="6,0,0,9" />
                 </StackPanel>
-            </ui:Card>
 
-            <TextBlock Text="Per serving" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,8" />
-            <TextBlock Text="{Binding PerServingTotals.Calories, StringFormat='Calories: {0:0}'}" />
-            <TextBlock Text="{Binding PerServingTotals.Protein, StringFormat='Protein: {0:0.0}g'}" />
-            <TextBlock Text="{Binding PerServingTotals.Fat, StringFormat='Fat: {0:0.0}g'}" />
-            <TextBlock Text="{Binding PerServingTotals.Carbs, StringFormat='Carbs: {0:0.0}g'}" />
-            <TextBlock Text="{Binding PerServingTotals.Cost, StringFormat='Cost: {0:C}'}" Margin="0,0,0,16" />
+                <Grid Margin="0,14,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
 
-            <TextBlock Text="Preference notes" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,8" />
-            <ItemsControl ItemsSource="{Binding Concerns}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="{x:Type calc:CompatibilityConcern}">
-                        <TextBlock Text="{Binding Message}" Margin="0,2" />
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="PROTEIN" Style="{DynamicResource EyebrowText}" Margin="0,0,0,2" />
+                        <TextBlock Text="{Binding PerServingTotals.Protein, StringFormat='{}{0:0.0}g', TargetNullValue='—'}" Style="{DynamicResource MacroValue}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="FAT" Style="{DynamicResource EyebrowText}" Margin="0,0,0,2" />
+                        <TextBlock Text="{Binding PerServingTotals.Fat, StringFormat='{}{0:0.0}g', TargetNullValue='—'}" Style="{DynamicResource MacroValue}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="CARBS" Style="{DynamicResource EyebrowText}" Margin="0,0,0,2" />
+                        <TextBlock Text="{Binding PerServingTotals.Carbs, StringFormat='{}{0:0.0}g', TargetNullValue='—'}" Style="{DynamicResource MacroValue}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="3">
+                        <TextBlock Text="FIBER" Style="{DynamicResource EyebrowText}" Margin="0,0,0,2" />
+                        <TextBlock Text="{Binding PerServingTotals.Fiber, StringFormat='{}{0:0.0}g', TargetNullValue='—'}" Style="{DynamicResource MacroValue}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="4">
+                        <TextBlock Text="COST" Style="{DynamicResource EyebrowText}" Margin="0,0,0,2" />
+                        <TextBlock Text="{Binding PerServingTotals.Cost, StringFormat=C, TargetNullValue='—'}" Style="{DynamicResource MacroValue}" />
+                    </StackPanel>
+                </Grid>
 
-            <ui:Button Content="Save Recipe" Command="{Binding SaveCommand}" Appearance="Primary" Margin="0,16,0,0" />
-            <TextBlock Text="{Binding StatusMessage}" Opacity="0.7" Margin="0,8,0,0" />
+                <TextBlock
+                    Text="{Binding ServingsSummary}"
+                    Style="{DynamicResource CaptionText}"
+                    Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                    Margin="0,14,0,0" />
+            </StackPanel>
+        </Border>
+
+        <!-- Preference notes: only present when something is worth flagging. -->
+        <StackPanel Visibility="{Binding HasConcerns, Converter={StaticResource BoolToVis}}">
+            <TextBlock Text="WORTH KNOWING" Style="{DynamicResource EyebrowText}" Margin="0,12,0,10" />
+            <Border Style="{DynamicResource SurfaceCard}" Padding="14,10" Margin="0,0,0,12">
+                <ItemsControl ItemsSource="{Binding Concerns}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type calc:CompatibilityConcern}">
+                            <TextBlock Text="{Binding Message}" Margin="0,3" TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource CaptionText}">
+                                        <!-- A soft hint warns; a hard dislike is a stop. -->
+                                        <Setter Property="Foreground" Value="{DynamicResource ExpirySoon}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsBlocked}" Value="True">
+                                                <Setter Property="Foreground" Value="{DynamicResource ExpiryPast}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Border>
         </StackPanel>
-    </ScrollViewer>
+
+        <!-- Details -->
+        <TextBlock Text="DETAILS" Style="{DynamicResource EyebrowText}" Margin="0,12,0,10" />
+        <Border Style="{DynamicResource SurfaceCard}" Padding="18,16" Margin="0,0,0,26">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="120" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Margin="0,0,14,0">
+                        <TextBlock Text="NAME" Style="{DynamicResource FieldLabel}" />
+                        <ui:TextBox Text="{Binding Name, Mode=TwoWay}" PlaceholderText="Weeknight chicken and rice" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="SERVINGS" Style="{DynamicResource FieldLabel}" />
+                        <ui:NumberBox Value="{Binding Servings, Mode=TwoWay}" Minimum="1" />
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Text="METHOD" Style="{DynamicResource FieldLabel}" Margin="0,14,0,6" />
+                <TextBox
+                    Text="{Binding Instructions, Mode=TwoWay}"
+                    AcceptsReturn="True"
+                    TextWrapping="Wrap"
+                    Height="84"
+                    VerticalScrollBarVisibility="Auto" />
+            </StackPanel>
+        </Border>
+
+        <!-- Ingredient lines -->
+        <TextBlock Text="INGREDIENTS" Style="{DynamicResource EyebrowText}" Margin="0,0,0,10" />
+        <Border Style="{DynamicResource SurfaceCard}" Padding="4,2" Margin="0,0,0,14">
+            <StackPanel>
+                <Grid Margin="14,10,14,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="70" />
+                        <ColumnDefinition Width="140" />
+                        <ColumnDefinition Width="90" />
+                        <ColumnDefinition Width="78" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="INGREDIENT" Style="{DynamicResource EyebrowText}" Margin="0,0,12,0" />
+                    <TextBlock Grid.Column="1" Text="GRAMS" Style="{DynamicResource EyebrowText}" Margin="0" HorizontalAlignment="Right" />
+                    <TextBlock Grid.Column="2" Text="AS MEASURED" Style="{DynamicResource EyebrowText}" Margin="12,0,0,0" />
+                    <TextBlock Grid.Column="3" Text="FORM" Style="{DynamicResource EyebrowText}" Margin="0" />
+                </Grid>
+                <Border Height="1" Background="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="14,0,14,4" />
+
+                <ItemsControl ItemsSource="{Binding Lines}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type data:RecipeIngredient}">
+                            <Grid Margin="14,9">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="140" />
+                                    <ColumnDefinition Width="90" />
+                                    <ColumnDefinition Width="78" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    Text="{Binding Ingredient.Name}"
+                                    Style="{DynamicResource BodyText}"
+                                    FontSize="13"
+                                    VerticalAlignment="Center"
+                                    Margin="0,0,12,0" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Text="{Binding QuantityGrams, StringFormat='{}{0:0}'}"
+                                    Style="{DynamicResource NumericText}"
+                                    VerticalAlignment="Center" />
+                                <TextBlock
+                                    Grid.Column="2"
+                                    Text="{Binding DisplayAmount}"
+                                    Style="{DynamicResource CaptionText}"
+                                    VerticalAlignment="Center"
+                                    Margin="12,0,0,0" />
+                                <TextBlock
+                                    Grid.Column="3"
+                                    Text="{Binding FormUsed}"
+                                    Style="{DynamicResource CaptionText}"
+                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                    VerticalAlignment="Center" />
+                                <Button
+                                    Grid.Column="4"
+                                    Content="Remove"
+                                    Click="RemoveLineButton_Click"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Padding="6,2"
+                                    Cursor="Hand"
+                                    FontSize="12"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center"
+                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Text="No ingredients yet. Add the first one below.">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource EmptyStateText}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasLines}" Value="False">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+
+        <!-- Add a line -->
+        <Border Style="{DynamicResource SurfaceCard}" Padding="18,16">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="84" />
+                        <ColumnDefinition Width="140" />
+                        <ColumnDefinition Width="96" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                        <TextBlock Text="INGREDIENT" Style="{DynamicResource FieldLabel}" />
+                        <ComboBox
+                            ItemsSource="{Binding AvailableIngredients}"
+                            DisplayMemberPath="Name"
+                            SelectedItem="{Binding NewLineIngredient, Mode=TwoWay}"
+                            IsEditable="True"
+                            IsTextSearchEnabled="True" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Margin="0,0,12,0">
+                        <TextBlock Text="GRAMS" Style="{DynamicResource FieldLabel}" />
+                        <ui:NumberBox Value="{Binding NewLineQuantityGrams, Mode=TwoWay}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" Margin="0,0,12,0">
+                        <TextBlock Text="AS MEASURED" Style="{DynamicResource FieldLabel}" />
+                        <ui:TextBox Text="{Binding NewLineDisplayAmount, Mode=TwoWay}" PlaceholderText="2 cups diced" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="3" Margin="0,0,12,0">
+                        <TextBlock Text="FORM" Style="{DynamicResource FieldLabel}" />
+                        <ui:TextBox Text="{Binding NewLineFormUsed, Mode=TwoWay}" PlaceholderText="fresh" />
+                    </StackPanel>
+
+                    <ui:Button
+                        Grid.Column="4"
+                        Content="Add"
+                        Command="{Binding AddLineCommand}"
+                        VerticalAlignment="Bottom"
+                        MinWidth="80" />
+                </Grid>
+
+                <TextBlock Text="{Binding StatusMessage}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource CaptionText}">
+                            <Setter Property="Margin" Value="0,12,0,0" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding StatusMessage}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+    </StackPanel>
 </Page>

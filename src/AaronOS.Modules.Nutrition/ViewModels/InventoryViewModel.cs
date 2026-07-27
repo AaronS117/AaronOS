@@ -35,6 +35,18 @@ public partial class InventoryViewModel(
     [ObservableProperty]
     private string _statusMessage = "";
 
+    [ObservableProperty]
+    private int _onHandCount;
+
+    [ObservableProperty]
+    private int _expiringSoonCount;
+
+    [ObservableProperty]
+    private int _expiredCount;
+
+    [ObservableProperty]
+    private bool _hasItems;
+
     partial void OnNewIngredientChanged(Ingredient? value) => RefreshSuggestedExpiration();
     partial void OnNewStorageLocationChanged(StorageLocation value) => RefreshSuggestedExpiration();
     partial void OnNewDateAcquiredChanged(DateTime? value) => RefreshSuggestedExpiration();
@@ -71,19 +83,30 @@ public partial class InventoryViewModel(
 
             var items = await db.Set<InventoryItem>()
                 .Include(i => i.Ingredient)
-                .OrderBy(i => i.ExpiresOn)
                 .ToListAsync();
 
             Items.Clear();
-            foreach (var item in items)
+            // Soonest first, but undated items sort last rather than first — SQLite orders NULL
+            // ahead of every date, which would otherwise bury the urgent rows.
+            foreach (var item in items.OrderBy(i => i.ExpiresOn is null).ThenBy(i => i.ExpiresOn))
             {
                 Items.Add(item);
             }
+
+            RefreshCounts();
         }
         finally
         {
             IsBusy = false;
         }
+    }
+
+    private void RefreshCounts()
+    {
+        OnHandCount = Items.Count;
+        ExpiringSoonCount = Items.Count(i => i.IsExpiringSoon);
+        ExpiredCount = Items.Count(i => i.IsExpired);
+        HasItems = Items.Count > 0;
     }
 
     [RelayCommand]
@@ -107,13 +130,15 @@ public partial class InventoryViewModel(
         db.Add(item);
         await db.SaveChangesAsync();
 
-        item.Ingredient = NewIngredient;
-        Items.Add(item);
-
+        var addedName = NewIngredient.Name;
         NewIngredient = null;
         NewExpiresOn = null;
         NewQuantityLabel = "";
-        StatusMessage = "Added to inventory.";
+
+        // Reload rather than appending: keeps the soonest-expiring-first ordering correct and
+        // refreshes the summary counts in one pass.
+        await LoadAsync();
+        StatusMessage = $"Added {addedName}.";
     }
 
     [RelayCommand]
@@ -123,5 +148,6 @@ public partial class InventoryViewModel(
         db.Remove(item);
         await db.SaveChangesAsync();
         Items.Remove(item);
+        RefreshCounts();
     }
 }
