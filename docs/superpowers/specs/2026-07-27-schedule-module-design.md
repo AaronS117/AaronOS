@@ -1,0 +1,449 @@
+# Schedule Module — Design
+
+## Context
+
+AaronOS is a modular WPF desktop app (see `docs/MODULE_GUIDELINES.md`) with three modules today:
+`AaronOS.Modules.BodyMeasurements`, `AaronOS.Modules.Finance`, and `AaronOS.Modules.Nutrition`.
+The user wants a fourth module that holds the shape of their week: work hours, off-work time, sleep,
+recurring chores (gym, house cleaning, cat litter, trash), goals, and upcoming release dates — and
+that makes suggestions about what to do when, informed by their real calendars.
+
+Two calendars matter. Work lives in Outlook under a `wemautomation.com` account; everything personal
+lives in Google. The machine has only the new Outlook MSIX wrapper (no classic Outlook, no Outlook
+profiles, no local `.ost`) and is neither Entra-joined nor domain-joined, so there is no local
+Outlook data source to read. Work calendar data has to come over the network.
+
+This module follows `docs/MODULE_GUIDELINES.md` exactly: a compiled-in `IAppModule`, its own entities
+discovered automatically by the shared `AaronOsDbContext`, its own ViewModels and Pages, one project
+reference from `AaronOS.App`, one line appended to the module array in `App.xaml.cs`.
+
+## Scope
+
+This spec covers the whole feature area in one module, at the user's explicit direction after being
+shown a decomposed alternative. The implementation phases (see "Build order") are ordered so the
+local, dependency-free parts land and become usable before any OAuth work begins — a tenant
+restriction on the calendar side cannot strand the rest of the module.
+
+In scope:
+
+- A recurring weekly schedule template (work, sleep, personal blocks) with dated exceptions for PTO,
+  overtime, travel, and one-off changes. The user's work hours are fixed weekly with occasional
+  exceptions, so the template plus exceptions model fits directly.
+- Recurring routines with an interval or a fixed weekday, completion logging, and next-due /
+  overdue-by-N-days computation.
+- Manual sleep logging (bed time, wake time), a configurable nightly target, a recommended bedtime
+  derived from the next day's first commitment, and a rolling 14-day sleep debt figure.
+- Goals with optional target dates, progress, and milestones.
+- Release tracking for media (games, movies, shows) and products (hardware launches, restocks) in one
+  dated-record table with a category.
+- A ranked suggestion list surfaced on a Today panel, plus native Windows notifications.
+- Read-only ingestion of the work Outlook calendar via a published-calendar ICS feed.
+- Read-only ingestion of the personal Google Calendar via the Google Calendar API.
+- Gmail scanning for dated things that never made it onto a calendar, extracted via the Claude API
+  into a review queue that the user approves before anything joins the schedule.
+
+Explicitly out of scope, noted so it is not silently forgotten:
+
+- **Writing to any external calendar.** Both integrations are read-only.
+- **Microsoft Graph.** See "Outlook access" below — the calendar layer is designed so a Graph
+  provider can be added later without reworking the module, but Graph is not built here.
+- **Toasts while the app is closed.** Notifications require the app to be running; a Windows
+  Scheduled Task that wakes something up is a separate concern.
+- **Wearable or phone sleep import.** Sleep is self-reported. The `SleepLog` shape leaves room for an
+  importer to backfill it later without a schema change.
+- **Body-composition goals.** Those already live in `BodyMeasurements`, and `MODULE_GUIDELINES.md`
+  forbids reaching across module boundaries. `Goal` here is a generic dated-goal record; the two
+  coexist without referencing each other.
+- **Metric units and time-zone travel.** Local time only, consistent with the rest of the app.
+
+## Confidence and open questions
+
+Stated plainly, because these shape the build:
+
+- **Whether the work tenant permits publishing a calendar is unknown.** Outlook Web offers
+  Settings → Calendar → Shared calendars → Publish a calendar, which yields an anonymous `.ics` URL,
+  but tenants frequently disable it. This is verified at the start of phase 7, not before. If it is
+  disabled, phases 1–6 and 8–9 are unaffected and the work calendar stays manual until a Graph app
+  registration is approved.
+- **Published ICS feeds refresh slowly** — often hours behind. The work calendar will not be
+  real-time. This is a property of the transport, not a bug to fix.
+- **Mail extraction will be imperfect.** Every extracted item lands in a review queue rather than on
+  the schedule. False positives cost a dismissal; false negatives are invisible. That trade is
+  accepted deliberately.
+- **Sleep recommendations are arithmetic on the user's own numbers**, not a clinical determination.
+  The module computes a bedtime from the next day's commitments and a debt figure against a target
+  the user sets. It does not determine how much sleep the user personally needs; nothing beyond the
+  general 7–9 hour adult range would have any basis.
+
+## Module shape
+
+`AaronOS.Modules.Schedule`, a class library exactly like the existing three:
+
+```csharp
+public class ScheduleModule : IAppModule
+{
+    public string Id => "schedule";
+    public string DisplayName => "Schedule";
+    public string IconGlyph => "CalendarLtr24"; // confirm exact Wpf.Ui.Controls.SymbolRegular member at implementation time
+    public Type HomePageType => typeof(ScheduleShellPage);
+
+    public void RegisterServices(IServiceCollection services)
+    {
+        // ViewModels transient, services singleton — see RegisterServices below
+    }
+}
+```
+
+`ScheduleShellPage` carries a button row and an internal `Frame`, following
+`BodyMeasurementsShellPage`, and navigates between the module's own pages with
+`Frame.Navigate(new SomePage())`. The shell knows only about `ScheduleShellPage`.
+
+Pages: **Today**, **Week**, **Routines**, **Sleep**, **Goals & Releases**, **Review Inbox**,
+**Settings**. One ViewModel per page, registered transient, derived from `AaronOS.Core.ViewModelBase`,
+resolved in each page's constructor via `AppServices.Provider.GetRequiredService<T>()` with
+`DataContext` set explicitly and load work kicked off from the `Loaded` event.
+
+### csproj
+
+Per `MODULE_GUIDELINES.md`: `net8.0-windows`, `UseWPF`, `LangVersion 13.0`, `Nullable enable`. Plus
+`<UseWindowsForms>true</UseWindowsForms>` for `NotifyIcon` (see "Notifications"). Project reference to
+`AaronOS.Core`; package references to `WPF-UI`, `Ical.Net` 5.2.3, `Google.Apis.Calendar.v3` 1.75.0,
+`Google.Apis.Gmail.v1` 1.74.0, `Google.Apis.Auth`, and `Anthropic`.
+
+`Ical.Net` is a deliberate dependency rather than a hand-rolled parser: RRULE expansion, VTIMEZONE
+handling, line unfolding, and value escaping are substantially more code to get right than a package
+reference, and getting them subtly wrong produces a calendar that is quietly incorrect.
+
+Note the CommunityToolkit.Mvvm gotcha from the guidelines: use the field-backed
+`[ObservableProperty] private bool _x;` form, not partial properties, and ignore `MVVMTK0045`.
+
+## Data model
+
+All entities live under `Data/` with a matching `IEntityTypeConfiguration<T>`. Names are
+domain-specific enough that EF Core's default pluralized table naming cannot collide with another
+module.
+
+### Schedule
+
+**`ScheduleBlock`** — the recurring template.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `Id` | int | |
+| `Kind` | `ScheduleBlockKind` enum | `Work`, `Sleep`, `Personal` |
+| `Label` | string | e.g. "Core hours" |
+| `DaysOfWeek` | `DayOfWeekFlags` enum (flags) | Stored as int |
+| `StartTime` / `EndTime` | `TimeSpan` | Local wall-clock. `EndTime < StartTime` means it wraps midnight (sleep blocks) |
+| `EffectiveFrom` | `DateOnly` | |
+| `EffectiveTo` | `DateOnly?` | Null = open-ended |
+| `IsActive` | bool | |
+
+The user's fixed weekly hours are a small number of rows here.
+
+**`ScheduleException`** — a dated override, so reality does not require editing the template.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `Id` | int | |
+| `Date` | `DateOnly` | |
+| `ScheduleBlockId` | int? | Null = a standalone one-off block on that date |
+| `IsCancelled` | bool | True = the referenced block does not occur (PTO, holiday) |
+| `Kind` | `ScheduleBlockKind?` | For standalone entries |
+| `Label` | string? | |
+| `StartTime` / `EndTime` | `TimeSpan?` | Replacement times, or the times of a standalone entry |
+| `Note` | string? | |
+
+Index on `Date`.
+
+### Routines
+
+**`Routine`**
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `Id` | int | |
+| `Name` | string | |
+| `Category` | `RoutineCategory` enum | `Gym`, `Cleaning`, `LitterBox`, `Trash`, `Other` |
+| `IntervalDays` | int? | Null when the routine is weekday-pinned instead |
+| `PreferredDaysOfWeek` | `DayOfWeekFlags?` | Trash night is a fixed weekday; the litter box is an interval |
+| `PreferredTimeOfDay` | `TimeSpan?` | A hint for the suggestion ranking, not a hard slot |
+| `EstimatedMinutes` | int? | Used to match a routine against an actual free gap |
+| `IsActive` | bool | |
+
+Exactly one of `IntervalDays` and `PreferredDaysOfWeek` must be set; validated in the ViewModel and
+asserted in `RoutineScheduler`.
+
+**`RoutineCompletion`** — `Id`, `RoutineId` (FK, cascade delete), `CompletedAt` (`DateTime`),
+`Note` (string?). Index on `(RoutineId, CompletedAt)`.
+
+Next-due is computed from the most recent completion, never stored. Storing a "next due" column
+would need rewriting on every completion and would silently drift if a completion were edited or
+deleted.
+
+### Sleep
+
+**`SleepLog`** — `Id`, `NightOf` (`DateOnly`, the date the sleep *started*), `BedTime` (`DateTime`),
+`WakeTime` (`DateTime`), `Quality` (int? 1–5), `Note` (string?). Unique index on `NightOf`. Duration
+is computed, not stored.
+
+`NightOf` rather than a plain date avoids the perennial ambiguity of which calendar day a 1 a.m.
+bedtime belongs to.
+
+**`SleepSettings`** — single-row table, following the `UserProfile` pattern but kept in this module
+since nothing else needs it: `Id`, `TargetHours` (`decimal`, default 8.0), `SleepOnsetMinutes` (int,
+default 15), `MorningRoutineMinutes` (int, default 45), `WindDownLeadMinutes` (int, default 30).
+
+### Goals and releases
+
+**`Goal`** — `Id`, `Title`, `Description` (string?), `TargetDate` (`DateOnly?`), `ProgressPercent`
+(int 0–100), `Status` (`GoalStatus`: `Active`, `Paused`, `Done`, `Abandoned`), `CreatedAt`,
+`CompletedAt` (`DateTime?`).
+
+**`GoalMilestone`** — `Id`, `GoalId` (FK, cascade delete), `Title`, `DueDate` (`DateOnly?`),
+`IsDone` (bool), `SortOrder` (int).
+
+**`Release`** — `Id`, `Title`, `Category` (`ReleaseCategory`: `Media`, `Product`), `ReleaseDate`
+(`DateOnly`), `IsDateEstimated` (bool), `Url` (string?), `Notes` (string?), `IsDismissed` (bool).
+Index on `ReleaseDate`.
+
+One table for both media and product launches, per the user's choice — they differ only by category
+and by whether the date implies an action.
+
+### External calendars and mail
+
+**`ExternalCalendar`**
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `Id` | int | |
+| `Provider` | `CalendarProvider` enum | `OutlookIcs`, `GoogleCalendar` |
+| `DisplayName` | string | |
+| `IcsUrl` | string? | `OutlookIcs` only |
+| `RemoteCalendarId` | string? | `GoogleCalendar` only |
+| `EncryptedToken` | byte[]? | DPAPI-protected; Google only |
+| `IsEnabled` | bool | |
+| `LastSyncedAt` | `DateTime?` | |
+| `LastError` | string? | Null on success |
+
+**`ExternalEvent`** — `Id`, `ExternalCalendarId` (FK, cascade delete), `ExternalUid` (string),
+`Title`, `StartsAt` (`DateTime`), `EndsAt` (`DateTime`), `IsAllDay` (bool), `Location` (string?),
+`IsBusy` (bool), `LastSeenAt` (`DateTime`). **Unique index on `(ExternalCalendarId, ExternalUid)`** —
+this is what makes re-syncing idempotent.
+
+External events are cached into local tables rather than fetched live per page load. The suggestion
+engine has to reason about tomorrow's commitments while offline, and the published-ICS feed is slow
+enough that re-fetching on navigation would make the UI feel broken.
+
+**`InboxItem`** — mail-derived candidates awaiting review.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `Id` | int | |
+| `SourceMessageId` | string | Gmail message id; unique index |
+| `DetectedTitle` | string | |
+| `DetectedDate` | `DateOnly?` | Null when extraction found no usable date |
+| `Kind` | `InboxItemKind` enum | `Appointment`, `Delivery`, `Release`, `Deadline`, `Other` |
+| `Confidence` | decimal | 0–1, as reported by the extractor |
+| `RawSubject` / `RawSnippet` | string | Shown in review so the user can judge |
+| `Status` | `InboxItemStatus` enum | `Pending`, `Accepted`, `Dismissed` |
+| `CreatedAt` | `DateTime` | |
+
+Accepting an item creates a `Release`, a `ScheduleException`, or a `Goal` depending on `Kind`, and
+flips the item to `Accepted`. Nothing from mail reaches the schedule without that step.
+
+## Services
+
+Five pure services — they take values and return values, touch no database, and are where the tests
+live. Plus the I/O-bound clients, kept deliberately thin.
+
+### `AgendaBuilder` (pure)
+
+`IReadOnlyList<AgendaDay> Build(DateOnly from, DateOnly to, IReadOnlyList<ScheduleBlock> blocks,
+IReadOnlyList<ScheduleException> exceptions, IReadOnlyList<ExternalEvent> events)`
+
+Expands blocks across the range honouring `DaysOfWeek` and the effective-date window, applies
+exceptions (cancellations remove, time overrides replace, standalone entries add), merges external
+events, and returns days each holding an ordered list of `AgendaEntry` (start, end, kind, label,
+source) plus the computed free gaps between committed entries. Midnight-wrapping sleep blocks are
+split across the day boundary so a day's entries are always sorted and non-wrapping.
+
+Everything downstream consumes this. It is the single place recurrence is interpreted.
+
+### `RoutineScheduler` (pure)
+
+For each routine plus its completion history, returns `NextDueDate` and `OverdueByDays`. Interval
+routines are due at `lastCompleted + IntervalDays` (or immediately if never completed);
+weekday-pinned routines are due on the next matching weekday not already covered by a completion.
+
+### `SleepPlanner` (pure)
+
+- `RecommendedBedtime(DateOnly tonight, AgendaDay tomorrow, SleepSettings settings)` — works backward
+  from tomorrow's first committed entry: minus `MorningRoutineMinutes`, minus `TargetHours`, minus
+  `SleepOnsetMinutes`. When tomorrow has no commitments, falls back to the active `Sleep`
+  `ScheduleBlock`.
+- `SleepDebt(IReadOnlyList<SleepLog> last14Nights, SleepSettings settings)` — sum of
+  `TargetHours − actual` over the window, floored at zero per night so a long night does not silently
+  cancel a short one.
+
+### `SuggestionEngine` (pure)
+
+Takes the agenda's free gaps, routine due states, tonight's recommended bedtime, upcoming releases,
+and goal milestone dates. Returns a ranked `IReadOnlyList<Suggestion>` (title, reason, suggested time
+window, urgency). Ranking rules, in order:
+
+1. Overdue routines rank above merely-due ones, by days overdue.
+2. A routine whose `EstimatedMinutes` fits an actual free gap ranks above one that does not.
+3. A routine whose `PreferredTimeOfDay` falls inside a free gap ranks above one placed elsewhere.
+4. Releases and milestones within 7 days appear as informational entries, never as chores.
+5. Tonight's bedtime always appears, pinned last.
+
+Deterministic and pure, so the ranking is directly testable.
+
+### `ExternalEventMerger` (pure)
+
+Upserts a fetched batch against the cached rows for one calendar, keyed on `ExternalUid`: new UIDs
+insert, known UIDs update in place, and UIDs absent from a full-window fetch are deleted. Mirrors the
+existing `TransactionSyncMerger` in the Finance module.
+
+### I/O clients
+
+- **`IcsFeedClient`** — `HttpClient` GET plus `Ical.Net` parse, expanding occurrences across the sync
+  window into `ExternalEvent` DTOs. Behind an `IExternalCalendarSource` interface so a future Graph
+  provider drops in beside it.
+- **`GoogleCalendarClient`** / **`GmailClient`** — `Google.Apis`, using the installed-app loopback
+  OAuth flow. `GoogleCalendarClient` reads events over a window; `GmailClient` lists messages matching
+  a configured query and returns subject + snippet only.
+- **`DpapiDataStore`** — a small `IDataStore` implementation backed by `ExternalCalendar.EncryptedToken`
+  so Google's token cache lands in the app database under DPAPI rather than in a `FileDataStore`.
+  Uses the same `ProtectedData.Protect` / `Unprotect` shape as
+  `Finance.Plaid.AccessTokenProtector` and `Nutrition.Usda.ApiKeyProtector`.
+- **`MailEventExtractor`** — see below.
+- **`ScheduleSyncService`** — orchestrates fetch → merge → persist per enabled calendar, records
+  `LastSyncedAt` / `LastError`, and is invoked from Settings and from the background tick.
+- **`NotificationService`** — see below.
+
+### `RegisterServices`
+
+ViewModels transient (a fresh instance per navigation, per the guidelines); the pure services and
+clients singleton. Database access through the injected
+`IDbContextFactory<AaronOsDbContext>` with a short-lived context per unit of work:
+`await using var db = await _dbContextFactory.CreateDbContextAsync();`
+
+## Mail extraction via the Claude API
+
+`MailEventExtractor` sends the subject and snippet of a candidate message to the Claude API and
+receives a structured object back.
+
+- **Model:** `claude-opus-5`.
+- **Structured output:** `OutputConfig.Format = new JsonOutputFormat { Schema = ... }` with a schema
+  covering `title` (string), `date` (string, ISO date or null), `kind` (enum matching
+  `InboxItemKind`), and `confidence` (number 0–1). Using the schema rather than parsing free text
+  means the model retries on mismatch at the API layer instead of producing something the module has
+  to defensively parse.
+- **Effort:** `OutputConfig.Effort = Effort.Low`. This is mechanical extraction from two short
+  strings.
+- **Thinking:** left at the default (on) with generous `MaxTokens` headroom, since `MaxTokens` caps
+  thinking plus response together. Disabling thinking on this model has documented failure modes and
+  is not worth the token saving on calls this small.
+- **Refusals:** a declined request returns HTTP 200 with `StopReason == "refusal"`. The extractor
+  checks `StopReason` before reading `Content`, and records the item as unextracted rather than
+  throwing.
+- **Credentials:** the API key is stored DPAPI-protected in a single-row credential table, copying
+  `Nutrition.Usda.UsdaCredentialStore` exactly. Absent a key, phase 9 is inert and the rest of the
+  module is unaffected.
+
+Cost: subject plus snippet is roughly 150 input tokens and 100 output, so about **$0.003 per email
+scanned** at Opus 5's $5 / $25 per million tokens — a few dollars a month at fifty scanned messages a
+day. Only messages matching the configured Gmail query are scanned, and each message id is scanned
+at most once thanks to the unique index on `InboxItem.SourceMessageId`.
+
+## Notifications
+
+`NotificationService` uses `System.Windows.Forms.NotifyIcon` and `ShowBalloonTip`, which ships with
+the .NET Windows Desktop SDK. Windows 10/11 routes balloon tips through the Action Center as real
+toasts, so this needs no NuGet package, no Start-menu shortcut carrying an AUMID, and no COM
+activator class.
+
+The ceiling, stated so the upgrade path is known: title-and-text only, no action buttons, no
+click-to-navigate, and a tray icon must exist while notifications are wanted. If actionable toasts
+become worth the setup cost, `Microsoft.Toolkit.Uwp.Notifications` 7.1.3 plus the AUMID shortcut and
+COM activator is the replacement, and it swaps in behind `NotificationService` without touching
+callers.
+
+A single `PeriodicTimer` ticking every minute while the app runs drives three things: overdue-routine
+notifications (at most one per routine per day), the nightly wind-down reminder at
+`RecommendedBedtime − WindDownLeadMinutes`, and a periodic external-calendar sync. One timer, not a
+scheduling framework. Notifications fired are recorded in memory for the session so a tick storm
+cannot produce duplicates.
+
+## Error handling
+
+Every path that leaves the machine fails soft:
+
+- A failed ICS fetch, Google API call, or Claude call records the message on
+  `ExternalCalendar.LastError` (or the credential row for Claude), leaves the cached data untouched,
+  and is surfaced on the Settings page next to `LastSyncedAt`. Nothing throws into the UI.
+- A DPAPI `Unprotect` failure (a copied database, a changed Windows account) is treated as
+  "not authorized": the calendar is shown as needing re-authorization rather than crashing.
+- A malformed ICS payload fails that one calendar's sync and leaves other calendars alone.
+- The local schedule, routines, sleep, goals, and releases all work with every integration disabled.
+  That is the whole point of the phase ordering.
+
+**Schema caveat.** `AaronOS.Core.Data.SchemaBootstrapper` creates *missing tables* at startup but does
+not alter tables that already exist. Adding this module to an existing database is therefore safe and
+requires no deletion — which matters, because the database holds linked bank connections that can
+only be re-established through an OAuth flow. However, any later change to a column on one of these
+entities needs a hand-written `ALTER TABLE` or a dropped local database
+(`%LocalAppData%\AaronOS\aaronos.db`). Worth getting the entity shapes right in phase 1.
+
+## Build order
+
+Phases 1–6 have no external dependencies and produce a usable module on their own. Phases 7–9 add the
+integrations.
+
+1. **Scaffold and agenda.** Project, `IAppModule`, `ScheduleShellPage`, `ScheduleBlock` /
+   `ScheduleException` entities and configurations, `AgendaBuilder`, Today and Week pages, block
+   editing UI. Register in `AaronOS.App`. Usable immediately.
+2. **Routines.** `Routine`, `RoutineCompletion`, `RoutineScheduler`, Routines page with completion
+   logging and next-due display.
+3. **Sleep.** `SleepLog`, `SleepSettings`, `SleepPlanner`, Sleep page with logging, target
+   configuration, recommended bedtime, and the 14-day debt figure.
+4. **Goals and releases.** `Goal`, `GoalMilestone`, `Release`, the Goals & Releases page.
+5. **Suggestions.** `SuggestionEngine` wired into the Today panel.
+6. **Notifications.** `NotificationService`, tray icon, `PeriodicTimer` tick for overdue routines and
+   the wind-down reminder.
+7. **Outlook ICS sync.** Verify the tenant permits calendar publishing *first*. Then
+   `ExternalCalendar` / `ExternalEvent`, `IExternalCalendarSource`, `IcsFeedClient`,
+   `ExternalEventMerger`, `ScheduleSyncService`, Settings UI, and merging external events into the
+   agenda. If publishing is disabled, stop here and record that the Graph provider is the remaining
+   option — nothing else in the module is blocked.
+8. **Google Calendar.** `DpapiDataStore`, `GoogleCalendarClient`, OAuth consent flow (reusing the
+   `OAuthPopupWindow` pattern from Finance where it fits), sync wired into `ScheduleSyncService`.
+9. **Gmail scan.** `GmailClient`, `MailEventExtractor`, Claude credential storage, `InboxItem`, the
+   Review Inbox page with accept/dismiss, and accept-to-entity conversion.
+
+## Testing
+
+`AaronOS.Modules.Schedule.Tests`, mirroring `AaronOS.Modules.Finance.Tests` and
+`AaronOS.Modules.Nutrition.Tests`. The pure services carry the coverage:
+
+- **`AgendaBuilder`** — weekday expansion; effective-date windows; cancellation exceptions; time-override
+  exceptions; standalone one-off entries; midnight-wrapping sleep blocks split correctly; external
+  events merged in start order; free-gap computation, including a fully-booked day (no gaps) and an
+  empty day (one gap).
+- **`RoutineScheduler`** — never-completed routine is due now; interval routine due date after one and
+  several completions; overdue-by-days arithmetic; weekday-pinned routine skips a weekday already
+  covered by a completion.
+- **`SleepPlanner`** — bedtime derived from tomorrow's first commitment; fallback to the sleep block
+  when tomorrow is empty; debt across a mixed 14-night window; a long night does not offset a short
+  one.
+- **`SuggestionEngine`** — overdue outranks due; a routine that fits a gap outranks one that does not;
+  preferred-time placement; bedtime pinned last; releases appear as informational, not as chores.
+- **`ExternalEventMerger`** — insert, update-in-place, delete-when-absent, and idempotency (merging
+  the same batch twice is a no-op).
+- **`IcsFeedClient` parsing** — against a checked-in `.ics` fixture covering a simple event, a
+  recurring event with an RRULE, an all-day event, and an event carrying a VTIMEZONE. Parsing is
+  tested; the HTTP fetch is not.
+
+The network clients (`GoogleCalendarClient`, `GmailClient`, `MailEventExtractor`) are not unit-tested.
+Their logic is thin by design; the value lives in the pure services above.
