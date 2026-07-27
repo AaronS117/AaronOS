@@ -805,12 +805,41 @@ public sealed record AgendaEntry(
     TimeSpan End,
     ScheduleBlockKind Kind,
     string Label,
-    AgendaEntrySource Source);
+    AgendaEntrySource Source)
+{
+    private static readonly TimeSpan FullDay = TimeSpan.FromHours(24);
+
+    public string StartDisplay => Format(Start);
+    public string EndDisplay => Format(End);
+
+    /// <summary>
+    /// Bind these in XAML rather than formatting Start/End directly. The first half of a
+    /// midnight-wrapping block ends at exactly 24:00, and the `hh` custom format specifier
+    /// reads the Hours component after Days are stripped — so it would render as "00:00".
+    /// </summary>
+    private static string Format(TimeSpan value) =>
+        value == FullDay ? "24:00" : value.ToString(@"hh\:mm");
+}
 
 /// <summary>An uncommitted span. Sleep counts as committed, so gaps are naturally waking hours.</summary>
 public sealed record FreeGap(TimeSpan Start, TimeSpan End)
 {
+    private static readonly TimeSpan FullDay = TimeSpan.FromHours(24);
+
     public int Minutes => (int)(End - Start).TotalMinutes;
+
+    public string StartDisplay => Format(Start);
+    public string EndDisplay => Format(End);
+
+    /// <summary>
+    /// Bind these rather than formatting <see cref="Start"/>/<see cref="End"/> in XAML. The `hh`
+    /// custom format specifier reads the Hours component *after* Days are stripped, so a TimeSpan
+    /// of exactly one day renders as "00" — making a whole-day gap read "00:00 - 00:00" next to its
+    /// own 1440-minute count. Display members on the record rather than a value converter, matching
+    /// FinanceTransaction.AmountDisplay/DateDisplay elsewhere in this repo.
+    /// </summary>
+    private static string Format(TimeSpan value) =>
+        value == FullDay ? "24:00" : value.ToString(@"hh\:mm");
 }
 
 public sealed record AgendaDay(
@@ -1914,7 +1943,7 @@ Replace `src/AaronOS.Modules.Schedule/Views/TodayPage.xaml`:
                                         <ColumnDefinition Width="140" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="{Binding Start, StringFormat='{}{0:hh\\:mm}'}" />
+                                    <TextBlock Grid.Column="0" Text="{Binding StartDisplay}" />
                                     <TextBlock Grid.Column="1" Text="{Binding Label}" />
                                 </Grid>
                             </DataTemplate>
@@ -1930,9 +1959,9 @@ Replace `src/AaronOS.Modules.Schedule/Views/TodayPage.xaml`:
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <TextBlock Margin="0,2">
-                                    <Run Text="{Binding Start, StringFormat='{}{0:hh\\:mm}', Mode=OneWay}" />
+                                    <Run Text="{Binding StartDisplay, Mode=OneWay}" />
                                     <Run Text="–" />
-                                    <Run Text="{Binding End, StringFormat='{}{0:hh\\:mm}', Mode=OneWay}" />
+                                    <Run Text="{Binding EndDisplay, Mode=OneWay}" />
                                     <Run Text=" (" /><Run Text="{Binding Minutes, Mode=OneWay}" /><Run Text=" min)" />
                                 </TextBlock>
                             </DataTemplate>
@@ -2260,9 +2289,9 @@ Register it in `ScheduleModule.RegisterServices`:
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <TextBlock Margin="0,1">
-                                                <Run Text="{Binding Start, StringFormat='{}{0:hh\\:mm}', Mode=OneWay}" />
+                                                <Run Text="{Binding StartDisplay, Mode=OneWay}" />
                                                 <Run Text="–" />
-                                                <Run Text="{Binding End, StringFormat='{}{0:hh\\:mm}', Mode=OneWay}" />
+                                                <Run Text="{Binding EndDisplay, Mode=OneWay}" />
                                                 <Run Text="  " />
                                                 <Run Text="{Binding Label, Mode=OneWay}" />
                                             </TextBlock>
