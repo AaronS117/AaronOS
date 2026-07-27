@@ -32,10 +32,15 @@
                         <!-- Three-point setup: a cool key light for form, a cyan fill on the opposite
                              side to tie the model to the app's accent, and a dim ambient so shadowed
                              sides never go fully black. -->
-                        <AmbientLight Color="#333C48" />
-                        <DirectionalLight Color="#DCE8F2" Direction="-0.45,-0.42,-0.79" />
-                        <DirectionalLight Color="#2E7FA8" Direction="0.82,-0.12,-0.56" />
-                        <DirectionalLight Color="#1B4C66" Direction="0.1,0.25,0.96" />
+                        <AmbientLight Color="#2A323C" />
+                        <!-- Key, from front-upper-left, doing most of the form. -->
+                        <DirectionalLight Color="#C8D6E4" Direction="-0.42,-0.48,-0.77" />
+                        <!-- Cyan fill on the opposite side, tying the model to the app's accent. -->
+                        <DirectionalLight Color="#2B6E92" Direction="0.84,-0.10,-0.53" />
+                        <!-- Rim from behind, separating the silhouette from the background. -->
+                        <DirectionalLight Color="#3C7FA0" Direction="0.15,0.20,0.97" />
+                        <!-- Low bounce, so undersides of arms and jaw do not go solid black. -->
+                        <DirectionalLight Color="#1A222C" Direction="0,-1,0" />
                     </Model3DGroup>
                 </ModelVisual3D.Content>
             </ModelVisual3D>

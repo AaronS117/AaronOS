@@ -16,7 +16,7 @@ namespace AaronOS.Modules.BodyMeasurements.ViewModels;
 
 /// <summary>One labelled measurement for the dashboard readout beside the silhouette. Missing values
 /// still get a row, shown as a dash, so the full set is always visible as a checklist.</summary>
-public record MeasurementRow(string Label, string Display, bool HasValue);
+public record MeasurementRow(GoalMetric Metric, string Label, string Display, bool HasValue);
 
 public class GoalProgress
 {
@@ -46,6 +46,26 @@ public partial class DashboardViewModel(IDbContextFactory<AaronOsDbContext> dbCo
 
     [ObservableProperty]
     private bool _hasActiveGoals;
+
+    [ObservableProperty]
+    private bool _isEditorOpen;
+
+    [ObservableProperty]
+    private string _editorLabel = "";
+
+    [ObservableProperty]
+    private double _editorValue = double.NaN;
+
+    [ObservableProperty]
+    private string _editorStatus = "";
+
+    private GoalMetric? _editingMetric;
+
+    /// <summary>Raised whenever the dashboard finishes loading, so the 3D figure can rebuild. An
+    /// explicit signal rather than watching a property: saving an edit to a check-in that already
+    /// exists for today changes no observable property, so a property watcher would silently miss it
+    /// and leave the figure showing stale proportions.</summary>
+    public event Action? Reloaded;
 
     private static readonly SKColor ReactorCyan = new(0x4C, 0xC2, 0xFF);
     private static readonly SKColor AxisLabel = new(0x9A, 0xA3, 0xB2);
@@ -130,31 +150,88 @@ public partial class DashboardViewModel(IDbContextFactory<AaronOsDbContext> dbCo
         {
             IsBusy = false;
         }
+
+        Reloaded?.Invoke();
+    }
+
+    /// <summary>
+    /// Opens the inline editor for one measurement — driven either by clicking the 3D figure or by
+    /// clicking a row in the list beside it.
+    /// </summary>
+    public void BeginEdit(GoalMetric metric)
+    {
+        _editingMetric = metric;
+        EditorLabel = metric.Label();
+        EditorStatus = "";
+
+        var current = LatestCheckIn is null ? null : metric.GetValue(LatestCheckIn);
+        EditorValue = current is null ? double.NaN : (double)current.Value;
+        IsEditorOpen = true;
+    }
+
+    [RelayCommand]
+    private void CancelEdit()
+    {
+        IsEditorOpen = false;
+        _editingMetric = null;
+    }
+
+    /// <summary>
+    /// Writes the edited measurement into today's check-in, creating one if today has none yet, then
+    /// reloads so the figure reshapes immediately. Editing amends today rather than rewriting an older
+    /// entry, so measurement history stays a truthful record of when each value was taken.
+    /// </summary>
+    [RelayCommand]
+    private async Task SaveEditAsync()
+    {
+        if (_editingMetric is not { } metric)
+        {
+            return;
+        }
+
+        if (double.IsNaN(EditorValue) || EditorValue <= 0)
+        {
+            EditorStatus = "Enter a value above zero.";
+            return;
+        }
+
+        await using var db = await dbContextFactory.CreateDbContextAsync();
+        var today = DateOnly.FromDateTime(DateTime.Now);
+
+        var checkIn = await db.Set<BodyCheckIn>().FirstOrDefaultAsync(c => c.Date == today);
+        if (checkIn is null)
+        {
+            checkIn = new BodyCheckIn { Date = today };
+            db.Add(checkIn);
+        }
+
+        metric.SetValue(checkIn, (decimal)EditorValue);
+        await db.SaveChangesAsync();
+
+        IsEditorOpen = false;
+        _editingMetric = null;
+        await LoadAsync();
     }
 
     /// <summary>Every tracked measurement gets a row whether or not it was recorded, so the list
     /// doubles as a checklist of what is still missing from the latest check-in.</summary>
     private void BuildMeasurementRows(BodyCheckIn? c)
     {
-        (string Label, decimal? Value)[] source =
+        GoalMetric[] tracked =
         [
-            ("Neck", c?.NeckIn),
-            ("Chest", c?.ChestIn),
-            ("Waist", c?.WaistIn),
-            ("Hips", c?.HipsIn),
-            ("Bicep L", c?.BicepLeftIn),
-            ("Bicep R", c?.BicepRightIn),
-            ("Thigh L", c?.ThighLeftIn),
-            ("Thigh R", c?.ThighRightIn),
-            ("Calf L", c?.CalfLeftIn),
-            ("Calf R", c?.CalfRightIn),
+            GoalMetric.Neck, GoalMetric.Chest, GoalMetric.Waist, GoalMetric.Hips,
+            GoalMetric.BicepLeft, GoalMetric.BicepRight,
+            GoalMetric.ThighLeft, GoalMetric.ThighRight,
+            GoalMetric.CalfLeft, GoalMetric.CalfRight,
         ];
 
         MeasurementRows.Clear();
-        foreach (var (label, value) in source)
+        foreach (var metric in tracked)
         {
+            var value = c is null ? null : metric.GetValue(c);
             MeasurementRows.Add(new MeasurementRow(
-                label,
+                metric,
+                metric.Label(),
                 value is null ? "—" : $"{value:N1}″",
                 value is not null));
         }

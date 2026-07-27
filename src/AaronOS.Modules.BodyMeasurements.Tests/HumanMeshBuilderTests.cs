@@ -79,6 +79,41 @@ public class HumanMeshBuilderTests
         }
     }
 
+    /// <summary>
+    /// Triangle winding must face outward whichever way the ring stack runs. Limbs are built
+    /// downward from a joint and the torso upward from the pelvis; when winding silently depended on
+    /// that direction, the torso rendered its inside and appeared as a flat unlit slab while every
+    /// limb looked correct. Checking the geometric normal (from the vertex order) rather than the
+    /// supplied normals is what catches it.
+    /// </summary>
+    [Theory]
+    [InlineData(0.0, 10.0)]   // ascending, as the torso is built
+    [InlineData(0.0, -10.0)]  // descending, as limbs are built
+    public void BuildTube_TriangleWindingFacesOutwardInBothDirections(double startY, double endY)
+    {
+        var mesh = HumanMeshBuilder.BuildTube(
+            [new Ring(startY, 5, 5), new Ring(endY, 5, 5)], segments: 16, capEnds: false);
+
+        for (var t = 0; t < mesh.TriangleIndices.Count; t += 3)
+        {
+            var p0 = mesh.Positions[mesh.TriangleIndices[t]];
+            var p1 = mesh.Positions[mesh.TriangleIndices[t + 1]];
+            var p2 = mesh.Positions[mesh.TriangleIndices[t + 2]];
+
+            // Counter-clockwise vertex order, viewed from outside, is what WPF treats as front-facing.
+            var geometric = Vector3D.CrossProduct(p1 - p0, p2 - p0);
+            geometric.Normalize();
+
+            var centroid = new Point3D((p0.X + p1.X + p2.X) / 3, 0, (p0.Z + p1.Z + p2.Z) / 3);
+            var outward = new Vector3D(centroid.X, 0, centroid.Z);
+            outward.Normalize();
+
+            Assert.True(
+                Vector3D.DotProduct(geometric, outward) > 0.5,
+                $"triangle at index {t} faces inward for span {startY}->{endY}");
+        }
+    }
+
     [Fact]
     public void BuildTube_DegenerateRingDoesNotProduceNaNNormals()
     {
@@ -141,13 +176,76 @@ public class HumanMeshBuilderTests
     }
 
     [Fact]
-    public void Build_AssemblesEveryBodyPart()
+    public void Build_TagsEveryClickablePartWithAMeasurement()
     {
         var m = FigureMeasurements.FromCheckIn(null, 70m);
-        var figure = BodyFigureBuilder.Build(m, new DiffuseMaterial());
+        var parts = BodyFigureBuilder.Build(m, new DiffuseMaterial());
 
-        // torso, neck, head, two arms, two legs
-        Assert.Equal(7, figure.Children.Count);
-        Assert.All(figure.Children, child => Assert.NotNull(child));
+        Assert.All(parts, p => Assert.NotNull(p.Model));
+
+        // Every limb measurement must be reachable by clicking, or the edit affordance is a dead end.
+        var tagged = parts.Select(p => p.Metric).ToHashSet();
+        Assert.Contains(GoalMetric.Neck, tagged);
+        Assert.Contains(GoalMetric.BicepLeft, tagged);
+        Assert.Contains(GoalMetric.BicepRight, tagged);
+        Assert.Contains(GoalMetric.ThighLeft, tagged);
+        Assert.Contains(GoalMetric.ThighRight, tagged);
+    }
+
+    [Theory]
+    [InlineData(0.50, GoalMetric.Hips)]
+    [InlineData(0.62, GoalMetric.Waist)]
+    [InlineData(0.73, GoalMetric.Chest)]
+    public void ResolveTorsoPart_MapsHeightToTheRightMeasurement(double heightFraction, GoalMetric expected)
+    {
+        // The torso is one mesh covering three measurements, so a click is resolved by height.
+        Assert.Equal(expected, BodyFigureBuilder.ResolveTorsoPart(70 * heightFraction, 70));
+    }
+
+    [Fact]
+    public void BuildLoft_SubdividesIntoASmootherSurfaceThanItsControlSections()
+    {
+        var sections = new List<Section>
+        {
+            new(0, 4, 3, 3),
+            new(10, 6, 4, 4),
+            new(20, 2, 1.5, 1.5),
+        };
+
+        var coarse = HumanMeshBuilder.BuildLoft(sections, segments: 12, subdivisions: 1, capEnds: false);
+        var smooth = HumanMeshBuilder.BuildLoft(sections, segments: 12, subdivisions: 6, capEnds: false);
+
+        Assert.True(smooth.Positions.Count > coarse.Positions.Count * 4, "subdivision should add slices");
+        Assert.All(smooth.Normals, n => Assert.Equal(1.0, n.Length, precision: 6));
+        Assert.All(smooth.Positions, p =>
+            Assert.False(double.IsNaN(p.X) || double.IsNaN(p.Y) || double.IsNaN(p.Z)));
+    }
+
+    [Fact]
+    public void BuildLoft_SquarenessFillsTheCornersOfTheSection()
+    {
+        // A superelliptical torso section must enclose more area than the ellipse through the same
+        // semi-axes; that extra corner fill is what gives a ribcage its shape.
+        var ellipse = HumanMeshBuilder.BuildLoft(
+            [new Section(0, 5, 3, 3, 2.0), new Section(10, 5, 3, 3, 2.0)], segments: 64, subdivisions: 1, capEnds: false);
+        var rounded = HumanMeshBuilder.BuildLoft(
+            [new Section(0, 5, 3, 3, 3.0), new Section(10, 5, 3, 3, 3.0)], segments: 64, subdivisions: 1, capEnds: false);
+
+        static double DiagonalReach(MeshGeometry3D mesh) =>
+            mesh.Positions.Max(p => Math.Abs(p.X) + Math.Abs(p.Z));
+
+        Assert.True(DiagonalReach(rounded) > DiagonalReach(ellipse), "squareness should push the corners out");
+    }
+
+    [Fact]
+    public void BuildLoft_FrontDepthIsAppliedForwardAndBackDepthBehind()
+    {
+        // A belly projects further forward than the back does behind; the section must be able to
+        // express that rather than being forced symmetric.
+        var mesh = HumanMeshBuilder.BuildLoft(
+            [new Section(0, 5, 6, 2), new Section(10, 5, 6, 2)], segments: 48, subdivisions: 1, capEnds: false);
+
+        Assert.Equal(6, mesh.Positions.Max(p => p.Z), precision: 3);
+        Assert.Equal(-2, mesh.Positions.Min(p => p.Z), precision: 3);
     }
 }

@@ -9,27 +9,36 @@ using System.Windows.Media.Media3D;
 namespace AaronOS.Modules.BodyMeasurements.Views;
 
 /// <summary>
-/// A rotatable 3D figure whose proportions come from the latest check-in — the character-selector
-/// view of your own measurements. Drag to orbit.
+/// A rotatable 3D figure whose proportions come from the latest check-in — the character-selector view
+/// of your own measurements. Drag to orbit, click a body part to edit that measurement.
 ///
 /// It always renders something: with nothing recorded it shows average proportions, dimmed and
 /// labelled, so the model is a frame of reference from the first launch rather than an empty panel.
 /// </summary>
 public partial class BodyModel3D : UserControl
 {
-    private const double MaxPitch = 22;
+    private const double MaxPitch = 20;
+    private const double ClickSlopPixels = 4;
 
-    private readonly AxisAngleRotation3D _yaw = new(new Vector3D(0, 1, 0), 18);
+    private readonly AxisAngleRotation3D _yaw = new(new Vector3D(0, 1, 0), 20);
     private readonly AxisAngleRotation3D _pitch = new(new Vector3D(1, 0, 0), 0);
 
+    /// <summary>Which measurement each mesh stands for, so a hit can be routed to a field.</summary>
+    private readonly Dictionary<GeometryModel3D, GoalMetric?> _partsByModel = [];
+
     private Point _dragOrigin;
+    private double _dragDistance;
     private bool _dragging;
     private double _heightInches = 70;
+
+    /// <summary>Raised when a body part is clicked (as opposed to dragged) with a part that maps to a
+    /// measurement.</summary>
+    public event Action<GoalMetric>? PartClicked;
 
     public BodyModel3D()
     {
         InitializeComponent();
-        Cursor = Cursors.SizeWE;
+        Cursor = Cursors.Hand;
         Apply(null, null);
     }
 
@@ -42,7 +51,13 @@ public partial class BodyModel3D : UserControl
         _heightInches = measurements.HeightInches;
         NoDataLabel.Visibility = hasData ? Visibility.Collapsed : Visibility.Visible;
 
-        var figure = BodyFigureBuilder.Build(measurements, CreateMaterial(hasData));
+        _partsByModel.Clear();
+        var figure = new Model3DGroup();
+        foreach (var (model, metric) in BodyFigureBuilder.Build(measurements, CreateMaterial(hasData)))
+        {
+            figure.Children.Add(model);
+            _partsByModel[model] = metric;
+        }
 
         // Orbit is applied to the whole figure, pivoting about its middle so it turns on the spot
         // rather than swinging away from the camera.
@@ -58,15 +73,18 @@ public partial class BodyModel3D : UserControl
         PositionCamera();
     }
 
-    /// <summary>Slightly translucent and desaturated with no data, so the reference figure reads as
-    /// a placeholder without disappearing.</summary>
+    /// <summary>
+    /// A neutral clay, the way a character editor presents an unskinned base mesh — it shows form
+    /// without pretending to be skin. Slightly translucent and desaturated with no data, so the
+    /// reference figure reads as a placeholder without disappearing.
+    /// </summary>
     private static Material CreateMaterial(bool hasData)
     {
         var body = new SolidColorBrush(hasData
-            ? Color.FromRgb(0xB4, 0xC4, 0xD2)
-            : Color.FromRgb(0x63, 0x74, 0x83))
+            ? Color.FromRgb(0xC6, 0xCF, 0xD8)
+            : Color.FromRgb(0x6A, 0x76, 0x84))
         {
-            Opacity = hasData ? 1.0 : 0.55
+            Opacity = hasData ? 1.0 : 0.5
         };
 
         return new MaterialGroup
@@ -74,8 +92,9 @@ public partial class BodyModel3D : UserControl
             Children =
             {
                 new DiffuseMaterial(body),
-                // A tight highlight keeps the surface reading as a solid form rather than flat paint.
-                new SpecularMaterial(new SolidColorBrush(Color.FromArgb(0x88, 0xDE, 0xF0, 0xFF)), 32),
+                // Broad and dim rather than a tight hotspot: a wide falloff reads as soft clay, while
+                // a sharp highlight makes the same mesh look like moulded plastic.
+                new SpecularMaterial(new SolidColorBrush(Color.FromArgb(0x40, 0xD8, 0xEC, 0xFF)), 12),
             }
         };
     }
@@ -83,9 +102,8 @@ public partial class BodyModel3D : UserControl
     private void PositionCamera()
     {
         // Framed from the figure's own height so a tall and a short person both fill the panel.
-        var target = new Point3D(0, _heightInches * 0.52, 0);
-        var distance = _heightInches * 1.78;
-        Camera.Position = new Point3D(0, target.Y + _heightInches * 0.05, distance);
+        var target = new Point3D(0, _heightInches * 0.50, 0);
+        Camera.Position = new Point3D(0, target.Y + _heightInches * 0.02, _heightInches * 1.62);
         Camera.LookDirection = target - Camera.Position;
     }
 
@@ -93,6 +111,7 @@ public partial class BodyModel3D : UserControl
     {
         base.OnMouseLeftButtonDown(e);
         _dragOrigin = e.GetPosition(this);
+        _dragDistance = 0;
         _dragging = true;
         CaptureMouse();
     }
@@ -106,16 +125,51 @@ public partial class BodyModel3D : UserControl
         }
 
         var current = e.GetPosition(this);
-        _yaw.Angle += (current.X - _dragOrigin.X) * 0.45;
+        var dx = current.X - _dragOrigin.X;
+        var dy = current.Y - _dragOrigin.Y;
+        _dragDistance += Math.Abs(dx) + Math.Abs(dy);
+
+        _yaw.Angle += dx * 0.45;
         // Pitch is clamped: letting it pass vertical flips the figure and is disorienting.
-        _pitch.Angle = Math.Clamp(_pitch.Angle + (current.Y - _dragOrigin.Y) * 0.25, -MaxPitch, MaxPitch);
+        _pitch.Angle = Math.Clamp(_pitch.Angle + dy * 0.22, -MaxPitch, MaxPitch);
         _dragOrigin = current;
     }
 
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonUp(e);
+        if (!_dragging)
+        {
+            return;
+        }
+
         _dragging = false;
         ReleaseMouseCapture();
+
+        // Rotating the model should not also open an editor, so only a press that barely moved counts
+        // as a click on a body part.
+        if (_dragDistance <= ClickSlopPixels)
+        {
+            RaiseHitPart(e.GetPosition(Viewport));
+        }
+    }
+
+    private void RaiseHitPart(Point position)
+    {
+        if (VisualTreeHelper.HitTest(Viewport, position) is not RayMeshGeometry3DHitTestResult hit
+            || hit.ModelHit is not GeometryModel3D model
+            || !_partsByModel.TryGetValue(model, out var metric)
+            || metric is null)
+        {
+            return;
+        }
+
+        // The torso is a single mesh spanning several measurements, so resolve it by where on the body
+        // the ray actually landed.
+        var resolved = metric == GoalMetric.Chest
+            ? BodyFigureBuilder.ResolveTorsoPart(hit.PointHit.Y, _heightInches)
+            : metric.Value;
+
+        PartClicked?.Invoke(resolved);
     }
 }
