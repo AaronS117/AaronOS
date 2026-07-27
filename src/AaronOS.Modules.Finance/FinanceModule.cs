@@ -24,5 +24,6 @@ public class FinanceModule : IAppModule
         services.AddTransient<FinanceDashboardViewModel>();
         services.AddTransient<FinanceTransactionsViewModel>();
         services.AddTransient<LinkAccountViewModel>();
+        services.AddTransient<RetirementViewModel>();
     }
 }

@@ -4,21 +4,18 @@ namespace AaronOS.Modules.Finance.Sync;
 
 public static class CategorySpendCalculator
 {
-    private static readonly HashSet<string> ExcludedCategories = ["TRANSFER_IN", "TRANSFER_OUT"];
-
     /// <summary>
     /// Sums Amount (Plaid convention: positive = money out) grouped by CategoryPrimary for the
-    /// given month, excluding TRANSFER_IN/TRANSFER_OUT so moving money between the user's own
-    /// linked accounts isn't double-counted as spend. This exclusion is a judgment call, not a
-    /// Plaid guarantee — revisit if a future category needs the same treatment.
+    /// given month. What counts as spend — in particular the exclusion of transfers between the
+    /// user's own accounts — is defined once in <see cref="SpendFilter"/> and shared with the
+    /// average-monthly-spend calculation.
     /// </summary>
     public static Dictionary<string, decimal> SpendByCategory(
         IEnumerable<FinanceTransaction> transactions, int year, int month)
     {
         return transactions
             .Where(t => t.Date.Year == year && t.Date.Month == month)
-            .Where(t => t.CategoryPrimary is null || !ExcludedCategories.Contains(t.CategoryPrimary))
-            .Where(t => t.Amount > 0)
+            .Where(SpendFilter.IsSpend)
             .GroupBy(t => t.CategoryPrimary ?? "OTHER")
             .ToDictionary(g => g.Key, g => g.Sum(t => t.Amount));
     }
