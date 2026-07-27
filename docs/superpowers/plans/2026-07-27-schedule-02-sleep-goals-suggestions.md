@@ -29,6 +29,31 @@ Every task's requirements implicitly include this section. These repeat Plan 1's
 - Pure services take `today` (or an explicit date) as a parameter. **Never read `DateTime.Now` inside a pure service** — it makes the rules untestable at an arbitrary date.
 - Imperial units, local time only. Times are `TimeSpan` (wall clock) or `DateTime` (local), never `DateTimeOffset`.
 - Run tests with `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`.
+- **Database-backed tests must write and read through separate `DbContext` instances.** EF Core's
+  identity resolution returns already-tracked entities, so a query issued on the same context that
+  performed the insert asserts against the objects the test just constructed — not what SQLite
+  actually stored. That defeats the entire reason these tests use a real file-backed database: an
+  asymmetric value converter, or a nullable `TimeSpan?`/`DateOnly?` that reads back as zero instead
+  of null, would pass. Write in one context, dispose it, then verify through a fresh one against the
+  same `_dbPath`:
+
+  ```csharp
+  await using (var db = CreateContext())
+  {
+      await db.Database.EnsureCreatedAsync();
+      db.Add(/* ... */);
+      await db.SaveChangesAsync();
+  }
+
+  // Fresh context, same file: the assertions below now check what SQLite stored.
+  await using var verify = CreateContext();
+  var loaded = await verify.Set<T>().SingleAsync();
+  ```
+
+  **This constraint governs the task bodies below.** Where a task's test code still shows a single
+  `db` used for both the write and the read, restructure it to the shape above. If an assertion then
+  fails, that is a real mapping bug the single-context pattern was hiding — report it; do not adjust
+  the assertion to match what you observe.
 - **Sleep advice is arithmetic, not diagnosis.** `SleepPlanner` computes a bedtime from the next day's commitments and a shortfall against a user-set target. It must not infer, recommend, or hard-code a target beyond the 8.0-hour default. No UI copy may imply a clinical recommendation.
 
 ---
