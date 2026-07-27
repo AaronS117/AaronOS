@@ -19,6 +19,7 @@ public class NutritionModule : IAppModule
         services.AddSingleton<UsdaCredentialStore>();
         services.AddSingleton<UsdaApiClient>();
         services.AddSingleton(_ => ShelfLifeEstimator.LoadFromEmbeddedResource());
+        services.AddTransient<NutritionDashboardViewModel>();
         services.AddTransient<IngredientsViewModel>();
         services.AddTransient<RecipeEditViewModel>();
         services.AddTransient<InventoryViewModel>();
