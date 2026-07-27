@@ -174,8 +174,9 @@ public partial class WeekViewModel(IDbContextFactory<AaronOsDbContext> dbContext
             .ToListAsync();
         db.RemoveRange(dependents);
 
-        // The row may already be gone (e.g. a second delete click); that's the orphan-cleanup
-        // case above still applies, so let it proceed rather than throwing on a missing row.
+        // The row may already be gone — a second delete click, say. The dependent-exception
+        // removal above still has to run in that case, since orphaned rows are exactly what it
+        // reclaims, so skip the block removal rather than throwing on a missing row.
         var row = await db.Set<ScheduleBlock>().FirstOrDefaultAsync(b => b.Id == block.Id);
         if (row is not null) db.Remove(row);
 
