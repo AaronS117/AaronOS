@@ -140,7 +140,7 @@
                     Style="{DynamicResource CaptionText}"
                     Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                     TextWrapping="Wrap"
-                    Text="Sleep is typed by hand for now. To buy: Withings Sleep Analyzer — an under-mattress pad, about $130, no subscription. Its free OAuth API can fill this field automatically, along with sleep stages and a breathing disturbance index." />
+                    Text="Sleep is typed by hand for now. To buy: Withings Sleep, model WSM02-ALL-US — an under-mattress pad, about $100 new or $60 used, no subscription. Sold as Sleep Analyzer outside the US; the apnea grading is the only part the US model omits. Its free OAuth API can fill this field automatically, along with sleep stages, heart rate and breathing disturbances." />
             </StackPanel>
         </Border>
 
