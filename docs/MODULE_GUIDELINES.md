@@ -216,10 +216,16 @@ internal navigation entirely self-contained.
 
 A few stock WPF gaps that `Wpf.Ui.Controls` fills, used throughout this codebase:
 
-- `ui:NumberBox` — numeric input; bind its `Value` (a `double`) two-way. The existing ViewModels
-  use `double.NaN` as the "not entered" sentinel (a cleared `NumberBox` reports `NaN`, not
-  `null`), converting to `decimal?` at save time — keep that pattern rather than introducing a
-  value converter.
+- `ui:NumberBox` — numeric input. **Bind `Value` to a `double?`, and use `null` — not
+  `double.NaN` — as the "not entered" value**, converting to `decimal?` at save time. On WPF-UI
+  4.3.0 `NumberBox.Value` is declared `double?` (verified by reflection against the shipped
+  `Wpf.Ui.dll`), so a non-nullable `double` seeded with `NaN` binds a real value and the control
+  renders a stray glyph instead of staying empty; it also suppresses `PlaceholderText`. An earlier
+  version of this document recommended the `NaN` sentinel — that was wrong, and
+  `AaronOS.Modules.Nutrition` was corrected away from it. `AaronOS.Modules.BodyMeasurements` still
+  uses `NaN` in places and will show the same artifact until converted.
+- `ui:TextBox`/`ui:NumberBox` `PlaceholderText` only shows while the bound value is genuinely
+  empty, so it is worth setting on optional fields to say what "blank" means (e.g. `Any`).
 - `ui:TextBox` — adds `PlaceholderText`, which stock WPF's `TextBox` lacks.
 - `ui:Button` with `Appearance="Primary"` — the accent-styled button, replacing WinUI's
   `AccentButtonStyle`.

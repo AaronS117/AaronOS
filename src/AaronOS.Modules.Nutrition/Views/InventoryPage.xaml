@@ -64,7 +64,7 @@
             <StackPanel>
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" MinWidth="230" />
                         <ColumnDefinition Width="130" />
                         <ColumnDefinition Width="130" />
                     </Grid.ColumnDefinitions>
@@ -140,7 +140,7 @@
             <StackPanel>
                 <Grid Margin="14,10,14,8">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" MinWidth="190" />
                         <ColumnDefinition Width="78" />
                         <ColumnDefinition Width="72" />
                         <ColumnDefinition Width="66" />

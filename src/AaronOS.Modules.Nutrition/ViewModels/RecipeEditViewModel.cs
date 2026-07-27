@@ -23,14 +23,16 @@ public partial class RecipeEditViewModel(IDbContextFactory<AaronOsDbContext> dbC
     [ObservableProperty]
     private string _instructions = "";
 
+    // ui:NumberBox.Value is double? in WPF-UI 4.3.0, so null is the "not entered" value rather than
+    // double.NaN — a non-nullable double bound to a NumberBox renders a stray glyph when unset.
     [ObservableProperty]
-    private double _servings = 1;
+    private double? _servings = 1;
 
     [ObservableProperty]
     private Ingredient? _newLineIngredient;
 
     [ObservableProperty]
-    private double _newLineQuantityGrams = double.NaN;
+    private double? _newLineQuantityGrams;
 
     [ObservableProperty]
     private string _newLineDisplayAmount = "";
@@ -41,8 +43,13 @@ public partial class RecipeEditViewModel(IDbContextFactory<AaronOsDbContext> dbC
     [ObservableProperty]
     private string _statusMessage = "";
 
+    // Never null, and initialised rather than left to Recalculate: a null object here makes every
+    // "PerServingTotals.X" binding fail its path, and a failed path falls back to FallbackValue —
+    // NOT TargetNullValue — so the whole readout silently rendered blank.
     [ObservableProperty]
-    private RecipeNutritionTotals? _perServingTotals;
+    private RecipeNutritionTotals _perServingTotals = Zero;
+
+    private static readonly RecipeNutritionTotals Zero = new(0, 0, 0, 0, 0, 0, 0);
 
     [ObservableProperty]
     private bool _hasLines;
@@ -55,7 +62,10 @@ public partial class RecipeEditViewModel(IDbContextFactory<AaronOsDbContext> dbC
 
     public void SetRecipeId(int? recipeId) => _recipeId = recipeId;
 
-    partial void OnServingsChanged(double value) => Recalculate();
+    partial void OnServingsChanged(double? value) => Recalculate();
+
+    /// <summary>Servings floors at 1 so an empty or zeroed box can never divide by zero.</summary>
+    private int EffectiveServings => Math.Max((int)(Servings ?? 1), 1);
 
     [RelayCommand]
     private async Task LoadAsync()
@@ -99,8 +109,8 @@ public partial class RecipeEditViewModel(IDbContextFactory<AaronOsDbContext> dbC
     private void Recalculate()
     {
         PerServingTotals = Lines.Count == 0
-            ? null
-            : RecipeNutritionCalculator.CalculatePerServing(Lines, Math.Max((int)Servings, 1));
+            ? Zero
+            : RecipeNutritionCalculator.CalculatePerServing(Lines, EffectiveServings);
 
         Concerns.Clear();
         foreach (var concern in RecipeCompatibilityChecker.CheckRecipe(Lines))
@@ -111,7 +121,7 @@ public partial class RecipeEditViewModel(IDbContextFactory<AaronOsDbContext> dbC
         HasLines = Lines.Count > 0;
         HasConcerns = Concerns.Count > 0;
 
-        var servings = Math.Max((int)Servings, 1);
+        var servings = EffectiveServings;
         var totalGrams = Lines.Sum(l => l.QuantityGrams);
         ServingsSummary = Lines.Count == 0
             ? ""
@@ -121,8 +131,9 @@ public partial class RecipeEditViewModel(IDbContextFactory<AaronOsDbContext> dbC
     [RelayCommand]
     private void AddLine()
     {
-        if (NewLineIngredient is null || double.IsNaN(NewLineQuantityGrams) || NewLineQuantityGrams <= 0)
+        if (NewLineIngredient is null || NewLineQuantityGrams is not { } grams || grams <= 0)
         {
+            StatusMessage = "Pick an ingredient and a weight in grams.";
             return;
         }
 
@@ -130,13 +141,13 @@ public partial class RecipeEditViewModel(IDbContextFactory<AaronOsDbContext> dbC
         {
             Ingredient = NewLineIngredient,
             IngredientId = NewLineIngredient.Id,
-            QuantityGrams = (decimal)NewLineQuantityGrams,
+            QuantityGrams = (decimal)grams,
             DisplayAmount = string.IsNullOrWhiteSpace(NewLineDisplayAmount) ? null : NewLineDisplayAmount,
             FormUsed = string.IsNullOrWhiteSpace(NewLineFormUsed) ? null : NewLineFormUsed
         });
 
         NewLineIngredient = null;
-        NewLineQuantityGrams = double.NaN;
+        NewLineQuantityGrams = null;
         NewLineDisplayAmount = "";
         NewLineFormUsed = "";
         Recalculate();
@@ -178,7 +189,7 @@ public partial class RecipeEditViewModel(IDbContextFactory<AaronOsDbContext> dbC
 
             recipe.Name = Name;
             recipe.Instructions = string.IsNullOrWhiteSpace(Instructions) ? null : Instructions;
-            recipe.Servings = Math.Max((int)Servings, 1);
+            recipe.Servings = EffectiveServings;
 
             foreach (var line in Lines)
             {

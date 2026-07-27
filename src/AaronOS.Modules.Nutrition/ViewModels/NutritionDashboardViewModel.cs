@@ -51,8 +51,11 @@ public partial class NutritionDashboardViewModel(IDbContextFactory<AaronOsDbCont
     [ObservableProperty]
     private bool _excludeDisliked = true;
 
+    // ui:NumberBox.Value is double? in WPF-UI 4.3.0 (verified by reflection), so null — not
+    // double.NaN — is the "not entered" value. Binding a non-nullable double seeded with NaN makes
+    // the box render a stray glyph instead of staying empty.
     [ObservableProperty]
-    private double _maxCaloriesPerServing = double.NaN;
+    private double? _maxCaloriesPerServing;
 
     [ObservableProperty]
     private bool _sortByUseItUp;
@@ -82,7 +85,7 @@ public partial class NutritionDashboardViewModel(IDbContextFactory<AaronOsDbCont
     private bool _isFiltered;
 
     partial void OnExcludeDislikedChanged(bool value) => ApplyFilters();
-    partial void OnMaxCaloriesPerServingChanged(double value) => ApplyFilters();
+    partial void OnMaxCaloriesPerServingChanged(double? value) => ApplyFilters();
     partial void OnSortByUseItUpChanged(bool value) => ApplyFilters();
 
     [RelayCommand]
@@ -145,9 +148,9 @@ public partial class NutritionDashboardViewModel(IDbContextFactory<AaronOsDbCont
             query = query.Where(c => !c.HasDislikedIngredient);
         }
 
-        if (!double.IsNaN(MaxCaloriesPerServing))
+        if (MaxCaloriesPerServing is { } maxCalories)
         {
-            query = query.Where(c => c.PerServing.Calories <= (decimal)MaxCaloriesPerServing);
+            query = query.Where(c => c.PerServing.Calories <= (decimal)maxCalories);
         }
 
         query = SortByUseItUp

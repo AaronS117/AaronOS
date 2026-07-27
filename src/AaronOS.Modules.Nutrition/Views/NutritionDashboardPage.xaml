@@ -115,7 +115,8 @@
                     VerticalAlignment="Center"
                     Margin="0,0,8,0" />
                 <ui:NumberBox
-                    Width="104"
+                    Width="140"
+                    PlaceholderText="Any"
                     Value="{Binding MaxCaloriesPerServing, Mode=TwoWay}"
                     VerticalAlignment="Center" />
             </StackPanel>

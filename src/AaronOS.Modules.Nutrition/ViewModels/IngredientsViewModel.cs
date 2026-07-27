@@ -48,25 +48,25 @@ public partial class IngredientsViewModel(
     private string _editPreferredForm = "";
 
     [ObservableProperty]
-    private double _editCalories = double.NaN;
+    private double? _editCalories;
 
     [ObservableProperty]
-    private double _editProtein = double.NaN;
+    private double? _editProtein;
 
     [ObservableProperty]
-    private double _editFat = double.NaN;
+    private double? _editFat;
 
     [ObservableProperty]
-    private double _editCarbs = double.NaN;
+    private double? _editCarbs;
 
     [ObservableProperty]
-    private double _editFiber = double.NaN;
+    private double? _editFiber;
 
     [ObservableProperty]
-    private double _editSodium = double.NaN;
+    private double? _editSodium;
 
     [ObservableProperty]
-    private double _editCost = double.NaN;
+    private double? _editCost;
 
     [ObservableProperty]
     private string _newIngredientName = "";
@@ -89,8 +89,9 @@ public partial class IngredientsViewModel(
     [ObservableProperty]
     private string _catalogSummary = "";
 
-    private static double ToDouble(decimal? value) => value is null ? double.NaN : (double)value.Value;
-    private static decimal? ToDecimal(double value) => double.IsNaN(value) ? null : (decimal)value;
+    // ui:NumberBox.Value is double? in WPF-UI 4.3.0, so null is the "not entered" value.
+    private static double? ToDouble(decimal? value) => value is null ? null : (double)value.Value;
+    private static decimal? ToDecimal(double? value) => value is null ? null : (decimal)value.Value;
 
     partial void OnFilterTextChanged(string value) => RefreshVisible();
 

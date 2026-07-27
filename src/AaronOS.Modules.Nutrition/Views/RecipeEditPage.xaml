@@ -47,7 +47,7 @@
             <StackPanel>
                 <TextBlock Text="PER SERVING" Style="{DynamicResource EyebrowText}" Margin="0,0,0,4" />
                 <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="{Binding PerServingTotals.Calories, StringFormat='{}{0:0}', TargetNullValue='0'}" Style="{DynamicResource HeroMetricText}" />
+                    <TextBlock Text="{Binding PerServingTotals.Calories, StringFormat='{}{0:0}'}" Style="{DynamicResource HeroMetricText}" />
                     <TextBlock
                         Text="cal"
                         Style="{DynamicResource CaptionText}"
@@ -67,23 +67,23 @@
 
                     <StackPanel Grid.Column="0">
                         <TextBlock Text="PROTEIN" Style="{DynamicResource EyebrowText}" Margin="0,0,0,2" />
-                        <TextBlock Text="{Binding PerServingTotals.Protein, StringFormat='{}{0:0.0}g', TargetNullValue='—'}" Style="{DynamicResource MacroValue}" />
+                        <TextBlock Text="{Binding PerServingTotals.Protein, StringFormat='{}{0:0.0}g'}" Style="{DynamicResource MacroValue}" />
                     </StackPanel>
                     <StackPanel Grid.Column="1">
                         <TextBlock Text="FAT" Style="{DynamicResource EyebrowText}" Margin="0,0,0,2" />
-                        <TextBlock Text="{Binding PerServingTotals.Fat, StringFormat='{}{0:0.0}g', TargetNullValue='—'}" Style="{DynamicResource MacroValue}" />
+                        <TextBlock Text="{Binding PerServingTotals.Fat, StringFormat='{}{0:0.0}g'}" Style="{DynamicResource MacroValue}" />
                     </StackPanel>
                     <StackPanel Grid.Column="2">
                         <TextBlock Text="CARBS" Style="{DynamicResource EyebrowText}" Margin="0,0,0,2" />
-                        <TextBlock Text="{Binding PerServingTotals.Carbs, StringFormat='{}{0:0.0}g', TargetNullValue='—'}" Style="{DynamicResource MacroValue}" />
+                        <TextBlock Text="{Binding PerServingTotals.Carbs, StringFormat='{}{0:0.0}g'}" Style="{DynamicResource MacroValue}" />
                     </StackPanel>
                     <StackPanel Grid.Column="3">
                         <TextBlock Text="FIBER" Style="{DynamicResource EyebrowText}" Margin="0,0,0,2" />
-                        <TextBlock Text="{Binding PerServingTotals.Fiber, StringFormat='{}{0:0.0}g', TargetNullValue='—'}" Style="{DynamicResource MacroValue}" />
+                        <TextBlock Text="{Binding PerServingTotals.Fiber, StringFormat='{}{0:0.0}g'}" Style="{DynamicResource MacroValue}" />
                     </StackPanel>
                     <StackPanel Grid.Column="4">
                         <TextBlock Text="COST" Style="{DynamicResource EyebrowText}" Margin="0,0,0,2" />
-                        <TextBlock Text="{Binding PerServingTotals.Cost, StringFormat=C, TargetNullValue='—'}" Style="{DynamicResource MacroValue}" />
+                        <TextBlock Text="{Binding PerServingTotals.Cost, StringFormat=C}" Style="{DynamicResource MacroValue}" />
                     </StackPanel>
                 </Grid>
 
@@ -156,7 +156,7 @@
             <StackPanel>
                 <Grid Margin="14,10,14,8">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" MinWidth="220" />
                         <ColumnDefinition Width="70" />
                         <ColumnDefinition Width="140" />
                         <ColumnDefinition Width="90" />
@@ -174,7 +174,7 @@
                         <DataTemplate DataType="{x:Type data:RecipeIngredient}">
                             <Grid Margin="14,9">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" MinWidth="220" />
                                     <ColumnDefinition Width="70" />
                                     <ColumnDefinition Width="140" />
                                     <ColumnDefinition Width="90" />
@@ -240,8 +240,8 @@
             <StackPanel>
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="84" />
+                        <ColumnDefinition Width="*" MinWidth="210" />
+                        <ColumnDefinition Width="104" />
                         <ColumnDefinition Width="140" />
                         <ColumnDefinition Width="96" />
                         <ColumnDefinition Width="Auto" />
