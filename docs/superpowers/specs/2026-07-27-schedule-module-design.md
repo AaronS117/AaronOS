@@ -173,6 +173,15 @@ Index on `Date`.
 Exactly one of `IntervalDays` and `PreferredDaysOfWeek` must be set; validated in the ViewModel and
 asserted in `RoutineScheduler`.
 
+**Known gap after plan 01.** The Routines page creates interval routines only, so nothing yet
+writes `PreferredDaysOfWeek` — a fixed trash night cannot be entered through the UI, even though
+the entity, `RoutineScheduler.NextWeekdayDue`, and the cadence display all support it and are
+covered by tests. The ViewModel exclusivity validation described above therefore does not exist:
+it holds only because one of the two shapes is unwritable. Whichever plan adds weekday-pinned
+editing must add that validation in the same change, because `RoutineScheduler.Evaluate` throws on
+a routine with neither field set and `EvaluateAll` propagates it, which would fail the whole
+Routines page load rather than one row.
+
 **`RoutineCompletion`** — `Id`, `RoutineId` (FK, cascade delete), `CompletedAt` (`DateTime`),
 `Note` (string?). Index on `(RoutineId, CompletedAt)`.
 
@@ -259,7 +268,12 @@ live. Plus the I/O-bound clients, kept deliberately thin.
 ### `AgendaBuilder` (pure)
 
 `IReadOnlyList<AgendaDay> Build(DateOnly from, DateOnly to, IReadOnlyList<ScheduleBlock> blocks,
-IReadOnlyList<ScheduleException> exceptions, IReadOnlyList<ExternalEvent> events)`
+IReadOnlyList<ScheduleException> exceptions, IReadOnlyList<ExternalEventEntry> events)`
+
+The last parameter takes `ExternalEventEntry` — a flat record of the fields the builder actually
+needs — rather than the `ExternalEvent` entity, so the builder stays pure and testable without
+constructing persistence objects. An all-day event maps to `00:00`–`24:00`; mapping its end to
+`00:00` would be discarded as a zero-duration span.
 
 Expands blocks across the range honouring `DaysOfWeek` and the effective-date window, applies
 exceptions (cancellations remove, time overrides replace, standalone entries add), merges external
@@ -268,6 +282,14 @@ source) plus the computed free gaps between committed entries. Midnight-wrapping
 split across the day boundary so a day's entries are always sorted and non-wrapping.
 
 Everything downstream consumes this. It is the single place recurrence is interpreted.
+
+One consequence of splitting wrapping blocks is worth stating outright, because it is a choice
+rather than a fallout. Cancelling a block on date D removes that date's occurrence — both its
+evening segment on D and the morning tail it would carry into D+1 — but not the tail that arrived
+on D from D-1's occurrence. For a night shift, "cancel Tuesday's shift" therefore means the shift
+that starts Tuesday evening, and Tuesday morning still shows the tail of Monday night's shift.
+That reading matches how someone requesting a day off would describe it, and the alternative
+(clearing the calendar day) would silently truncate the previous day's shift.
 
 ### `RoutineScheduler` (pure)
 
@@ -324,8 +346,11 @@ existing `TransactionSyncMerger` in the Finance module.
 
 ### `RegisterServices`
 
-ViewModels transient (a fresh instance per navigation, per the guidelines); the pure services and
-clients singleton. Database access through the injected
+ViewModels transient (a fresh instance per navigation, per the guidelines); the I/O clients
+singleton. The pure services register nothing: `AgendaBuilder` and `RoutineScheduler` shipped as
+static classes, because a service holding no state and reading no clock has nothing to inject.
+`SleepPlanner` and `SuggestionEngine` should follow that same shape rather than leaving the module
+with an arbitrary mix. Database access through the injected
 `IDbContextFactory<AaronOsDbContext>` with a short-lived context per unit of work:
 `await using var db = await _dbContextFactory.CreateDbContextAsync();`
 
