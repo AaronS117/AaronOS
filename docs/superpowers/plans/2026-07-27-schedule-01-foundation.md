@@ -1825,6 +1825,7 @@ using AaronOS.Core;
 using AaronOS.Core.Data;
 using AaronOS.Modules.Schedule.Agenda;
 using AaronOS.Modules.Schedule.Data;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.EntityFrameworkCore;
 
@@ -1929,10 +1930,10 @@ Replace `src/AaronOS.Modules.Schedule/Views/TodayPage.xaml`:
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <TextBlock Margin="0,2">
-                                    <Run Text="{Binding Start, StringFormat='{}{0:hh\\:mm}'}" />
+                                    <Run Text="{Binding Start, StringFormat='{}{0:hh\\:mm}', Mode=OneWay}" />
                                     <Run Text="–" />
-                                    <Run Text="{Binding End, StringFormat='{}{0:hh\\:mm}'}" />
-                                    <Run Text=" (" /><Run Text="{Binding Minutes}" /><Run Text=" min)" />
+                                    <Run Text="{Binding End, StringFormat='{}{0:hh\\:mm}', Mode=OneWay}" />
+                                    <Run Text=" (" /><Run Text="{Binding Minutes, Mode=OneWay}" /><Run Text=" min)" />
                                 </TextBlock>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -2259,11 +2260,11 @@ Register it in `ScheduleModule.RegisterServices`:
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <TextBlock Margin="0,1">
-                                                <Run Text="{Binding Start, StringFormat='{}{0:hh\\:mm}'}" />
+                                                <Run Text="{Binding Start, StringFormat='{}{0:hh\\:mm}', Mode=OneWay}" />
                                                 <Run Text="–" />
-                                                <Run Text="{Binding End, StringFormat='{}{0:hh\\:mm}'}" />
+                                                <Run Text="{Binding End, StringFormat='{}{0:hh\\:mm}', Mode=OneWay}" />
                                                 <Run Text="  " />
-                                                <Run Text="{Binding Label}" />
+                                                <Run Text="{Binding Label, Mode=OneWay}" />
                                             </TextBlock>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
@@ -2286,13 +2287,13 @@ Register it in `ScheduleModule.RegisterServices`:
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" VerticalAlignment="Center">
-                                        <Run Text="{Binding Label}" />
+                                        <Run Text="{Binding Label, Mode=OneWay}" />
                                         <Run Text=" · " />
-                                        <Run Text="{Binding DaysOfWeek}" />
+                                        <Run Text="{Binding DaysOfWeek, Mode=OneWay}" />
                                         <Run Text=" · " />
-                                        <Run Text="{Binding StartTime, StringFormat='{}{0:hh\\:mm}'}" />
+                                        <Run Text="{Binding StartTime, StringFormat='{}{0:hh\\:mm}', Mode=OneWay}" />
                                         <Run Text="–" />
-                                        <Run Text="{Binding EndTime, StringFormat='{}{0:hh\\:mm}'}" />
+                                        <Run Text="{Binding EndTime, StringFormat='{}{0:hh\\:mm}', Mode=OneWay}" />
                                     </TextBlock>
                                     <ui:Button Grid.Column="1" Content="Delete" Click="DeleteBlock_Click" />
                                 </Grid>
@@ -2626,11 +2627,11 @@ Register in `ScheduleModule.RegisterServices`:
                                 <StackPanel Grid.Column="0">
                                     <ui:TextBlock Text="{Binding Name}" FontTypography="BodyStrong" />
                                     <TextBlock>
-                                        <Run Text="{Binding Cadence}" />
+                                        <Run Text="{Binding Cadence, Mode=OneWay}" />
                                         <Run Text=" · " />
-                                        <Run Text="{Binding DueDisplay}" />
+                                        <Run Text="{Binding DueDisplay, Mode=OneWay}" />
                                         <Run Text=" · " />
-                                        <Run Text="{Binding LastDoneDisplay}" />
+                                        <Run Text="{Binding LastDoneDisplay, Mode=OneWay}" />
                                     </TextBlock>
                                 </StackPanel>
                                 <ui:Button Grid.Column="1" Content="Done" Appearance="Primary"

@@ -1404,9 +1404,9 @@ public partial class ReviewInboxViewModel(
                                 <StackPanel Grid.Column="0">
                                     <ui:TextBlock Text="{Binding DetectedTitle}" FontTypography="BodyStrong" />
                                     <TextBlock>
-                                        <Run Text="{Binding Kind}" />
-                                        <Run Text="{Binding DetectedDate, StringFormat=' · {0:ddd MMM d, yyyy}', TargetNullValue=' · no date found'}" />
-                                        <Run Text=" · confidence " /><Run Text="{Binding Confidence, StringFormat='{}{0:P0}'}" />
+                                        <Run Text="{Binding Kind, Mode=OneWay}" />
+                                        <Run Text="{Binding DetectedDate, StringFormat=' · {0:ddd MMM d, yyyy}', TargetNullValue=' · no date found', Mode=OneWay}" />
+                                        <Run Text=" · confidence " /><Run Text="{Binding Confidence, StringFormat='{}{0:P0}', Mode=OneWay}" />
                                     </TextBlock>
                                     <TextBlock Text="{Binding RawSubject}" Opacity="0.75" TextWrapping="Wrap" Margin="0,4,0,0" />
                                     <TextBlock Text="{Binding RawSnippet}" Opacity="0.6" TextWrapping="Wrap" MaxHeight="60" />

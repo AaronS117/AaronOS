@@ -1317,8 +1317,8 @@ A `UserControl`, not a `Page`, because the app's Settings page composes several 
                             <StackPanel Grid.Column="0">
                                 <ui:TextBlock Text="{Binding DisplayName}" FontTypography="BodyStrong" />
                                 <TextBlock>
-                                    <Run Text="{Binding Provider}" />
-                                    <Run Text="{Binding LastSyncedAt, StringFormat=' · last synced {0:g}', TargetNullValue=' · never synced'}" />
+                                    <Run Text="{Binding Provider, Mode=OneWay}" />
+                                    <Run Text="{Binding LastSyncedAt, StringFormat=' · last synced {0:g}', TargetNullValue=' · never synced', Mode=OneWay}" />
                                 </TextBlock>
                                 <TextBlock Text="{Binding LastError}" TextWrapping="Wrap"
                                            Foreground="{DynamicResource SystemFillColorCriticalBrush}" />

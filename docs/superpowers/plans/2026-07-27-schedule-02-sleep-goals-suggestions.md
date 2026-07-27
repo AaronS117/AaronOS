@@ -809,13 +809,13 @@ Register in `ScheduleModule.RegisterServices`:
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" VerticalAlignment="Center">
-                                        <Run Text="{Binding NightOf, StringFormat='{}{0:ddd MMM d}'}" />
+                                        <Run Text="{Binding NightOf, StringFormat='{}{0:ddd MMM d}', Mode=OneWay}" />
                                         <Run Text=" · " />
-                                        <Run Text="{Binding Hours, StringFormat='{}{0:0.#} h'}" />
+                                        <Run Text="{Binding Hours, StringFormat='{}{0:0.#} h', Mode=OneWay}" />
                                         <Run Text=" · " />
-                                        <Run Text="{Binding BedTime, StringFormat='{}{0:h:mm tt}'}" />
+                                        <Run Text="{Binding BedTime, StringFormat='{}{0:h:mm tt}', Mode=OneWay}" />
                                         <Run Text="→" />
-                                        <Run Text="{Binding WakeTime, StringFormat='{}{0:h:mm tt}'}" />
+                                        <Run Text="{Binding WakeTime, StringFormat='{}{0:h:mm tt}', Mode=OneWay}" />
                                     </TextBlock>
                                     <ui:Button Grid.Column="1" Content="Delete" Click="DeleteNight_Click" />
                                 </Grid>
@@ -1882,8 +1882,8 @@ Register in `ScheduleModule.RegisterServices`:
                                 <StackPanel Grid.Column="0">
                                     <ui:TextBlock Text="{Binding Title}" FontTypography="BodyStrong" />
                                     <TextBlock>
-                                        <Run Text="{Binding ProgressPercent}" /><Run Text="% · " />
-                                        <Run Text="{Binding TargetDate, StringFormat='target {0:MMM d, yyyy}', TargetNullValue='no target date'}" />
+                                        <Run Text="{Binding ProgressPercent, Mode=OneWay}" /><Run Text="% · " />
+                                        <Run Text="{Binding TargetDate, StringFormat='target {0:MMM d, yyyy}', TargetNullValue='no target date', Mode=OneWay}" />
                                     </TextBlock>
                                 </StackPanel>
                                 <ui:Button Grid.Column="1" Content="Milestones" Click="SelectGoal_Click" Margin="0,0,8,0" />
@@ -1916,8 +1916,8 @@ Register in `ScheduleModule.RegisterServices`:
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" VerticalAlignment="Center">
-                                        <Run Text="{Binding Title}" />
-                                        <Run Text="{Binding DueDate, StringFormat=' · due {0:MMM d}', TargetNullValue=''}" />
+                                        <Run Text="{Binding Title, Mode=OneWay}" />
+                                        <Run Text="{Binding DueDate, StringFormat=' · due {0:MMM d}', TargetNullValue='', Mode=OneWay}" />
                                     </TextBlock>
                                     <ui:Button Grid.Column="1" Content="{Binding IsDone}" Click="ToggleMilestone_Click" />
                                 </Grid>
@@ -1946,9 +1946,9 @@ Register in `ScheduleModule.RegisterServices`:
                                 <StackPanel Grid.Column="0">
                                     <ui:TextBlock Text="{Binding Title}" FontTypography="BodyStrong" />
                                     <TextBlock>
-                                        <Run Text="{Binding Category}" />
+                                        <Run Text="{Binding Category, Mode=OneWay}" />
                                         <Run Text=" · " />
-                                        <Run Text="{Binding ReleaseDate, StringFormat='{}{0:ddd MMM d, yyyy}'}" />
+                                        <Run Text="{Binding ReleaseDate, StringFormat='{}{0:ddd MMM d, yyyy}', Mode=OneWay}" />
                                     </TextBlock>
                                 </StackPanel>
                                 <ui:Button Grid.Column="1" Content="Dismiss" Click="DismissRelease_Click" />
@@ -2209,8 +2209,8 @@ In `src/AaronOS.Modules.Schedule/Views/TodayPage.xaml`, insert this card immedia
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0">
                                         <TextBlock>
-                                            <Run Text="{Binding Title}" FontWeight="SemiBold" />
-                                            <Run Text="{Binding SuggestedStart, StringFormat=' · {0:hh\\:mm}', TargetNullValue=''}" />
+                                            <Run Text="{Binding Title, Mode=OneWay}" FontWeight="SemiBold" />
+                                            <Run Text="{Binding SuggestedStart, StringFormat=' · {0:hh\\:mm}', TargetNullValue='', Mode=OneWay}" />
                                         </TextBlock>
                                         <TextBlock Text="{Binding Reason}" Opacity="0.75" />
                                     </StackPanel>
