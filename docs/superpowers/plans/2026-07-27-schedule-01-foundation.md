@@ -807,38 +807,36 @@ public sealed record AgendaEntry(
     string Label,
     AgendaEntrySource Source)
 {
-    private static readonly TimeSpan FullDay = TimeSpan.FromHours(24);
-
-    public string StartDisplay => Format(Start);
-    public string EndDisplay => Format(End);
-
-    /// <summary>
-    /// Bind these in XAML rather than formatting Start/End directly. The first half of a
-    /// midnight-wrapping block ends at exactly 24:00, and the `hh` custom format specifier
-    /// reads the Hours component after Days are stripped — so it would render as "00:00".
-    /// </summary>
-    private static string Format(TimeSpan value) =>
-        value == FullDay ? "24:00" : value.ToString(@"hh\:mm");
+    /// <summary>Bind these in XAML rather than formatting Start/End directly — see
+    /// <see cref="WallClock"/> for why end-of-day must render as 24:00.</summary>
+    public string StartDisplay => Start.ToWallClock();
+    public string EndDisplay => End.ToWallClock();
 }
 
 /// <summary>An uncommitted span. Sleep counts as committed, so gaps are naturally waking hours.</summary>
 public sealed record FreeGap(TimeSpan Start, TimeSpan End)
 {
-    private static readonly TimeSpan FullDay = TimeSpan.FromHours(24);
-
     public int Minutes => (int)(End - Start).TotalMinutes;
 
-    public string StartDisplay => Format(Start);
-    public string EndDisplay => Format(End);
+    /// <summary>Bind these rather than formatting Start/End in XAML — see
+    /// <see cref="WallClock"/>.</summary>
+    public string StartDisplay => Start.ToWallClock();
+    public string EndDisplay => End.ToWallClock();
+}
 
-    /// <summary>
-    /// Bind these rather than formatting <see cref="Start"/>/<see cref="End"/> in XAML. The `hh`
-    /// custom format specifier reads the Hours component *after* Days are stripped, so a TimeSpan
-    /// of exactly one day renders as "00" — making a whole-day gap read "00:00 - 00:00" next to its
-    /// own 1440-minute count. Display members on the record rather than a value converter, matching
-    /// FinanceTransaction.AmountDisplay/DateDisplay elsewhere in this repo.
-    /// </summary>
-    private static string Format(TimeSpan value) =>
+/// <summary>
+/// Wall-clock rendering for agenda times, shared by both records so the rule lives in one place.
+/// Exactly one day is spelled "24:00" because the `hh` custom format specifier reads the Hours
+/// component *after* Days are stripped — so an end-of-day boundary would otherwise render as
+/// "00:00", making a whole-day gap read "00:00 - 00:00" next to its own 1440-minute count.
+/// An extension over TimeSpan rather than a value converter, matching this repo's existing
+/// FinanceTransaction.AmountDisplay/DateDisplay convention.
+/// </summary>
+internal static class WallClock
+{
+    private static readonly TimeSpan FullDay = TimeSpan.FromHours(24);
+
+    internal static string ToWallClock(this TimeSpan value) =>
         value == FullDay ? "24:00" : value.ToString(@"hh\:mm");
 }
 
@@ -2199,6 +2197,15 @@ public partial class WeekViewModel(IDbContextFactory<AaronOsDbContext> dbContext
     private async Task DeleteBlockAsync(ScheduleBlock block)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync();
+
+        // ScheduleException deliberately has no foreign key to ScheduleBlock (see Task 3), so
+        // reclaiming dependent rows is this code's job. One SaveChangesAsync covers both, so a
+        // partial failure cannot leave the block deleted with its exceptions stranded.
+        var dependents = await db.Set<ScheduleException>()
+            .Where(e => e.ScheduleBlockId == block.Id)
+            .ToListAsync();
+        db.RemoveRange(dependents);
+
         db.Remove(await db.Set<ScheduleBlock>().SingleAsync(b => b.Id == block.Id));
         await db.SaveChangesAsync();
         await LoadAsync();
@@ -2210,7 +2217,12 @@ public partial class WeekViewModel(IDbContextFactory<AaronOsDbContext> dbContext
     private async Task AddExceptionAsync(DateOnly date)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync();
-        var existing = await db.Set<ScheduleException>().Where(e => e.Date == date).ToListAsync();
+        // Scoped to the full-day cancellations this feature owns. Matching on date alone would also
+        // delete a time-override ("short day") or a standalone one-off entry — other ScheduleException
+        // shapes that later plans introduce — silently discarding unrelated user data.
+        var existing = await db.Set<ScheduleException>()
+            .Where(e => e.Date == date && e.ScheduleBlockId != null && e.IsCancelled)
+            .ToListAsync();
         db.RemoveRange(existing);
 
         foreach (var block in Blocks.Where(b => b.Kind != ScheduleBlockKind.Sleep))
