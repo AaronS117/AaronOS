@@ -254,6 +254,95 @@ public class ScheduleSchemaTests : IDisposable
         Assert.Equal(DayOfWeekFlags.Tuesday, loaded.PreferredDaysOfWeek);
     }
 
+    [Fact]
+    public async Task ExternalEvent_UidIsUniquePerCalendar_ButSharedAcrossCalendars()
+    {
+        await using (var db = CreateContext())
+        {
+            await db.Database.EnsureCreatedAsync();
+
+            var work = new ExternalCalendar { Provider = CalendarProvider.OutlookIcs, DisplayName = "Work", IcsUrl = "https://example/a.ics" };
+            var personal = new ExternalCalendar { Provider = CalendarProvider.GoogleCalendar, DisplayName = "Personal", RemoteCalendarId = "primary" };
+            db.AddRange(work, personal);
+            await db.SaveChangesAsync();
+
+            db.Add(new ExternalEvent
+            {
+                ExternalCalendarId = work.Id, ExternalUid = "uid-1", Title = "Standup",
+                StartsAt = new DateTime(2026, 7, 6, 9, 30, 0), EndsAt = new DateTime(2026, 7, 6, 10, 0, 0),
+                IsBusy = true, LastSeenAt = new DateTime(2026, 7, 6, 8, 0, 0),
+            });
+            // The same UID on a different calendar is legitimate — two feeds can carry the same event.
+            db.Add(new ExternalEvent
+            {
+                ExternalCalendarId = personal.Id, ExternalUid = "uid-1", Title = "Standup (personal copy)",
+                StartsAt = new DateTime(2026, 7, 6, 9, 30, 0), EndsAt = new DateTime(2026, 7, 6, 10, 0, 0),
+                IsBusy = true, LastSeenAt = new DateTime(2026, 7, 6, 8, 0, 0),
+            });
+            await db.SaveChangesAsync();
+            Assert.Equal(2, await db.Set<ExternalEvent>().CountAsync());
+
+            // A duplicate UID on the SAME calendar must be rejected — that index is what makes
+            // re-syncing idempotent rather than accumulating duplicates.
+            db.Add(new ExternalEvent
+            {
+                ExternalCalendarId = work.Id, ExternalUid = "uid-1", Title = "Duplicate",
+                StartsAt = new DateTime(2026, 7, 6, 9, 30, 0), EndsAt = new DateTime(2026, 7, 6, 10, 0, 0),
+                LastSeenAt = new DateTime(2026, 7, 6, 8, 0, 0),
+            });
+            await Assert.ThrowsAnyAsync<DbUpdateException>(() => db.SaveChangesAsync());
+        }
+
+        // Fresh context against the same file to verify the constraint was enforced
+        // and the duplicate was not inserted.
+        await using var verify = CreateContext();
+        Assert.Equal(2, await verify.Set<ExternalEvent>().CountAsync());
+    }
+
+    [Fact]
+    public async Task ExternalCalendar_CascadeDeletesItsEvents()
+    {
+        int calendarId;
+        await using (var seed = CreateContext())
+        {
+            await seed.Database.EnsureCreatedAsync();
+
+            var calendar = new ExternalCalendar { Provider = CalendarProvider.OutlookIcs, DisplayName = "Work", IcsUrl = "https://example/a.ics" };
+            seed.Add(calendar);
+            await seed.SaveChangesAsync();
+            calendarId = calendar.Id;
+
+            seed.Add(new ExternalEvent
+            {
+                ExternalCalendarId = calendarId, ExternalUid = "uid-1", Title = "Standup",
+                StartsAt = new DateTime(2026, 7, 6, 9, 30, 0), EndsAt = new DateTime(2026, 7, 6, 10, 0, 0),
+                LastSeenAt = new DateTime(2026, 7, 6, 8, 0, 0),
+            });
+            await seed.SaveChangesAsync();
+        }
+
+        // Verify the event was inserted
+        await using (var verifySeeded = CreateContext())
+        {
+            Assert.Equal(1, await verifySeeded.Set<ExternalEvent>().CountAsync());
+        }
+
+        // Delete the calendar in a fresh context that has no events tracked.
+        // This forces the delete to rely on the ON DELETE CASCADE in the SQLite schema,
+        // not on EF's client-side cascade of tracked entities.
+        await using (var deleter = CreateContext())
+        {
+            await deleter.Set<ExternalCalendar>().Where(c => c.Id == calendarId).ExecuteDeleteAsync();
+        }
+
+        // Verify both calendar and its events were deleted
+        await using (var verifyDeleted = CreateContext())
+        {
+            Assert.Equal(0, await verifyDeleted.Set<ExternalEvent>().CountAsync());
+            Assert.Equal(0, await verifyDeleted.Set<ExternalCalendar>().CountAsync());
+        }
+    }
+
     public void Dispose()
     {
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
