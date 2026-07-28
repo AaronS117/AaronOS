@@ -70,6 +70,11 @@ public class AlpacaApiException(string message) : Exception(message);
 /// Paper and live differ only in the trading host, which is why proving a strategy on paper and then
 /// deciding about real money is a configuration change rather than a rewrite. The live host is named
 /// here for completeness; nothing in this module selects it.
+///
+/// The members are virtual purely as a test seam, so a cycle can be driven end to end against a
+/// scripted broker. That is deliberately not an interface: there is one real broker today, and an
+/// interface with a single implementation is the abstraction this codebase avoids. Adding Kalshi as a
+/// second venue would be the point to reconsider.
 /// </summary>
 public class AlpacaClient(TradingCredentialStore credentialStore)
 {
@@ -79,18 +84,18 @@ public class AlpacaClient(TradingCredentialStore credentialStore)
 
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(30) };
 
-    public bool IsConfigured => credentialStore.Load() is { AlpacaKeyId.Length: > 0, AlpacaSecret.Length: > 0 };
+    public virtual bool IsConfigured => credentialStore.Load() is { AlpacaKeyId.Length: > 0, AlpacaSecret.Length: > 0 };
 
-    public async Task<BrokerAccount> GetAccountAsync(CancellationToken token = default)
+    public virtual async Task<BrokerAccount> GetAccountAsync(CancellationToken token = default)
     {
         var dto = await GetAsync<AccountDto>(TradingHost() + "/v2/account", token);
         return new BrokerAccount(ParseMoney(dto.Equity), ParseMoney(dto.Cash), dto.Status);
     }
 
-    public async Task<bool> IsMarketOpenAsync(CancellationToken token = default) =>
+    public virtual async Task<bool> IsMarketOpenAsync(CancellationToken token = default) =>
         (await GetAsync<ClockDto>(TradingHost() + "/v2/clock", token)).IsOpen;
 
-    public async Task<List<HeldPosition>> GetPositionsAsync(CancellationToken token = default)
+    public virtual async Task<List<HeldPosition>> GetPositionsAsync(CancellationToken token = default)
     {
         var dtos = await GetAsync<List<PositionDto>>(TradingHost() + "/v2/positions", token);
         return dtos
@@ -106,7 +111,7 @@ public class AlpacaClient(TradingCredentialStore credentialStore)
     /// the result rather than defaulted to zero, so a missing price is refused by the guardrails
     /// instead of being treated as free.
     /// </summary>
-    public async Task<Dictionary<string, SymbolQuote>> GetQuotesAsync(
+    public virtual async Task<Dictionary<string, SymbolQuote>> GetQuotesAsync(
         IEnumerable<string> symbols, CancellationToken token = default)
     {
         var list = symbols.Select(s => s.Trim().ToUpperInvariant()).Distinct().ToList();
@@ -127,7 +132,7 @@ public class AlpacaClient(TradingCredentialStore credentialStore)
     }
 
     /// <summary>Most recent daily close for one symbol, used to stamp the benchmark each day.</summary>
-    public async Task<decimal?> GetLatestDailyCloseAsync(string symbol, CancellationToken token = default)
+    public virtual async Task<decimal?> GetLatestDailyCloseAsync(string symbol, CancellationToken token = default)
     {
         var start = DateTime.UtcNow.AddDays(-10).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         var url = $"{DataHost}/v2/stocks/bars?symbols={symbol}&timeframe=1Day&start={start}&limit=10";
@@ -141,7 +146,7 @@ public class AlpacaClient(TradingCredentialStore credentialStore)
         return bars.OrderBy(b => b.Timestamp).Last().Close;
     }
 
-    public async Task<SubmittedOrder> PlaceMarketOrderAsync(
+    public virtual async Task<SubmittedOrder> PlaceMarketOrderAsync(
         string symbol, OrderSide side, int quantity, CancellationToken token = default)
     {
         var request = new PlaceOrderRequest(
@@ -166,7 +171,7 @@ public class AlpacaClient(TradingCredentialStore credentialStore)
     }
 
     /// <summary>Current status and fill price of an order, for reconciling a stored row.</summary>
-    public async Task<(string Status, decimal? FilledPrice, DateTime? FilledAtUtc)> GetOrderAsync(
+    public virtual async Task<(string Status, decimal? FilledPrice, DateTime? FilledAtUtc)> GetOrderAsync(
         string brokerOrderId, CancellationToken token = default)
     {
         var dto = await GetAsync<OrderDto>(TradingHost() + "/v2/orders/" + brokerOrderId, token);

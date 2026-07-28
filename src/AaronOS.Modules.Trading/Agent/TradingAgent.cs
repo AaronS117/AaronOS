@@ -200,6 +200,16 @@ public class TradingAgent(
             return ("Refused: no symbol given.", null, "missing symbol");
         }
 
+        // Checked here, ahead of the price lookup, so the refusal states the real reason. Quotes are
+        // only fetched for watchlist symbols, so an off-watchlist order would otherwise be refused
+        // for "no price" — still safely refused, but a misleading answer to hand back to a model that
+        // may then retry, and a misleading line in the log afterwards.
+        if (!TradingGuardrails.IsOnWatchlist(symbol, config.Watchlist))
+        {
+            return ($"Refused: {symbol} is not on the watchlist.", null,
+                $"{symbol}: not on the watchlist");
+        }
+
         OrderSide side;
         int quantity;
 

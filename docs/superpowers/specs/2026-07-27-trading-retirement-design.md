@@ -162,11 +162,69 @@ and churn is the most reliable way to lose to the index.
 Autonomy here means autonomous while AaronOS is open. It is a desktop application; closing the window
 stops the trading. Running overnight needs a server, which is separate work.
 
+### What the published evidence actually shows
+
+Asked whether LLM agents trade profitably, the honest answer is that it is unproven, and the reason
+most published results cannot settle it is worth recording.
+
+The disqualifying problem is lookahead contamination. A model trained on the internet through some
+cutoff has already read what happened to every ticker before that date, so a backtest over that
+period measures recall rather than forecasting. [*Detecting Lookahead Bias in LLM
+Forecasts*](https://arxiv.org/abs/2512.23847) makes this measurable: their Lookahead Propensity
+metric stays materially positive throughout the training window and "collapses essentially to zero
+right after the training-data cutoff." When a model can recall the outcome, forecasting ability is
+formally non-identified — there is no way to separate skill from memory. A survey of the field found
+that of 19 primary studies, 2 disclosed a time-consistent data split, 1 specified transaction costs,
+and none reached the top reproducibility tier.
+
+The cleanest evidence available is [StockBench](https://arxiv.org/abs/2510.02209), built
+contamination-free by testing only after the models' knowledge cutoffs, over 82 trading days in 2025.
+Buy-and-hold returned 0.4%; the best agent returned 2.5%; the worst returned −2.8%. Eleven of
+fourteen models beat the passive baseline on raw cumulative return, and the authors' own conclusion is
+nonetheless that "most LLM agents fail to outperform this simple baseline in terms of both cumulative
+return and risk-adjusted return" — the risk-adjusted picture is worse than the raw one. A live
+two-month benchmark, [Agent Market Arena](https://arxiv.org/abs/2510.11695), reports agents often
+beating buy-and-hold across four assets, and finds agent architecture matters more than which model
+sits underneath.
+
+Read together: a small, possibly-noise edge over a nearly flat baseline, across a few months and a
+handful of tickers, mostly failing on risk-adjusted terms. That is not proof of profitability. It is
+grounds for running the experiment rather than grounds for expecting it to work.
+
+One finding does bear directly on model choice: in StockBench the top performers were open-weight
+models — Qwen3, GLM-4.5, Kimi-K2 — not the frontier proprietary ones. Combined with Agent Market
+Arena's conclusion that architecture dominates the backbone, running this on a free local model is
+not a compromise on the evidence available.
+
+For real money over a long window, the closest analogue is the AI-powered equity ETF AIEQ: live since
+2017, roughly in line with the index before its 0.75% fee, behind after it.
+
+### The success criterion, fixed in advance
+
+Because a bar that can move is not a bar, this is what "profitable" has to mean, decided before the
+data exists:
+
+- At least six calendar months running, **and** at least 30 closed round trips. Fewer trades than
+  that is inconclusive, not a pass.
+- Total return ahead of SPY over the identical window by at least two percentage points.
+- Maximum drawdown no worse than SPY's over that window.
+- Measured from the `StartedOn` stamped by the first cycle, which the code never rewrites.
+
+Failing means the answer is no. Passing means it is worth continuing to watch, not that it is worth
+funding — six months is one market regime, and 30 trades is the floor of meaningfulness rather than a
+comfortable sample.
+
 ### Verified
 
-41 tests, weighted towards the guardrails. Both pages were rendered offscreen with WPF's binding
-trace enabled, and the app was launched to confirm the four new tables are created against the live
-database without disturbing it.
+70 tests. Beyond the guardrail and measurement units, a full cycle is driven end to end against a
+scripted model and a scripted broker: an allowed order reaches the broker and is stored with its
+reasoning, a refused order never reaches it while still appearing in the log, malformed tool arguments
+are refused without ending the cycle, the daily cap holds across several orders inside one cycle, the
+model is not called at all while the market is closed, and the start date is stamped once and left
+alone. That proves the machinery, and nothing about the quality of the decisions.
+
+Both pages were rendered offscreen with WPF's binding trace enabled, and the app was launched to
+confirm the new tables and columns are created against the live database without disturbing it.
 
 ## Phase 3 — Wagering (not built)
 
