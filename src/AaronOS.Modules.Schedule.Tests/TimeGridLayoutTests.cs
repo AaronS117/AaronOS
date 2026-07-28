@@ -48,16 +48,19 @@ public class TimeGridLayoutTests
     [Fact]
     public void ABridgedChainIsOneClusterEvenThoughTheEndsDoNotTouch()
     {
-        // A and C do not overlap each other, but B overlaps both, so all three share a lane count.
-        // A per-pair lane count would give C a count of 2 but A a count of 2 and leave a gap; a
-        // naive "reset when the day is clear" approach would split them into separate clusters.
+        // A (09:00-12:00) outlasts B (09:30-10:00), and C (10:30-11:00) starts after B has ended but
+        // while A is still running. Ends are non-monotonic in processing order (12:00, 10:00, 11:00),
+        // so a cluster-close rule that tracks only the previous item's end — instead of the running
+        // max end seen in the cluster — would see B's 10:00 and wrongly close the cluster before C,
+        // splitting C into its own cluster with LaneCount 1 and Lane 0. The cluster must instead stay
+        // open because A has not ended, giving C a LaneCount of 2 and reusing B's freed lane.
         var result = TimeGridLayout.Assign(
-            [At("A", 9, 0, 10, 0), At("B", 9, 30, 11, 0), At("C", 10, 30, 11, 30)]);
+            [At("A", 9, 0, 12, 0), At("B", 9, 30, 10, 0), At("C", 10, 30, 11, 0)]);
 
         Assert.All(result, p => Assert.Equal(2, p.LaneCount));
         Assert.Equal(0, Find(result, "A").Lane);
         Assert.Equal(1, Find(result, "B").Lane);
-        Assert.Equal(0, Find(result, "C").Lane); // A has ended, so lane 0 is free again
+        Assert.Equal(1, Find(result, "C").Lane); // B has ended, so C reuses B's lane while A still runs
     }
 
     [Fact]
@@ -91,6 +94,21 @@ public class TimeGridLayoutTests
 
         Assert.All(result, p => Assert.Equal(1, p.LaneCount));
         Assert.All(result, p => Assert.Equal(0, p.Lane));
+    }
+
+    [Fact]
+    public void AdjacentItemsShareALaneEvenInsideAnOpenCluster()
+    {
+        // A (09:00-11:00) overlaps both B and C, so the cluster-close guard never fires here — unlike
+        // AdjacentItemsDoNotCountAsOverlapping, where that guard alone would mask a broken lane-reuse
+        // comparison. With the cluster forced open by A, whether B (09:30-10:00) and C (10:00-10:30)
+        // share a lane depends entirely on the `<=` in the lane-reuse check: C touches B's end exactly,
+        // so it must reuse B's lane rather than take a third one.
+        var result = TimeGridLayout.Assign(
+            [At("A", 9, 0, 11, 0), At("B", 9, 30, 10, 0), At("C", 10, 0, 10, 30)]);
+
+        Assert.All(result, p => Assert.Equal(2, p.LaneCount));
+        Assert.Equal(1, Find(result, "C").Lane); // C reuses B's lane: 10:00 <= 10:00
     }
 
     [Fact]
