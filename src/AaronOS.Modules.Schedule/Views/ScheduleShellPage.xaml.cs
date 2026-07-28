@@ -15,9 +15,7 @@ public sealed partial class ScheduleShellPage : Page
         Loaded += (_, _) => ContentFrame.Navigate(new TodayPage());
     }
 
-    private void Today_Click(object sender, RoutedEventArgs e) => ContentFrame.Navigate(new TodayPage());
-
-    private void Week_Click(object sender, RoutedEventArgs e) => ContentFrame.Navigate(new WeekPage());
+    private void Week_Click(object sender, RoutedEventArgs e) => ContentFrame.Navigate(new CalendarWeekPage());
 
     private void Routines_Click(object sender, RoutedEventArgs e) => ContentFrame.Navigate(new RoutinesPage());
 }

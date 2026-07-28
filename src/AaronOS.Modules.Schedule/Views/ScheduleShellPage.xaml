@@ -10,15 +10,19 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
+            <RowDefinition x:Name="ContentRow" Height="*" />
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="12,8" HorizontalAlignment="Left">
-            <ui:Button Content="Today" Click="Today_Click" Margin="0,0,8,0" />
             <ui:Button Content="Week" Click="Week_Click" Margin="0,0,8,0" />
             <ui:Button Content="Routines" Click="Routines_Click" />
         </StackPanel>
 
-        <Frame x:Name="ContentFrame" Grid.Row="1" NavigationUIVisibility="Hidden" />
+        <!-- A plain Frame does not clip a hosted Page to its Grid row: it sizes to the Page's natural
+             content height instead, so a Page taller than the window (like the week grid) silently
+             overflows past the bottom with no scrollbar to reach it. Binding Height to the row's own
+             ActualHeight forces the Frame back into the space the Grid actually allocated it. -->
+        <Frame x:Name="ContentFrame" Grid.Row="1" NavigationUIVisibility="Hidden"
+               Height="{Binding ActualHeight, ElementName=ContentRow}" />
     </Grid>
 </Page>
