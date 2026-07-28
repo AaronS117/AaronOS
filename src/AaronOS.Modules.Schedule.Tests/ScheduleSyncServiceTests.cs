@@ -178,6 +178,60 @@ public class ScheduleSyncServiceTests : IDisposable
         Assert.NotNull(calendarAfter.LastSyncedAt);
     }
 
+    [Fact]
+    public async Task EventStraddlingWindowStart_UpdatesInsteadOfCollidingOnInsert()
+    {
+        // A long-running event (a multi-week holiday, an all-day "Project X" block) that started
+        // before the sync window but is still in progress when the window opens. IcsFeedClient
+        // returns it — Ical.Net's GetOccurrences(windowStart) includes an occurrence still running
+        // at windowStart even though it began earlier. A StartsAt-only "existing" query would miss
+        // this cached row, the merger would plan it as an insert, and the insert would collide with
+        // the composite unique index on (ExternalCalendarId, ExternalUid) — permanently failing
+        // every sync for as long as the event runs. Dates are derived from DateTime.Now, matching
+        // what the service itself reads, rather than hard-coded.
+        var today = DateTime.Now.Date;
+        var longEventStart = today.AddDays(-30); // well before the 14-day-back window edge
+        var longEventEnd = today.AddDays(-10); // after the window edge — still "ongoing" at windowStart
+
+        int calendarId;
+        await using (var db = _factory.CreateDbContext())
+        {
+            var calendar = new ExternalCalendar
+            {
+                Provider = CalendarProvider.OutlookIcs, DisplayName = "Work", IcsUrl = "https://example/a.ics",
+            };
+            db.Add(calendar);
+            await db.SaveChangesAsync();
+            calendarId = calendar.Id;
+
+            db.Add(new ExternalEvent
+            {
+                ExternalCalendarId = calendarId, ExternalUid = "uid-long", Title = "Holiday",
+                StartsAt = longEventStart, EndsAt = longEventEnd, IsAllDay = true,
+                LastSeenAt = today.AddDays(-31),
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var source = new FakeSource(CalendarProvider.OutlookIcs,
+            () => new List<ExternalEventDto>
+            {
+                new("uid-long", "Holiday (extended)", longEventStart, longEventEnd, true, null, true),
+            });
+        var service = new ScheduleSyncService(_factory, [source]);
+
+        var succeeded = await service.SyncAllAsync(CancellationToken.None);
+
+        Assert.Equal(1, succeeded);
+
+        await using var verify = _factory.CreateDbContext();
+        var calendarAfter = await verify.Set<ExternalCalendar>().SingleAsync(c => c.Id == calendarId);
+        Assert.Null(calendarAfter.LastError);
+
+        var row = await verify.Set<ExternalEvent>().SingleAsync(e => e.ExternalUid == "uid-long");
+        Assert.Equal("Holiday (extended)", row.Title);
+    }
+
     public void Dispose()
     {
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();

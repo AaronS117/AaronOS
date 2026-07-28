@@ -81,10 +81,17 @@ public sealed class ScheduleSyncService(
 
         try
         {
+            // Overlap test, not a StartsAt-only filter: a source can return an event that started
+            // before the window but is still running at windowStart (Ical.Net's
+            // GetOccurrences(windowStart) includes an in-progress occurrence). A StartsAt-only
+            // query would exclude that cached row from `existing`, the merger would then plan it as
+            // an insert, and the insert would collide with the composite unique index on
+            // (ExternalCalendarId, ExternalUid) — failing every sync for as long as the event runs.
+            var windowStart = from.ToDateTime(TimeOnly.MinValue);
+            var windowEnd = to.AddDays(1).ToDateTime(TimeOnly.MinValue);
             var existing = await db.Set<ExternalEvent>()
                 .Where(e => e.ExternalCalendarId == calendar.Id
-                            && e.StartsAt >= from.ToDateTime(TimeOnly.MinValue)
-                            && e.StartsAt <= to.ToDateTime(TimeOnly.MaxValue))
+                            && e.StartsAt < windowEnd && e.EndsAt > windowStart)
                 .ToListAsync(cancellationToken);
 
             var plan = ExternalEventMerger.Plan(existing, fetched);
