@@ -44,13 +44,14 @@ public class TradingAgent(
 
         if (!alpaca.IsConfigured)
         {
-            return CycleResult.Skipped("Add your Alpaca paper keys in Settings first.");
+            return await RecordBlockedAsync(db, "Add your Alpaca paper keys in Settings first.", token);
         }
 
         var provider = providers.Resolve(config.Provider);
         if (!provider.IsConfigured)
         {
-            return CycleResult.Skipped($"The {provider.Name} model provider is not configured yet.");
+            return await RecordBlockedAsync(
+                db, $"The {provider.Name} model provider is not configured yet.", token);
         }
 
         // Stamped with the provider as well as the model, so a run in the log can be traced to what
@@ -97,6 +98,40 @@ public class TradingAgent(
             await db.SaveChangesAsync(CancellationToken.None);
             return CycleResult.Failed(ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Writes a visible note that the loop is alive but cannot proceed, and returns the skip.
+    ///
+    /// Without this, a cycle blocked on a missing key leaves no trace at all, so a run that is ticking
+    /// away doing nothing looks exactly like a run that never started. That is the worst failure
+    /// available to an experiment measured over months, and it is invisible by construction.
+    ///
+    /// Consecutive identical blocks are written once rather than every cycle. A thirty-minute schedule
+    /// would otherwise add roughly fifty rows a day saying the same thing, and a log that has to be
+    /// waded through is not a log anyone reads. Market-hours skips are not recorded at all: they are
+    /// the normal state for most of the day and carry no information.
+    /// </summary>
+    private static async Task<CycleResult> RecordBlockedAsync(
+        AaronOsDbContext db, string reason, CancellationToken token)
+    {
+        var latest = await db.Set<AgentDecision>()
+            .OrderByDescending(d => d.RanAtUtc)
+            .FirstOrDefaultAsync(token);
+
+        if (latest?.ActionSummary != "Blocked" || latest.Error != reason)
+        {
+            db.Add(new AgentDecision
+            {
+                RanAtUtc = DateTime.UtcNow,
+                Model = "—",
+                ActionSummary = "Blocked",
+                Error = reason,
+            });
+            await db.SaveChangesAsync(token);
+        }
+
+        return CycleResult.Skipped(reason);
     }
 
     /// <summary>
