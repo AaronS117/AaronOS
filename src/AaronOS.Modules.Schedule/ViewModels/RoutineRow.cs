@@ -9,9 +9,17 @@ public sealed record RoutineRow(Routine Routine, RoutineDueState Due)
 {
     public string Name => Routine.Name;
 
+    // Individual days render fine straight off the enum ("Tuesday", "Monday, Thursday"), but the
+    // three combined flag names do not — a daily chore would otherwise read "EveryDay".
     public string Cadence => Routine.IntervalDays is { } days
         ? $"every {days} day{(days == 1 ? "" : "s")}"
-        : $"{Routine.PreferredDaysOfWeek}";
+        : Routine.PreferredDaysOfWeek switch
+        {
+            DayOfWeekFlags.EveryDay => "every day",
+            DayOfWeekFlags.Weekdays => "weekdays",
+            DayOfWeekFlags.Weekend => "weekends",
+            var pinned => $"{pinned}",
+        };
 
     public string DueDisplay => Due switch
     {

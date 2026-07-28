@@ -1985,16 +1985,13 @@ git commit -m "Surface ranked suggestions on the Today page"
 
 ## Deferred to later plans
 
-Notifications (Plan 3), external calendars (Plan 4), Gmail extraction (Plan 5). Also: a weekday picker in the routine editor, editing an existing goal's title or target date (only add and delete exist), and reordering milestones (`SortOrder` is set on insert and never changed).
+Notifications (Plan 3), external calendars (Plan 4), Gmail extraction (Plan 5). Also: editing an existing goal's title or target date (only add and delete exist), and reordering milestones (`SortOrder` is set on insert and never changed).
 
 **Sleep debt**, deliberately unscheduled. It needs actual hours slept, which the Medical module owns
 on `MoodEntry` and `SleepNight`, and `docs/MODULE_GUIDELINES.md` forbids reading another module's
 entities. Doing it properly means promoting the nightly-sleep shape into `AaronOS.Core` and pointing
 both modules at it — worth a spec of its own, not a task bolted onto this plan.
 
-**A weekday-pinned routine editor**, carried over from Plan 1. `Routine.PreferredDaysOfWeek`,
-`RoutineScheduler.NextWeekdayDue` and the cadence display all support a fixed trash night, and are
-tested, but no UI writes them. Whichever plan adds that editor must also add the
-`IntervalDays`/`PreferredDaysOfWeek` exclusivity validation, because `RoutineScheduler.Evaluate`
-throws on a routine with neither set and `EvaluateAll` propagates it — which would fail the whole
-Routines page load rather than one row.
+The weekday-pinned routine editor that Plan 1 left open has since been built on the Routines page,
+so `Routine.PreferredDaysOfWeek` now has a writer and a fixed trash night can be entered. Nothing in
+this plan needs to add it.

@@ -50,8 +50,20 @@
                     <ui:TextBox PlaceholderText="Name (e.g. Scoop litter box)" Text="{Binding NewName, Mode=TwoWay}" Margin="0,0,0,8" />
                     <ComboBox ItemsSource="{Binding Categories}" SelectedItem="{Binding NewCategory, Mode=TwoWay}" Margin="0,0,0,8" />
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                        <ui:NumberBox PlaceholderText="Every N days" Value="{Binding NewIntervalDays, Mode=TwoWay}" Width="140" Margin="0,0,8,0" />
+                        <ui:NumberBox PlaceholderText="Every N days" Value="{Binding NewIntervalDays, Mode=TwoWay}"
+                                      IsEnabled="{Binding IsIntervalEnabled}" Width="140" Margin="0,0,8,0" />
                         <ui:NumberBox PlaceholderText="Minutes" Value="{Binding NewEstimatedMinutes, Mode=TwoWay}" Width="140" />
+                    </StackPanel>
+                    <TextBlock Text="…or pin it to set days (trash night, say). Ticking any day switches the interval off."
+                               TextWrapping="Wrap" Margin="0,0,0,4" />
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <CheckBox Content="Mon" IsChecked="{Binding NewMonday, Mode=TwoWay}" Margin="0,0,8,0" />
+                        <CheckBox Content="Tue" IsChecked="{Binding NewTuesday, Mode=TwoWay}" Margin="0,0,8,0" />
+                        <CheckBox Content="Wed" IsChecked="{Binding NewWednesday, Mode=TwoWay}" Margin="0,0,8,0" />
+                        <CheckBox Content="Thu" IsChecked="{Binding NewThursday, Mode=TwoWay}" Margin="0,0,8,0" />
+                        <CheckBox Content="Fri" IsChecked="{Binding NewFriday, Mode=TwoWay}" Margin="0,0,8,0" />
+                        <CheckBox Content="Sat" IsChecked="{Binding NewSaturday, Mode=TwoWay}" Margin="0,0,8,0" />
+                        <CheckBox Content="Sun" IsChecked="{Binding NewSunday, Mode=TwoWay}" />
                     </StackPanel>
                     <ui:TextBlock Text="{Binding ValidationMessage}" Foreground="{DynamicResource SystemFillColorCriticalBrush}" Margin="0,0,0,8" />
                     <ui:Button Content="Add routine" Appearance="Primary" Command="{Binding SaveRoutineCommand}" HorizontalAlignment="Left" />

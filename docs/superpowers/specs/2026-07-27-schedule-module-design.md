@@ -178,14 +178,13 @@ Index on `Date`.
 Exactly one of `IntervalDays` and `PreferredDaysOfWeek` must be set; validated in the ViewModel and
 asserted in `RoutineScheduler`.
 
-**Known gap after plan 01.** The Routines page creates interval routines only, so nothing yet
-writes `PreferredDaysOfWeek` — a fixed trash night cannot be entered through the UI, even though
-the entity, `RoutineScheduler.NextWeekdayDue`, and the cadence display all support it and are
-covered by tests. The ViewModel exclusivity validation described above therefore does not exist:
-it holds only because one of the two shapes is unwritable. Whichever plan adds weekday-pinned
-editing must add that validation in the same change, because `RoutineScheduler.Evaluate` throws on
-a routine with neither field set and `EvaluateAll` propagates it, which would fail the whole
-Routines page load rather than one row.
+The Routines page enforces the exclusivity structurally rather than by checking it after the fact.
+Seven day checkboxes sit beside the interval box, mirroring how the Week page picks a block's days;
+ticking any day disables the interval box, and the save path writes `PreferredDaysOfWeek` with
+`IntervalDays` null, or the reverse. Both-set is therefore unreachable, and the one remaining
+validation is that at least one mode is filled in — which matters because
+`RoutineScheduler.Evaluate` throws on a routine with neither set and `EvaluateAll` propagates that,
+failing the whole page load rather than one row.
 
 **`RoutineCompletion`** — `Id`, `RoutineId` (FK, cascade delete), `CompletedAt` (`DateTime`),
 `Note` (string?). Index on `(RoutineId, CompletedAt)`.
