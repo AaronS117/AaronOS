@@ -46,6 +46,11 @@ public class IcsFeedClientTests
         Assert.Equal(
             [Local(2026, 7, 7, 14, 0), Local(2026, 7, 14, 14, 0), Local(2026, 7, 21, 14, 0)],
             weekly.Select(e => e.StartsAt));
+        // Each occurrence must carry its own end, not the master event's DTEND repeated — a
+        // regression here would make every weekly meeting silently end on the first week's date.
+        Assert.Equal(
+            [Local(2026, 7, 7, 15, 0), Local(2026, 7, 14, 15, 0), Local(2026, 7, 21, 15, 0)],
+            weekly.Select(e => e.EndsAt));
 
         // Each occurrence needs its own UID or the unique index collapses them into one row.
         Assert.Equal(3, weekly.Select(e => e.ExternalUid).Distinct().Count());
@@ -59,6 +64,9 @@ public class IcsFeedClientTests
         var holiday = Assert.Single(events, e => e.Title == "Company holiday");
         Assert.True(holiday.IsAllDay);
         Assert.Equal(new DateOnly(2026, 7, 9), DateOnly.FromDateTime(holiday.StartsAt));
+        // Exclusive next-day midnight, not the same instant as StartsAt: AgendaBuilder discards a
+        // zero-duration span, so an end equal to the start would make the holiday vanish silently.
+        Assert.Equal(new DateTime(2026, 7, 10), holiday.EndsAt);
     }
 
     [Fact]

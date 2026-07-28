@@ -49,6 +49,9 @@ public sealed class IcsFeedClient(IHttpClientFactory httpClientFactory) : IExter
         var calendar = Calendar.Load(icsText);
 
         var windowStart = new CalDateTime(from.ToDateTime(TimeOnly.MinValue));
+        // TimeOnly.MaxValue, not MinValue, is load-bearing here: TakeWhileBefore below is a strict
+        // "before" comparison, so capping at midnight would silently drop every all-day event
+        // falling on the window's last day. Verified against 5.2.3.
         var windowEnd = new CalDateTime(to.ToDateTime(TimeOnly.MaxValue));
 
         // Ical.Net 5.x's GetOccurrences(start) is unbounded above (it keeps expanding RRULEs
@@ -66,8 +69,10 @@ public sealed class IcsFeedClient(IHttpClientFactory httpClientFactory) : IExter
             var startTime = occurrence.Period.StartTime;
             // Period.EndTime comes back null for computed occurrences in this version; the actual
             // end (start + duration, or the plain DTEND for non-recurring events) is
-            // EffectiveEndTime. Fall back to a zero-duration event on the rare VEVENT that omits
-            // both DTEND and DURATION, rather than throwing on a technically-valid feed.
+            // EffectiveEndTime. EffectiveEndTime already applies RFC 5545's own defaults for a
+            // VEVENT with no DTEND/DURATION (one day for a DATE start, zero duration for a
+            // DATE-TIME start — verified against 5.2.3), so the "?? startTime" below is defensive
+            // rather than load-bearing: it has no fixture case that exercises it.
             var endTime = occurrence.Period.EffectiveEndTime ?? startTime;
 
             var isAllDay = !startTime.HasTime;
@@ -99,7 +104,11 @@ public sealed class IcsFeedClient(IHttpClientFactory httpClientFactory) : IExter
 
             // Each occurrence of a recurring event needs its own stable identity: the bare UID
             // repeats across occurrences, and the unique (calendar, uid) index would collapse a
-            // weekly meeting into a single row.
+            // weekly meeting into a single row. Tradeoff: keying on the occurrence's own start
+            // means moving a single occurrence produces a delete-plus-insert rather than an
+            // update. Harmless today — ExternalEvent carries no per-row user state — but it would
+            // lose data the moment something like a snooze or dismissal is added to the row, at
+            // which point keying on RECURRENCE-ID would be the fix.
             var uid = $"{source.Uid}#{start:yyyyMMddTHHmmss}";
 
             results.Add(new ExternalEventDto(
