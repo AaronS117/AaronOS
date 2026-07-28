@@ -33,7 +33,21 @@
                                            Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
                             </StackPanel>
                             <ui:Button Grid.Column="1" Content="Sync" Click="Sync_Click" Margin="0,0,8,0" />
-                            <ui:Button Grid.Column="2" Content="{Binding IsEnabled}" Click="Toggle_Click" Margin="0,0,8,0" />
+                            <!-- Label states the action, not the current value: binding Content
+                                 straight to IsEnabled rendered a literal "True"/"False". A style
+                                 trigger keeps it a plain bool with no value converter. -->
+                            <ui:Button Grid.Column="2" Click="Toggle_Click" Margin="0,0,8,0">
+                                <ui:Button.Style>
+                                    <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                        <Setter Property="Content" Value="Disable" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                                                <Setter Property="Content" Value="Enable" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ui:Button.Style>
+                            </ui:Button>
                             <ui:Button Grid.Column="3" Content="Remove" Click="Remove_Click" />
                         </Grid>
                     </ui:Card>
