@@ -95,12 +95,21 @@ public static class TradingGuardrails
         var existing = account.Positions.FirstOrDefault(p =>
             string.Equals(p.Symbol, order.Symbol, StringComparison.OrdinalIgnoreCase));
         var resulting = existing.MarketValue + order.Notional;
-        var positionCap = account.Equity * config.MaxPositionPercent / 100m;
+
+        // A broad index fund is exempt from the per-position cap because that cap limits exposure to a
+        // single company, which an index fund is not. It remains bound by the total exposure cap and by
+        // cash below, so the account still cannot be fully invested or borrow.
+        var isBroadIndex = IsBroadIndex(order.Symbol, config.BroadIndexSymbols);
+        var positionCap = account.Equity *
+            (isBroadIndex ? config.MaxInvestedPercent : config.MaxPositionPercent) / 100m;
+
         if (resulting > positionCap)
         {
+            var capPercent = isBroadIndex ? config.MaxInvestedPercent : config.MaxPositionPercent;
+            var capName = isBroadIndex ? "index-position" : "per-position";
             return GuardrailVerdict.Block(
-                $"Would take {order.Symbol} to {resulting:C0}, above the {config.MaxPositionPercent:0.#}% " +
-                $"per-position cap of {positionCap:C0}.");
+                $"Would take {order.Symbol} to {resulting:C0}, above the {capPercent:0.#}% " +
+                $"{capName} cap of {positionCap:C0}.");
         }
 
         var invested = account.Positions.Sum(p => p.MarketValue) + order.Notional;
@@ -132,6 +141,9 @@ public static class TradingGuardrails
             ? GuardrailVerdict.Block($"Cannot sell {order.Quantity} {order.Symbol}, only {held} held.")
             : GuardrailVerdict.Allow();
     }
+
+    public static bool IsBroadIndex(string symbol, string broadIndexSymbols) =>
+        ParseWatchlist(broadIndexSymbols).Contains(symbol.Trim(), StringComparer.OrdinalIgnoreCase);
 
     public static bool IsOnWatchlist(string symbol, string watchlist) =>
         ParseWatchlist(watchlist).Contains(symbol.Trim(), StringComparer.OrdinalIgnoreCase);

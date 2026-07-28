@@ -41,7 +41,36 @@ meaningless and this file should be started again from scratch.
 
 | Date | Window | Label | What changed | Strategy | SPY | Alpha | Drawdown | Fills | Closed |
 |---|---|---|---|---|---|---|---|---|---|
-| 2026-07-28 | tune | baseline | nothing — the live configuration as first armed | pending | | | | | |
+| 2026-07-28 | tune | baseline | nothing — the live configuration as first armed | +0.00% | +11.27% | **−11.27** | 0.00% | 0 | 0 |
+| 2026-07-28 | tune | index-default | brief rewritten; SPY added to watchlist; index exempt from per-position cap | pending | | | | | |
+
+### baseline — a defect, not a result
+
+126 sessions, 126 holds, zero orders, zero errors, coherent reasoning every time. Equity never moved
+while the index rose 11.27%.
+
+The machinery was fine; the instruction was unsatisfiable. The brief said to judge every trade against
+SPY and to hold when no reason was evident, and the watchlist deliberately excluded SPY. The only
+action that could meet the stated bar had been forbidden, so permanent inaction was the *correct*
+response to it. The model said as much every day: "cash preservation aligns with strategy".
+
+Two things worth keeping from this:
+
+- **Cash is a position and a model will not infer that.** Sitting in cash is a bet against the index
+  that loses by the index's full gain. The brief now says so explicitly.
+- **Guarding against churn is not the same as guarding against investing.** An anti-churn instruction
+  with no floor produces paralysis, and in a rising market that is the worse of the two failures
+  because it has no variance at all — a certain loss rather than a risky one.
+
+Counted as a defect fix rather than parameter tuning. It cost no statistical budget because nothing
+was being optimised: an unsatisfiable instruction was made satisfiable. Genuine tuning starts from
+`index-default`.
+
+A second-order flaw surfaced while fixing the first. The 10% per-position cap applied to SPY too, so
+"hold the index" could only ever place a tenth of the account and would have reproduced the same
+cash-drag failure in milder form. That cap exists to limit exposure to a single company, and a
+500-company fund is not one, so broad-index symbols are now exempt from it while remaining bound by
+the 80% total exposure cap and by available cash.
 
 ## Validation looks spent
 

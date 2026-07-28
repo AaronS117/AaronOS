@@ -20,6 +20,16 @@ public class TradingConfig
     /// <summary>Ceiling on any one position as a percent of account equity.</summary>
     public decimal MaxPositionPercent { get; set; } = 10m;
 
+    /// <summary>
+    /// Symbols exempt from the per-position cap, though never from the total exposure cap.
+    ///
+    /// That cap exists to limit how much rides on one company. A broad index fund is not one company,
+    /// so applying the same 10% to SPY is a category error — and a consequential one: the brief tells
+    /// the agent to hold the index when it has no view, and a 10% ceiling would leave ninety percent in
+    /// cash, which is the failure the brief was rewritten to prevent.
+    /// </summary>
+    public string BroadIndexSymbols { get; set; } = "SPY,QQQ,VTI,VOO,IVV";
+
     /// <summary>Ceiling on total invested value as a percent of equity, so cash is always held back.</summary>
     public decimal MaxInvestedPercent { get; set; } = 80m;
 

@@ -212,6 +212,92 @@ public class TradingGuardrailsTests
     }
 
     [Fact]
+    public void ABroadIndexIsExemptFromThePerPositionCap()
+    {
+        // The per-position cap limits how much rides on one company, and an index fund is not one
+        // company. Applying it to SPY would leave the "hold the index when you have no view"
+        // instruction able to place only ten percent, which is the cash-drag failure it was written to
+        // prevent.
+        var config = Config();
+        config.Watchlist = "SPY,AAPL";
+
+        // 400 shares at 100 is 40,000 — four times the 10% per-position cap.
+        Assert.True(TradingGuardrails.Check(Buy("SPY", 400, 100m), Account(), config).Allowed);
+    }
+
+    [Fact]
+    public void ABroadIndexIsStillCappedAtTheInvestedLimit()
+    {
+        // Exempt from one cap, not from all of them. The exemption raises SPY's ceiling from 10% to the
+        // 80% invested limit; it does not remove it, so the account always keeps cash back.
+        var config = Config();
+        config.Watchlist = "SPY";
+
+        Assert.True(TradingGuardrails.Check(Buy("SPY", 800, 100m), Account(), config).Allowed);
+
+        var verdict = TradingGuardrails.Check(Buy("SPY", 810, 100m), Account(), config);
+        Assert.False(verdict.Allowed);
+        Assert.Contains("80% index-position cap", verdict.Reason);
+    }
+
+    [Fact]
+    public void AnIndexPositionStillCountsTowardsTotalExposure()
+    {
+        // The case where the exposure cap does the work the position cap cannot: an index holding plus
+        // individual names together exceeding the limit.
+        // MSFT stays inside its own 10% cap (6,000 of 10,000) while the book as a whole goes to 81,000
+        // against an 80,000 limit, so only the exposure check can catch it.
+        var config = Config();
+        config.Watchlist = "SPY,MSFT";
+        var account = Account(cash: 21_000m, positions:
+        [
+            new HeldPosition("SPY", 750, 75_000m),
+            new HeldPosition("MSFT", 40, 4_000m),
+        ]);
+
+        var verdict = TradingGuardrails.Check(Buy("MSFT", 20, 100m), account, config);
+
+        Assert.False(verdict.Allowed);
+        Assert.Contains("total exposure", verdict.Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ABroadIndexIsStillBoundByAvailableCash()
+    {
+        var config = Config();
+        config.Watchlist = "SPY";
+
+        var verdict = TradingGuardrails.Check(
+            Buy("SPY", 400, 100m), Account(equity: 100_000m, cash: 1_000m), config);
+
+        Assert.False(verdict.Allowed);
+        Assert.Contains("Borrowing", verdict.Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AnOrdinaryStockGetsNoIndexExemption()
+    {
+        var config = Config();
+
+        var verdict = TradingGuardrails.Check(Buy("AAPL", 400, 100m), Account(), config);
+
+        Assert.False(verdict.Allowed);
+        Assert.Contains("per-position cap", verdict.Reason);
+    }
+
+    [Fact]
+    public void TheIndexListIsConfigurableAndCaseInsensitive()
+    {
+        var config = Config();
+        config.Watchlist = "AAPL";
+        config.BroadIndexSymbols = "aapl";
+
+        // Deliberately perverse: whatever is listed is treated as an index, so the exemption is a
+        // setting rather than a hardcoded opinion about which tickers are diversified.
+        Assert.True(TradingGuardrails.Check(Buy("AAPL", 400, 100m), Account(), config).Allowed);
+    }
+
+    [Fact]
     public void ParseWatchlistDeduplicatesAndUppercases()
     {
         Assert.Equal(["AAPL", "MSFT"], TradingGuardrails.ParseWatchlist("aapl, AAPL , msft,"));

@@ -371,20 +371,35 @@ public class TradingAgent(
     }
 
     /// <summary>
-    /// The brief. It states plainly that doing nothing is the expected outcome most of the time,
-    /// because an agent invoked every half hour and asked what to trade will find something to trade,
-    /// and churn is the most reliable way to lose to the index.
+    /// The brief.
+    ///
+    /// The paragraph about cash is here because its absence broke the first version completely. That
+    /// brief said to judge every trade against SPY and to hold whenever no reason was evident, and the
+    /// watchlist deliberately excluded SPY. A 126-session replay held cash on all 126 days and lost
+    /// 11.3 points to an index that rose 11.3%, reasoning each time that "cash preservation aligns
+    /// with strategy". The instruction was unsatisfiable rather than the model unwilling: the only
+    /// action that could meet the stated bar had been forbidden, so inaction was the correct response
+    /// to it.
+    ///
+    /// Two lessons are encoded below. Cash is a position, not the absence of one, and a model will not
+    /// infer that. And guarding against churn is not the same as guarding against investing — an
+    /// anti-churn instruction with no floor produces paralysis, which in a rising market is the worse
+    /// of the two failures because it has no variance at all.
     /// </summary>
     private const string SystemPrompt = """
         You manage a paper-trading account. No real money is at stake; the purpose is to find out,
         honestly, whether this approach beats simply holding the index.
 
-        Judge yourself against buy-and-hold SPY over the same period, not against zero. Making money
-        in a rising market is not a result.
+        You are measured against buy-and-hold SPY over the same period. Two things follow, and the
+        second is the one that gets missed. Making money in a rising market is not a result. And
+        holding cash is not neutral — it is a bet against the index, and in a rising market it loses by
+        the full amount the index gained. An account sitting in cash has taken a large position, not no
+        position.
 
-        Doing nothing is usually correct. You are asked for a decision every cycle, which is far more
-        often than good opportunities appear. Trade only on a specific reason you can state in one
-        sentence; if you cannot, hold and say so. Frequent trading reliably underperforms.
+        So if you have no view on individual names, the neutral action is to hold the index itself, not
+        to hold cash. Buy individual names only on a specific reason you can state in one sentence.
+        Churning between names reliably underperforms, and so does sitting in cash for months; avoid
+        both rather than trading one for the other.
 
         The application enforces position limits, an exposure cap, a daily order limit, and bans on
         borrowing and short selling. Orders that breach them are refused before reaching the broker
