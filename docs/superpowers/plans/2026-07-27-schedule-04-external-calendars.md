@@ -583,7 +583,44 @@ git commit -m "Add pure ExternalEventMerger with insert/update/delete planning"
 
 - [ ] **Step 1: Write the interface and service**
 
-No unit test: the merge decision is covered by 7 `ExternalEventMergerTests`, and what remains here is EF persistence plus error recording, verified end to end in Task 5 and Task 9.
+The merge decision itself is covered by the 7 `ExternalEventMergerTests`, so do not re-test it here.
+But this task **does** need tests, for the fail-soft contract specifically. Write them after the
+service, in `src/AaronOS.Modules.Schedule.Tests/ScheduleSyncServiceTests.cs`.
+
+The reason is worth stating, because an earlier draft of this plan said "no unit test" here and that
+was wrong. "A failed fetch must never empty the cache" is the single most important guarantee in
+this plan — if it breaks, the user's whole day disappears from Today with no error dialog. Task 9
+does check it, but Task 9 is manual and needs a live feed and a connected Google account, so on any
+machine without credentials that guarantee would ship completely unverified. `IExternalCalendarSource`
+exists precisely so a fake can stand in; use one.
+
+Three tests, using a fake source you define in the test file:
+
+```csharp
+private sealed class FakeSource(CalendarProvider provider, Func<IReadOnlyList<ExternalEventDto>> fetch)
+    : IExternalCalendarSource
+{
+    public CalendarProvider Provider => provider;
+
+    public Task<IReadOnlyList<ExternalEventDto>> FetchAsync(
+        ExternalCalendar calendar, DateOnly from, DateOnly to, CancellationToken cancellationToken)
+        => Task.FromResult(fetch());   // pass a throwing lambda to simulate a dead feed
+}
+```
+
+1. `FailedFetch_KeepsCachedEventsAndRecordsTheError` — seed a calendar plus two cached events, sync
+   with a source whose fetch throws, then verify through a **fresh context** that both events are
+   still there, `LastError` is non-null and contains the exception message, and `LastSyncedAt` was
+   NOT advanced. Assert the event count explicitly: this is the test that catches a `catch` block
+   which records the error but falls through into the merge with an empty result set.
+2. `OneBrokenCalendarDoesNotStopTheOthers` — two enabled calendars, one source throwing and one
+   returning an event. Assert `SyncAllAsync` returns 1, the healthy calendar's event was written,
+   and the broken calendar kept its cached rows and got its error.
+3. `SuccessfulSyncClearsAPreviousError` — seed a calendar with `LastError` already set, sync with a
+   working source, and assert `LastError` is back to null and `LastSyncedAt` advanced. Without this,
+   a feed that recovers would keep showing red forever.
+
+Standard rule applies: write with one `DbContext`, verify through a separate one.
 
 `src/AaronOS.Modules.Schedule/External/IExternalCalendarSource.cs`:
 
@@ -795,7 +832,7 @@ Expected: `Build succeeded`.
 - [ ] **Step 4: Run the tests**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed!` with 0 failures and the same test count as Step 2 — this task adds no tests.
+Expected: `Passed!` with 0 failures and 3 more passing tests than before this task.
 
 - [ ] **Step 5: Commit**
 
@@ -2150,7 +2187,7 @@ Expected: an error on the row, cached events retained, no crash. Clicking **Conn
 Simulate a copied database:
 
 ```bash
-sqlite3 "$LOCALAPPDATA/AaronOS/aaronos.db" "UPDATE ExternalCalendars SET EncryptedToken = X'01020304' WHERE Provider = 1;"
+sqlite3 "$LOCALAPPDATA/AaronOS/aaronos.db" "UPDATE ExternalCalendar SET EncryptedToken = X'01020304' WHERE Provider = 1;"
 ```
 
 Launch and click **Sync** on the Google row. Expected: `DpapiDataStore.GetAsync` treats the undecryptable blob as "no token", so the flow re-prompts for consent rather than throwing. Complete it and confirm sync works again.
