@@ -123,4 +123,46 @@ public class TimeGridLayoutTests
 
     [Fact]
     public void EmptyInputReturnsEmpty() => Assert.Empty(TimeGridLayout.Assign([]));
+
+    [Fact]
+    public void TopIsProportionalToTheStartTime()
+    {
+        Assert.Equal(0d, TimeGridLayout.TopFor(TimeSpan.Zero));
+        Assert.Equal(TimeGridLayout.HourHeight, TimeGridLayout.TopFor(new TimeSpan(1, 0, 0)));
+        Assert.Equal(TimeGridLayout.HourHeight * 9.5, TimeGridLayout.TopFor(new TimeSpan(9, 30, 0)));
+    }
+
+    [Fact]
+    public void HeightIsProportionalToDuration()
+    {
+        var half = new CalendarItem(new DateOnly(2026, 7, 28), new TimeSpan(9, 0, 0),
+            new TimeSpan(9, 30, 0), "x", CalendarItemKind.Other, null);
+
+        Assert.Equal(TimeGridLayout.HourHeight / 2, TimeGridLayout.HeightFor(half));
+    }
+
+    [Fact]
+    public void AFullDayIsTheWholeGridHeight()
+    {
+        Assert.Equal(TimeGridLayout.DayHeight, TimeGridLayout.TopFor(TimeSpan.FromHours(24)));
+    }
+
+    [Theory]
+    [InlineData(0, 0, 0)]
+    [InlineData(48, 1, 0)]        // exactly 09:00-equivalent: one hour down
+    [InlineData(52, 1, 0)]        // 5 minutes in, snaps back to the hour
+    [InlineData(58, 1, 15)]       // 12.5 minutes in, snaps forward to :15
+    public void TimeAtSnapsToTheNearestQuarterHour(double y, int expectedHours, int expectedMinutes)
+    {
+        Assert.Equal(new TimeSpan(expectedHours, expectedMinutes, 0), TimeGridLayout.TimeAt(y));
+    }
+
+    [Fact]
+    public void TimeAtIsClampedToTheDay()
+    {
+        // A click below the last row, or a negative y from a transform, must not produce a time
+        // outside the day — a block starting at 25:00 would silently never render.
+        Assert.Equal(TimeSpan.Zero, TimeGridLayout.TimeAt(-40));
+        Assert.Equal(new TimeSpan(23, 45, 0), TimeGridLayout.TimeAt(TimeGridLayout.DayHeight + 500));
+    }
 }

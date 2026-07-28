@@ -6,6 +6,30 @@ namespace AaronOS.Modules.Schedule.Calendar;
 /// </summary>
 public static class TimeGridLayout
 {
+    /// <summary>Row height for one hour. Outlook's value; makes a 30-minute item 24px, which is the
+    /// smallest that still fits a readable label.</summary>
+    public const double HourHeight = 48d;
+
+    public const double PixelsPerMinute = HourHeight / 60d;
+    public const double DayHeight = 24 * HourHeight;
+
+    public static double TopFor(TimeSpan time) => time.TotalMinutes * PixelsPerMinute;
+
+    public static double HeightFor(CalendarItem item) => item.Minutes * PixelsPerMinute;
+
+    /// <summary>
+    /// The time at a vertical offset, snapped to <paramref name="snapMinutes"/>. Clamped into the day:
+    /// a click below the last row or a negative offset from a transform must not yield a time outside
+    /// 00:00-23:45, because a block starting at 25:00 would silently never render.
+    /// </summary>
+    public static TimeSpan TimeAt(double y, int snapMinutes = 15)
+    {
+        var minutes = y / PixelsPerMinute;
+        var snapped = Math.Round(minutes / snapMinutes) * snapMinutes;
+        var clamped = Math.Clamp(snapped, 0, 24 * 60 - snapMinutes);
+        return TimeSpan.FromMinutes(clamped);
+    }
+
     public static IReadOnlyList<PositionedItem> Assign(IReadOnlyList<CalendarItem> itemsForOneDay)
     {
         if (itemsForOneDay.Count == 0) return [];
