@@ -216,6 +216,12 @@ public sealed record CalendarItem(
 /// { Work, Sleep, Personal }, and routine categories (Gym, LitterBox, Trash...) are not placed on the
 /// calendar by this plan, so a Gym or Chore value here would be a kind nothing can produce. Add one
 /// when something actually maps to it.
+///
+/// `Other` is the exception and is deliberate. Nothing produces it today — the switch in KindOf
+/// covers all three block kinds — but it is the fallback arm, not a speculative activity. Without it,
+/// adding a fourth ScheduleBlockKind member later would throw SwitchExpressionException and take out
+/// the whole calendar; with it, the new kind renders plainly until someone gives it a colour. A
+/// fallback that converts a future crash into a dull rendering is worth one unreachable enum value.
 /// </summary>
 public enum CalendarItemKind { Work, Sleep, Personal, Meeting, Other }
 ```
