@@ -3,6 +3,14 @@
     <ProjectReference Include="..\AaronOS.Core\AaronOS.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <!-- The volatility calculation is an implementation detail of one strategy, but it is the kind of
+         arithmetic that is wrong silently, so the test project is allowed to reach it directly rather
+         than inferring it from order sizes. -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>AaronOS.Modules.Trading.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="LiveChartsCore.SkiaSharpView.WPF" Version="2.0.5" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.10" />
     <PackageReference Include="WPF-UI" Version="4.3.0" />

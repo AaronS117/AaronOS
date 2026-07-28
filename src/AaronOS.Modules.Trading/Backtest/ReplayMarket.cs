@@ -29,8 +29,17 @@ public sealed class ReplayMarket
                 $"No bars for the benchmark {benchmarkSymbol}, so no comparison would be possible.", nameof(bars));
         }
 
-        TradingDays = benchmark.Keys.OrderBy(d => d).ToList();
+        var ordered = benchmark.Keys.OrderBy(d => d).ToList();
+        TradingDays = ordered;
+
+        // Position lookups happen once or twice per replayed session, so they get a map rather than a
+        // scan. It also gives IReadOnlyList the index operation it does not have.
+        _sessionIndex = ordered
+            .Select((date, index) => (date, index))
+            .ToDictionary(x => x.date, x => x.index);
     }
+
+    private readonly Dictionary<DateOnly, int> _sessionIndex;
 
     public string BenchmarkSymbol { get; }
 
@@ -67,4 +76,60 @@ public sealed class ReplayMarket
     /// <summary>Trading days within a window, inclusive.</summary>
     public IReadOnlyList<DateOnly> DaysBetween(DateOnly from, DateOnly to) =>
         TradingDays.Where(d => d >= from && d <= to).ToList();
+
+    /// <summary>
+    /// Closing prices up to and including a date, oldest first, at most <paramref name="count"/> of
+    /// them. Returns fewer when the history is short rather than padding, so a rule can decline to act
+    /// until it has enough data instead of acting on invented numbers.
+    /// </summary>
+    public IReadOnlyList<decimal> ClosesUpTo(string symbol, DateOnly date, int count)
+    {
+        if (!_bars.TryGetValue(symbol, out var series) || count <= 0)
+        {
+            return [];
+        }
+
+        return series.Values
+            .Where(b => b.Date <= date)
+            .OrderByDescending(b => b.Date)
+            .Take(count)
+            .Select(b => b.Close)
+            .Reverse()
+            .ToList();
+    }
+
+    /// <summary>True on the first session of a calendar week, used to pace weekly decisions.</summary>
+    public bool IsFirstSessionOfWeek(DateOnly date)
+    {
+        if (!_sessionIndex.TryGetValue(date, out var index))
+        {
+            return false;
+        }
+
+        if (index == 0)
+        {
+            return true;
+        }
+
+        var previous = TradingDays[index - 1];
+        return System.Globalization.ISOWeek.GetWeekOfYear(date.ToDateTime(default))
+               != System.Globalization.ISOWeek.GetWeekOfYear(previous.ToDateTime(default));
+    }
+
+    /// <summary>True on the first session of a calendar month.</summary>
+    public bool IsFirstSessionOfMonth(DateOnly date)
+    {
+        if (!_sessionIndex.TryGetValue(date, out var index))
+        {
+            return false;
+        }
+
+        if (index == 0)
+        {
+            return true;
+        }
+
+        var previous = TradingDays[index - 1];
+        return date.Month != previous.Month || date.Year != previous.Year;
+    }
 }

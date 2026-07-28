@@ -59,7 +59,16 @@ public class SnapshotRecorder(
         await db.SaveChangesAsync(token);
     }
 
-    /// <summary>Updates stored orders that the broker has since filled, cancelled or rejected.</summary>
+    /// <summary>
+    /// Updates stored orders that the broker has since filled, cancelled or rejected.
+    ///
+    /// It also picks up orders that arrived already filled but without a price. A market order placed
+    /// during trading hours frequently comes back "filled" on submission, and the earlier version
+    /// treated any settled status as finished — so those rows kept a null fill price forever. Closed
+    /// round trips are counted only from filled prices, which meant every instantly-filled trade was
+    /// invisible to the performance figures and the thirty-trade gate could never open. A replay, where
+    /// every fill is instant, made it obvious: three sells and zero closed trades.
+    /// </summary>
     public async Task ReconcileOpenOrdersAsync(CancellationToken token = default)
     {
         if (!alpaca.IsConfigured)
@@ -69,7 +78,8 @@ public class SnapshotRecorder(
 
         await using var db = await dbContextFactory.CreateDbContextAsync(token);
         var open = await db.Set<TradeOrder>()
-            .Where(o => !SettledStatuses.Contains(o.Status))
+            .Where(o => !SettledStatuses.Contains(o.Status)
+                        || (o.Status == "filled" && o.FilledPrice == null))
             .ToListAsync(token);
 
         foreach (var order in open)

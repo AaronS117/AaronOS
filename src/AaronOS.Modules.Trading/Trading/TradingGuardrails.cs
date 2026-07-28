@@ -84,10 +84,16 @@ public static class TradingGuardrails
             return GuardrailVerdict.Block("Account equity is zero, so no position size can be computed.");
         }
 
-        if (order.Notional > account.Cash)
+        // Measured against slightly less than the full cash balance. The order is sized from a mid
+        // price and fills at the next open plus slippage, so one sized to the last cent will fail at
+        // the broker. A small margin turns that into an order one share smaller rather than an error,
+        // and it costs a fraction of cash rather than a fraction of equity.
+        var spendable = account.Cash * 0.99m;
+        if (order.Notional > spendable)
         {
             return GuardrailVerdict.Block(
-                $"{order.Notional:C0} exceeds {account.Cash:C0} of cash. Borrowing is not permitted.");
+                $"{order.Notional:C0} exceeds the {spendable:C0} of cash available to spend. " +
+                $"Borrowing is not permitted.");
         }
 
         // Measured against the resulting position, not this order alone, so a cap cannot be

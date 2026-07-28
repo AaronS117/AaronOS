@@ -54,9 +54,13 @@ Console.WriteLine();
 
 var symbols = TradingGuardrailsSymbols(live.Watchlist).Append(PortfolioSnapshot.BenchmarkSymbol).ToList();
 
-// A month of slack before the window so the first session has a prior bar to fill against.
+// Reaches back far enough for the longest lookback any strategy uses, not just far enough to fill
+// against. A 30-day run-up left the 252-session trend rule permanently short of history, so it never
+// traded and reported +0.00% — which reads like a finding about trend following and was a finding about
+// my fetch window. Two calendar years covers a 252-session lookback with room for holidays.
 Console.WriteLine("fetching bars…");
-var raw = await alpaca.GetDailyBarsAsync(symbols, window.From.AddDays(-30), window.To.AddDays(7));
+var historyStart = window.From.AddDays(-2 * 365);
+var raw = await alpaca.GetDailyBarsAsync(symbols, historyStart, window.To.AddDays(7));
 foreach (var (symbol, bars) in raw.OrderBy(kv => kv.Key))
 {
     Console.WriteLine($"  {symbol,-6} {bars.Count,4} sessions  {bars[0].Date} .. {bars[^1].Date}");
@@ -73,12 +77,69 @@ Console.WriteLine();
 Console.WriteLine($"{sessions} sessions to replay, one decision each. This will take a while.");
 Console.WriteLine();
 
+// The mechanical strategies cost nothing to run — no model call — so they always run, and the agent's
+// number is never reported without arithmetic beside it. "It lost to SPY" is a weak finding; "it lost to
+// SPY and to twenty lines of rule" is an answer.
+Console.WriteLine("--- mechanical baselines ---");
+var baselineRunner = new BaselineRunner(market);
+IBaselineStrategy[] baselines =
+[
+    new BuyAndHoldIndexBaseline(),
+    new EqualWeightMonthlyBaseline(),
+    new TrendFollowingBaseline(),
+    new VolatilityTargetedBaseline(),
+];
+
+foreach (var baseline in baselines)
+{
+    // A fresh runner per strategy so a refusal is attributed to the strategy that caused it.
+    var runner0 = new BaselineRunner(market);
+    var run = runner0.Run(baseline, live, window.From, window.To);
+    Console.WriteLine(
+        $"  {baseline.Name,-34} {run.Performance.StrategyReturnPercent,7:+0.00;-0.00}%  " +
+        $"alpha {run.Performance.AlphaPercent,7:+0.00;-0.00}  " +
+        $"dd −{run.Performance.MaxDrawdownPercent,5:0.00}%  " +
+        $"{run.OrdersFilled,3} fills");
+
+    // Zero fills is ambiguous on its own — a rule that decided to stay out looks exactly like one
+    // that was blocked. Say which.
+    if (run.OrdersFilled == 0)
+    {
+        Console.WriteLine(runner0.FirstRefusal is { } refusal
+            ? $"      never invested — first refusal: {refusal}"
+            : "      never invested — placed no orders at all (by its own logic, not refused)");
+    }
+    else if (runner0.FirstRefusal is { } someRefusal)
+    {
+        Console.WriteLine($"      had an order refused: {someRefusal}");
+    }
+}
+
+Console.WriteLine();
+
+// The rules are free to evaluate; the agent takes half an hour. Being able to iterate on the baselines
+// alone keeps that asymmetry useful.
+if (args.Contains("--baselines-only"))
+{
+    return 0;
+}
+
+var cadence = args.SkipWhile(a => a != "--cadence").Skip(1).FirstOrDefault() switch
+{
+    "weekly" => DecisionCadence.Weekly,
+    "monthly" => DecisionCadence.Monthly,
+    _ => DecisionCadence.Daily,
+};
+
+Console.WriteLine($"agent cadence: {cadence}");
+Console.WriteLine();
+
 var dbPath = Path.Combine(Path.GetTempPath(), $"aaronos-backtest-{which}-{label}.db");
 var runner = new BacktestRunner(market, provider);
 var started = DateTime.UtcNow;
 
 var result = await runner.RunAsync(
-    label, live, window.From, window.To, dbPath, log: Console.WriteLine);
+    label, live, window.From, window.To, dbPath, log: Console.WriteLine, cadence: cadence);
 
 Console.WriteLine();
 Console.WriteLine($"=== {which} / {label} ===");

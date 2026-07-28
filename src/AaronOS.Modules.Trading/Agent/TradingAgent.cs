@@ -357,10 +357,30 @@ public class TradingAgent(
         }
 
         brief.AppendLine();
+
+        // Generated from the same configuration the guardrails read, and it must stay that way. An
+        // earlier version recited a flat per-position cap after the code had been changed to exempt
+        // broad index funds from it, and the model spent six months holding the index at a tenth of the
+        // account and selling down to "comply" with a limit that no longer existed. Changing what is
+        // enforced without changing what the model is told is worth ten points of underperformance.
+        var indexSymbols = TradingGuardrails.ParseWatchlist(config.BroadIndexSymbols)
+            .Where(s => TradingGuardrails.IsOnWatchlist(s, config.Watchlist))
+            .ToList();
+
         brief.AppendLine(CultureInfo.InvariantCulture,
             $"Limits enforced by the application: no more than {config.MaxPositionPercent:0.#}% of equity in " +
-            $"any one position, no more than {config.MaxInvestedPercent:0.#}% invested in total, " +
+            $"any one individual company, no more than {config.MaxInvestedPercent:0.#}% invested in total, " +
             $"{config.MaxTradesPerDay} orders a day, no borrowing and no short selling.");
+
+        if (indexSymbols.Count > 0)
+        {
+            brief.AppendLine(CultureInfo.InvariantCulture,
+                $"Exception: {string.Join(" and ", indexSymbols)} " +
+                $"{(indexSymbols.Count == 1 ? "is a broad index fund and is" : "are broad index funds and are")} " +
+                $"exempt from the per-company cap. {(indexSymbols.Count == 1 ? "It" : "They")} may be held up " +
+                $"to the {config.MaxInvestedPercent:0.#}% total limit, so the index is the way to be " +
+                $"substantially invested without concentrating in one company.");
+        }
         brief.AppendLine();
         brief.AppendLine("Strategy notes from the account owner:");
         brief.AppendLine(config.StrategyNotes);

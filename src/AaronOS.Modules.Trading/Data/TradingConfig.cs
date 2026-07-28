@@ -30,8 +30,20 @@ public class TradingConfig
     /// </summary>
     public string BroadIndexSymbols { get; set; } = "SPY,QQQ,VTI,VOO,IVV";
 
-    /// <summary>Ceiling on total invested value as a percent of equity, so cash is always held back.</summary>
-    public decimal MaxInvestedPercent { get; set; } = 80m;
+    /// <summary>
+    /// Ceiling on total invested value as a percent of equity.
+    ///
+    /// A hundred, so the agent is allowed to be as invested as the benchmark it is judged against. This
+    /// was 80, and a replay showed the cost precisely: buy-and-hold through the harness returned 9.01%
+    /// where SPY returned 11.27%, and 80% of 11.27 is 9.02. The whole gap was the cash the cap forced,
+    /// which meant the experiment asked whether the agent could beat an index while forbidding it from
+    /// matching one. That is a handicap, not a risk control.
+    ///
+    /// The genuine protections are elsewhere and unchanged: no borrowing, no short selling, and no more
+    /// than <see cref="MaxPositionPercent"/> in any single company. Available cash is what binds now,
+    /// which is exactly the constraint a long-only account actually has.
+    /// </summary>
+    public decimal MaxInvestedPercent { get; set; } = 100m;
 
     public int MaxTradesPerDay { get; set; } = 6;
     public int CycleIntervalMinutes { get; set; } = 30;

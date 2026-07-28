@@ -106,6 +106,35 @@ public class TradingGuardrailsTests
     }
 
     [Fact]
+    public void AnOrderCannotConsumeLiterallyEveryCentOfCash()
+    {
+        // Sized from a mid price and filled at the next open plus slippage, an order spending the last
+        // cent fails at the broker. The margin makes it one share smaller instead of an error.
+        //
+        // Uses the index symbol with a full invested cap so that cash is the only thing that can bind.
+        // On an individual name the 10% per-company cap fires first and the test would prove nothing.
+        var config = Config();
+        config.MaxInvestedPercent = 100m;
+        config.Watchlist = "SPY";
+        var account = Account(equity: 10_000m, cash: 10_000m);
+
+        Assert.False(TradingGuardrails.Check(Buy("SPY", 100, 100m), account, config).Allowed);
+        Assert.True(TradingGuardrails.Check(Buy("SPY", 98, 100m), account, config).Allowed);
+    }
+
+    [Fact]
+    public void AFullyInvestedCapLetsTheAgentMatchTheIndexItIsJudgedAgainst()
+    {
+        // The handicap this removes: at 80% the agent could not reach the benchmark's exposure, so a
+        // 2.25-point shortfall was structural rather than a decision. Cash is the real constraint.
+        var config = Config();
+        config.MaxInvestedPercent = 100m;
+        config.Watchlist = "SPY";
+
+        Assert.True(TradingGuardrails.Check(Buy("SPY", 980, 100m), Account(), config).Allowed);
+    }
+
+    [Fact]
     public void ASinglePositionCannotExceedItsCap()
     {
         // 10% of 100,000 is 10,000; this order is 15,000.

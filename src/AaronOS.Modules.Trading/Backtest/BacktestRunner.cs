@@ -36,6 +36,14 @@ public readonly record struct BacktestResult(
 /// Each run gets its own database file. Writing replay orders into the live one would corrupt the
 /// record the six-month experiment is being judged on, and that record cannot be reconstructed.
 /// </summary>
+/// <summary>How often the agent is asked to decide. Snapshots stay daily regardless.</summary>
+public enum DecisionCadence
+{
+    Daily,
+    Weekly,
+    Monthly,
+}
+
 public sealed class BacktestRunner(ReplayMarket market, IAgentProvider provider)
 {
     public async Task<BacktestResult> RunAsync(
@@ -47,6 +55,7 @@ public sealed class BacktestRunner(ReplayMarket market, IAgentProvider provider)
         decimal startingCash = 100_000m,
         ReplayCosts? costs = null,
         Action<string>? log = null,
+        DecisionCadence cadence = DecisionCadence.Daily,
         CancellationToken token = default)
     {
         var sessions = market.DaysBetween(from, to);
@@ -83,19 +92,26 @@ public sealed class BacktestRunner(ReplayMarket market, IAgentProvider provider)
             broker.Today = session;
             clock.SetDate(session);
 
-            var result = await agent.RunCycleAsync(token);
-            if (result.Ran)
+            // The equity curve is recorded every session whatever the cadence, so a weekly-deciding run
+            // and a daily one produce comparable curves and comparable drawdowns. Only the number of
+            // decisions differs, which is the variable under test.
+            if (ShouldDecide(session, cadence))
             {
-                decisions++;
+                var result = await agent.RunCycleAsync(token);
+                if (result.Ran)
+                {
+                    decisions++;
+                }
+
+                await recorder.ReconcileOpenOrdersAsync(token);
+
+                if (decisions % 10 == 0 && result.Ran)
+                {
+                    log?.Invoke($"  {session}  equity {broker.Equity:C0}  ({decisions} decisions)");
+                }
             }
 
-            await recorder.ReconcileOpenOrdersAsync(token);
             await recorder.RecordTodayAsync(token);
-
-            if (decisions % 20 == 0 && result.Ran)
-            {
-                log?.Invoke($"  {session}  equity {broker.Equity:C0}  ({decisions} decisions)");
-            }
         }
 
         await using var final = factory.CreateDbContext();
@@ -111,6 +127,21 @@ public sealed class BacktestRunner(ReplayMarket market, IAgentProvider provider)
             label, sessions[0], sessions[^1], sessions.Count, decisions, orders.Count, refused, performance);
     }
 
+    /// <summary>
+    /// Whether the agent is asked to decide on this session.
+    ///
+    /// Cadence is a variable worth testing rather than a detail: the best-evidenced finding about retail
+    /// trading is that turnover destroys returns — Barber and Odean's most active households earned
+    /// 11.4% against a market that returned 17.9% — so asking less often is a plausible improvement and
+    /// costs nothing to measure.
+    /// </summary>
+    private bool ShouldDecide(DateOnly session, DecisionCadence cadence) => cadence switch
+    {
+        DecisionCadence.Weekly => market.IsFirstSessionOfWeek(session),
+        DecisionCadence.Monthly => market.IsFirstSessionOfMonth(session),
+        _ => true,
+    };
+
     private static TradingConfig Clone(TradingConfig source) => new()
     {
         IsEnabled = true,
@@ -123,6 +154,7 @@ public sealed class BacktestRunner(ReplayMarket market, IAgentProvider provider)
         Provider = source.Provider,
         StrategyNotes = source.StrategyNotes,
         MinTradesForStats = source.MinTradesForStats,
+        BroadIndexSymbols = source.BroadIndexSymbols,
     };
 
     private sealed class BacktestContextFactory(string path) : IDbContextFactory<AaronOsDbContext>
