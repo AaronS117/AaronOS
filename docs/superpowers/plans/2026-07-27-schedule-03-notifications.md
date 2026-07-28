@@ -692,9 +692,14 @@ public sealed class ScheduleBackgroundWorker(
 
         // Must include cached external events — an empty list here would notify about a free gap
         // that a real meeting already occupies.
+        // Interval-overlap test, NOT a StartsAt range. An event that began before this window and
+        // is still running must be included, or the tick will notify about a free gap a real meeting
+        // already occupies. Plan 4 shipped the StartsAt version in three places; one of them made a
+        // calendar fail every sync for as long as a straddling event ran.
+        var windowStart = today.AddDays(-1).ToDateTime(TimeOnly.MinValue);
+        var windowEnd = tomorrowDate.AddDays(1).ToDateTime(TimeOnly.MinValue);
         var externalRows = await db.Set<ExternalEvent>()
-            .Where(e => e.StartsAt >= today.AddDays(-1).ToDateTime(TimeOnly.MinValue)
-                        && e.StartsAt <= tomorrowDate.ToDateTime(TimeOnly.MaxValue))
+            .Where(e => e.StartsAt < windowEnd && e.EndsAt > windowStart)
             .ToListAsync(cancellationToken);
 
         var agenda = AgendaBuilder.Build(

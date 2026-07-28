@@ -449,9 +449,14 @@ public partial class SleepViewModel(IDbContextFactory<AaronOsDbContext> dbContex
             // External calendars (Plan 4) already shipped, so tomorrow's first commitment must
             // account for a real meeting — that is the whole point of the integration, and an empty
             // list here would silently recommend a bedtime based only on template blocks.
+            // Interval-overlap test, NOT a StartsAt range. A multi-day event that began before
+            // this window but is still running has to count — otherwise a bedtime is recommended as
+            // though tomorrow were free. Plan 4 shipped the same bug in three places and it cost a
+            // permanently failing sync; do not "simplify" this back to a StartsAt filter.
+            var windowStart = today.ToDateTime(TimeOnly.MinValue);
+            var windowEnd = tomorrowDate.AddDays(1).ToDateTime(TimeOnly.MinValue);
             var externalRows = await db.Set<ExternalEvent>()
-                .Where(e => e.StartsAt >= today.ToDateTime(TimeOnly.MinValue)
-                            && e.StartsAt <= tomorrowDate.ToDateTime(TimeOnly.MaxValue))
+                .Where(e => e.StartsAt < windowEnd && e.EndsAt > windowStart)
                 .ToListAsync();
 
             var tomorrow = AgendaBuilder.Build(

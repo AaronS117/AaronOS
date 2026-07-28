@@ -736,10 +736,17 @@ public sealed class ScheduleSyncService(
 
         try
         {
+            // MUST be an interval-overlap test, not a StartsAt range. A source returns an event
+            // that began BEFORE the window and is still running at its start (verified against
+            // Ical.Net: GetOccurrences includes an in-progress occurrence). Filtering `existing` on
+            // StartsAt therefore omits that row, the merger plans it as an insert, and the composite
+            // unique index on (ExternalCalendarId, ExternalUid) rejects it — so the whole sync fails
+            // for as long as that event runs. `existing` and `fetched` must cover the same set.
+            var windowStart = from.ToDateTime(TimeOnly.MinValue);
+            var windowEnd = to.AddDays(1).ToDateTime(TimeOnly.MinValue);
             var existing = await db.Set<ExternalEvent>()
                 .Where(e => e.ExternalCalendarId == calendar.Id
-                            && e.StartsAt >= from.ToDateTime(TimeOnly.MinValue)
-                            && e.StartsAt <= to.ToDateTime(TimeOnly.MaxValue))
+                            && e.StartsAt < windowEnd && e.EndsAt > windowStart)
                 .ToListAsync(cancellationToken);
 
             var plan = ExternalEventMerger.Plan(existing, fetched);
@@ -1665,8 +1672,14 @@ public static class ExternalEventProjector
 
             var firstDay = DateOnly.FromDateTime(e.StartsAt);
 
-            // All-day DTEND is exclusive, so an event ending at midnight ends on the previous day.
-            var lastMoment = e.EndsAt.TimeOfDay == TimeSpan.Zero ? e.EndsAt.AddTicks(-1) : e.EndsAt;
+            // All-day DTEND is exclusive, so an all-day event ending at midnight ends on the
+            // previous day. GATE THIS ON IsAllDay — only all-day events use that convention. A timed
+            // event ending exactly at midnight really does run to the day boundary, and back-dating
+            // it sets the end a tick short of 24:00, which ComputeFreeGaps then reports as a spurious
+            // near-zero free gap. An earlier draft applied this unconditionally; that was wrong.
+            var lastMoment = e.IsAllDay && e.EndsAt.TimeOfDay == TimeSpan.Zero
+                ? e.EndsAt.AddTicks(-1)
+                : e.EndsAt;
             var lastDay = DateOnly.FromDateTime(lastMoment);
 
             var dayCount = Math.Min(lastDay.DayNumber - firstDay.DayNumber + 1, MaxDaysPerEvent);
@@ -1702,21 +1715,28 @@ There are four. In each, load the cached events for the same window already bein
 **`TodayViewModel.LoadAsync`** — replace the `AgendaBuilder.Build(...)` call's last argument:
 
 ```csharp
+            // Overlap test, NOT a StartsAt range: a multi-day event that began before the visible
+            // window but is still running must appear. Widened one day back to match AgendaBuilder's
+            // warm-up day, exactly as the ScheduleException query above already is.
+            // NOTE: TodayViewModel builds a single day — there is no `tomorrowDate` in this method.
+            var windowStart = today.AddDays(-1).ToDateTime(TimeOnly.MinValue);
+            var windowEnd = today.AddDays(1).ToDateTime(TimeOnly.MinValue);
             var externalRows = await db.Set<ExternalEvent>()
-                .Where(e => e.StartsAt >= today.AddDays(-1).ToDateTime(TimeOnly.MinValue)
-                            && e.StartsAt <= tomorrowDate.ToDateTime(TimeOnly.MaxValue))
+                .Where(e => e.StartsAt < windowEnd && e.EndsAt > windowStart)
                 .ToListAsync();
 
             var agenda = AgendaBuilder.Build(
-                today, tomorrowDate, blocks, exceptions, ExternalEventProjector.ToAgendaEntries(externalRows));
+                today, today, blocks, exceptions, ExternalEventProjector.ToAgendaEntries(externalRows));
 ```
 
 **`WeekViewModel.LoadAsync`** — same shape, over the week's range:
 
 ```csharp
+            // Overlap test, not a StartsAt range — see the note on TodayViewModel above.
+            var windowStart = WeekStart.AddDays(-1).ToDateTime(TimeOnly.MinValue);
+            var windowEnd = end.AddDays(1).ToDateTime(TimeOnly.MinValue);
             var externalRows = await db.Set<ExternalEvent>()
-                .Where(e => e.StartsAt >= WeekStart.AddDays(-1).ToDateTime(TimeOnly.MinValue)
-                            && e.StartsAt <= end.ToDateTime(TimeOnly.MaxValue))
+                .Where(e => e.StartsAt < windowEnd && e.EndsAt > windowStart)
                 .ToListAsync();
 
             foreach (var day in AgendaBuilder.Build(
