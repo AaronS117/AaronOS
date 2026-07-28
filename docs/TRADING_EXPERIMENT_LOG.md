@@ -42,7 +42,47 @@ meaningless and this file should be started again from scratch.
 | Date | Window | Label | What changed | Strategy | SPY | Alpha | Drawdown | Fills | Closed |
 |---|---|---|---|---|---|---|---|---|---|
 | 2026-07-28 | tune | baseline | nothing — the live configuration as first armed | +0.00% | +11.27% | **−11.27** | 0.00% | 0 | 0 |
-| 2026-07-28 | tune | index-default | brief rewritten; SPY added to watchlist; index exempt from per-position cap | pending | | | | | |
+| 2026-07-28 | tune | index-default | brief rewritten; SPY added to watchlist; index exempt from per-position cap | +1.08% | +11.27% | −10.19 | 0.49% | 7 | 0 |
+| 2026-07-28 | tune | weekly-indexaware | as above, weekly decisions instead of daily | +7.16% | +11.27% | −4.11 | 4.07% | 6 | 4 |
+| 2026-07-28 | tune | **daily-100cap** | exposure cap 80→100%; brief now states the index exemption | **+11.21%** | +11.27% | **−0.06** | 5.05% | 1 | 0 |
+| 2026-07-28 | tune | weekly-100cap | as above, weekly decisions | +9.45% | +11.27% | −1.82 | 5.07% | 2 | 0 |
+
+### Mechanical baselines, same window, same fills, same guardrails
+
+| Strategy | Return | Alpha | Drawdown | Fills |
+|---|---|---|---|---|
+| buy-and-hold SPY | +11.21% | −0.06 | 5.05% | 1 |
+| trend following (252d) | +11.21% | −0.06 | 5.05% | 1 |
+| vol-targeted (15%) | +11.21% | −0.06 | 5.05% | 1 |
+| equal weight, monthly | +6.54% | −4.73 | 5.81% | 10 |
+
+This window does not discriminate between the first three: SPY trended up throughout and realised
+volatility stayed under target, so trend following never exited and vol targeting never scaled down.
+All three are buy-and-hold under other names here. Equal-weighting into individual megacaps was worse
+on both return and drawdown, which is a genuine result for this watchlist.
+
+### The conclusion the tune window reached
+
+Given an honest brief and no handicap, the agent **became buy-and-hold**. One order on the first
+session — 159 SPY, $99,489, essentially the whole account — then 125 sessions of holding. Alpha −0.06,
+which is the spread it paid to get in. Its reasoning quoted the brief back: "cash is a bet against the
+index."
+
+That is a defensible answer and arguably the right one. It is also an answer that the judgement adds
+nothing: an expensive way to execute a single index purchase.
+
+Two consequences worth being explicit about.
+
+**Weekly cadence was an artifact, not a finding.** At the 80% cap weekly (+7.16%) beat daily (+1.08%)
+and looked like the turnover effect showing up in our own data. At the corrected cap daily (+11.21%)
+beat weekly (+9.45%). The earlier gap was the daily run wasting capital fighting a phantom index cap,
+exactly the alternative explanation flagged at the time. The turnover literature may still be right; this
+experiment did not demonstrate it.
+
+**The success criterion cannot be met.** It requires 30 closed round trips. An agent that places one
+order and holds will produce zero. Six live months would confirm that it holds the index and nothing
+else. The bar was written for a strategy that trades; the agent declined to be one, which answers the
+question earlier and more cheaply than the live run would have.
 
 ### baseline — a defect, not a result
 
