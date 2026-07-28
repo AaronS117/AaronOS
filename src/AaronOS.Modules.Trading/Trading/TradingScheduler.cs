@@ -31,7 +31,15 @@ public sealed class TradingScheduler(
     /// <summary>Raised after every cycle, on a background thread — marshal before touching the UI.</summary>
     public event Action<CycleResult>? CycleCompleted;
 
-    public async Task StartAsync()
+    /// <summary>
+    /// Arms the timer and runs a first cycle.
+    ///
+    /// <paramref name="firstCycleDelay"/> exists for the unattended case. Started from a button, the
+    /// first cycle should run at once or the scheduler looks inert. Started at login it should wait,
+    /// because the model server is coming up at the same moment and a cycle that arrives first fails
+    /// and writes an error nobody needed to see.
+    /// </summary>
+    public async Task StartAsync(TimeSpan firstCycleDelay = default)
     {
         Stop();
 
@@ -43,9 +51,15 @@ public sealed class TradingScheduler(
         _timer.Elapsed += OnElapsed;
         _timer.Start();
 
-        // Run one immediately so starting the scheduler visibly does something rather than
-        // appearing inert until the first interval elapses.
-        _ = Task.Run(RunOnceAsync);
+        _ = Task.Run(async () =>
+        {
+            if (firstCycleDelay > TimeSpan.Zero)
+            {
+                await Task.Delay(firstCycleDelay);
+            }
+
+            await RunOnceAsync();
+        });
     }
 
     public void Stop()

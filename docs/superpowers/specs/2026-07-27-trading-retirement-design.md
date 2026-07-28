@@ -214,9 +214,44 @@ Failing means the answer is no. Passing means it is worth continuing to watch, n
 funding — six months is one market regime, and 30 trades is the floor of meaningfulness rather than a
 comfortable sample.
 
+### Running unattended
+
+Three things make the run continue without attention, which matters for something measured over
+months rather than demonstrated once.
+
+`IAppModule.OnStartupAsync` was added to the module contract, with a default no-op. Background work
+started from a page only runs once someone navigates there — fine for refreshing a view, useless for
+anything that should simply be running. `TradingModule` uses it to arm the schedule whenever the
+config's switch is on, so the experiment resumes at every launch and the switch in the database is
+the only thing that decides whether it is running. Stopping it is one toggle rather than a habit of
+not pressing Start. The shell catches a throwing module rather than failing to open.
+
+The first cycle after an unattended start is delayed 90 seconds. At login the app and a local model
+server come up together, and a cycle that wins that race fails and writes an error nobody needed.
+Started from the button the delay is zero, because a scheduler that appears inert is worse.
+
+AaronOS is registered under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, pointed at the
+built executable so rebuilds are picked up during development. Ollama already installs its own
+startup shortcut. Removing the entry stops everything:
+`Remove-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name AaronOS`.
+
+The honest limit stands: this is autonomous while a Windows session is logged in. A machine that is
+off or logged out trades nothing, and the equity curve simply has no point for that day. Genuinely
+continuous operation needs a server.
+
+### The configuration this run started with
+
+Provider `openai-compatible` against `http://localhost:11434/v1`, model `qwen3:14b`, verified on
+Ollama 0.32.5 to emit well-formed tool calls, to size a position correctly inside the cap, and to
+decline to trade when given no reason — 20 to 46 seconds per decision, against a 30-minute cycle.
+
+Watchlist `QQQ,AAPL,MSFT,NVDA,AMZN`, deliberately without SPY. SPY is the benchmark, so an agent able
+to buy it could tie the comparison by conceding — a rational move and an uninformative experiment.
+Caps: 10% per position, 80% total exposure, 4 orders a day.
+
 ### Verified
 
-70 tests. Beyond the guardrail and measurement units, a full cycle is driven end to end against a
+74 tests. Beyond the guardrail and measurement units, a full cycle is driven end to end against a
 scripted model and a scripted broker: an allowed order reaches the broker and is stored with its
 reasoning, a refused order never reaches it while still appearing in the log, malformed tool arguments
 are refused without ending the cycle, the daily cap holds across several orders inside one cycle, the

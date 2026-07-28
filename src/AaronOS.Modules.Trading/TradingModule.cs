@@ -1,9 +1,12 @@
 using AaronOS.Core;
+using AaronOS.Core.Data;
 using AaronOS.Modules.Trading.Agent;
 using AaronOS.Modules.Trading.Brokerage;
+using AaronOS.Modules.Trading.Data;
 using AaronOS.Modules.Trading.Trading;
 using AaronOS.Modules.Trading.ViewModels;
 using AaronOS.Modules.Trading.Views;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AaronOS.Modules.Trading;
@@ -17,6 +20,30 @@ public class TradingModule : IAppModule
 
     /// <summary>API keys are one-time configuration, so they live in Settings beside the bank link.</summary>
     public Type? SettingsContentType => typeof(TradingKeysSection);
+
+    /// <summary>
+    /// Starts the schedule if trading is switched on, so the run continues from launch to launch
+    /// without anyone opening the Trading page. The switch in the database is the only thing that
+    /// decides it, which means stopping the experiment is one toggle rather than a habit of not
+    /// clicking Start.
+    /// </summary>
+    public async Task OnStartupAsync(IServiceProvider services)
+    {
+        var factory = services.GetRequiredService<IDbContextFactory<AaronOsDbContext>>();
+        await using var db = await factory.CreateDbContextAsync();
+
+        var config = await db.Set<TradingConfig>().FirstOrDefaultAsync();
+        if (config?.IsEnabled != true)
+        {
+            return;
+        }
+
+        // Arms a timer and returns; the first cycle runs in the background rather than holding up the
+        // window behind a model call. The delay lets a local model server finish starting — at login
+        // both are coming up at once, and a cycle that wins that race just logs a failure.
+        await services.GetRequiredService<TradingScheduler>()
+            .StartAsync(firstCycleDelay: TimeSpan.FromSeconds(90));
+    }
 
     public void RegisterServices(IServiceCollection services)
     {

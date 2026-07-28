@@ -32,4 +32,17 @@ public interface IAppModule
     Type? SettingsContentType => null;
 
     void RegisterServices(IServiceCollection services);
+
+    /// <summary>
+    /// Optional: work a module needs done once the database is ready and before the window appears.
+    ///
+    /// This exists so a module can run unattended without any of its pages being opened. Background
+    /// work started from a page only runs once someone navigates there, which is fine for refreshing
+    /// a view and useless for anything that should simply be running — a trading schedule, an expiry
+    /// check, a sync. The shell awaits each module in turn, so a module that needs to be slow should
+    /// start its own timer and return rather than blocking startup.
+    ///
+    /// A default no-op keeps this non-breaking for modules that have nothing to do here.
+    /// </summary>
+    Task OnStartupAsync(IServiceProvider services) => Task.CompletedTask;
 }

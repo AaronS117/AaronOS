@@ -9,6 +9,7 @@ using AaronOS.Modules.Trading;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
 
@@ -83,6 +84,21 @@ public partial class App : Application
             // Creates the database on first run AND adds tables for modules registered after it
             // already existed — EnsureCreatedAsync alone silently skips those. See SchemaBootstrapper.
             await SchemaBootstrapper.EnsureSchemaAsync(db);
+        }
+
+        // Modules get their startup hook before the window appears, so anything that should simply be
+        // running is running whether or not its pages are ever opened. A module that throws here must
+        // not take the whole app down with it — the shell reports and carries on.
+        foreach (var module in Services.GetServices<IAppModule>())
+        {
+            try
+            {
+                await module.OnStartupAsync(Services);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[{module.Id}] startup failed: {ex}");
+            }
         }
 
         _window = new MainWindow(Services.GetServices<IAppModule>());
