@@ -25,9 +25,22 @@ public static class ExternalEventMerger
         IReadOnlyList<ExternalEvent> existing,
         IReadOnlyList<ExternalEventDto> fetched)
     {
-        var existingByUid = existing
-            .GroupBy(e => e.ExternalUid)
-            .ToDictionary(g => g.Key, g => g.First());
+        // This method plans one calendar's fetch at a time (see class doc). ExternalUid is only
+        // unique per calendar, so a mixed-calendar `existing` list would let two rows share a UID:
+        // ToDictionary below would then throw anyway, but this check turns that into a clear
+        // failure at the seam rather than a cryptic dictionary-collision exception.
+        if (existing.DistinctBy(e => e.ExternalCalendarId).Count() > 1)
+        {
+            throw new ArgumentException(
+                "Plan() merges one calendar's fetch at a time, but 'existing' contains rows from " +
+                "more than one ExternalCalendarId. Scope 'existing' to a single calendar before calling.",
+                nameof(existing));
+        }
+
+        // Within one calendar, ExternalUid is unique (composite unique index on ExternalCalendarId
+        // + ExternalUid), so a plain ToDictionary is correct here and throws on a genuine
+        // duplicate rather than silently keeping one row and dropping the other.
+        var existingByUid = existing.ToDictionary(e => e.ExternalUid);
 
         // Last wins on a duplicated UID: a malformed feed shouldn't fail the whole sync.
         var fetchedByUid = new Dictionary<string, ExternalEventDto>();

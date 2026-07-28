@@ -116,4 +116,32 @@ public class ExternalEventMergerTests
         Assert.Equal("uid-1", target.ExternalUid);
         Assert.Equal(1, target.ExternalCalendarId);
     }
+
+    [Fact]
+    public void CopyInto_ClearsLocationWhenIncomingIsNull()
+    {
+        var target = Existing("uid-1", "Old title", 9);
+        target.Location = "Room 2";
+        var dto = new ExternalEventDto("uid-1", "Old title",
+            new DateTime(2026, 7, 6, 9, 0, 0), new DateTime(2026, 7, 6, 10, 0, 0),
+            IsAllDay: false, Location: null, IsBusy: true);
+
+        ExternalEventMerger.CopyInto(dto, target, SeenAt);
+
+        Assert.Null(target.Location);
+    }
+
+    [Fact]
+    public void ExistingRowsFromMoreThanOneCalendar_Throws()
+    {
+        // ExternalUid is unique only per calendar (composite index on ExternalCalendarId +
+        // ExternalUid). Plan() merges one calendar's fetch at a time; feeding it rows from two
+        // calendars that happen to share a UID must fail loudly rather than silently drop a row.
+        var calendar1Row = Existing("uid-1", "Standup", 9);
+        var calendar2Row = Existing("uid-1", "Standup", 9);
+        calendar2Row.ExternalCalendarId = 2;
+
+        Assert.Throws<ArgumentException>(() =>
+            ExternalEventMerger.Plan([calendar1Row, calendar2Row], [Fetched("uid-1", "Standup", 9)]));
+    }
 }
