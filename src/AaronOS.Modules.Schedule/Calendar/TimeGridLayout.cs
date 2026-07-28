@@ -13,9 +13,17 @@ public static class TimeGridLayout
     public const double PixelsPerMinute = HourHeight / 60d;
     public const double DayHeight = 24 * HourHeight;
 
+    /// <summary>Shortest a block is ever drawn, regardless of duration. A real 15-minute meeting
+    /// arranges to 12px at PixelsPerMinute, but its label needs 14px to show one line of text — so
+    /// below this floor the block would clip its own title. This deliberately renders very short
+    /// items slightly taller than their true duration, the same trade Outlook makes: an unreadable
+    /// block is worse than a marginally inaccurate one. Does not apply to TopFor — position must
+    /// stay exactly proportional, or blocks drift out of alignment with the hour gutter.</summary>
+    public const double MinItemHeight = 16d;
+
     public static double TopFor(TimeSpan time) => time.TotalMinutes * PixelsPerMinute;
 
-    public static double HeightFor(CalendarItem item) => item.Minutes * PixelsPerMinute;
+    public static double HeightFor(CalendarItem item) => Math.Max(item.Minutes * PixelsPerMinute, MinItemHeight);
 
     /// <summary>
     /// The time at a vertical offset, snapped to <paramref name="snapMinutes"/>. Clamped into the day:

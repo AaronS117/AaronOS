@@ -17,9 +17,18 @@ public sealed partial class CalendarWeekPage : Page
         Loaded += async (_, _) =>
         {
             await ViewModel.LoadCommand.ExecuteAsync(null);
-            // Open on the working day. Without this the grid starts at midnight and every real
-            // commitment is below the fold.
-            GridScroller.ScrollToVerticalOffset(Calendar.TimeGridLayout.HourHeight * 7);
+
+            // ScrollToVerticalOffset silently clamps to the current extent, and on first load the
+            // grid has not been measured yet — so scrolling here directly leaves the view at
+            // midnight, which is the one thing this scroll exists to prevent. Wait for one layout
+            // pass, then scroll, once.
+            void ScrollToMorning(object? _, EventArgs __)
+            {
+                GridScroller.LayoutUpdated -= ScrollToMorning;
+                GridScroller.ScrollToVerticalOffset(Calendar.TimeGridLayout.HourHeight * 7);
+            }
+
+            GridScroller.LayoutUpdated += ScrollToMorning;
         };
     }
 

@@ -142,6 +142,26 @@ public class TimeGridLayoutTests
     }
 
     [Fact]
+    public void AVeryShortItemIsFlooredToTheMinimumHeight()
+    {
+        // 15 minutes at PixelsPerMinute is 12px, below the 14px a label needs for one line of text.
+        var short_ = new CalendarItem(new DateOnly(2026, 7, 28), new TimeSpan(8, 30, 0),
+            new TimeSpan(8, 45, 0), "x", CalendarItemKind.Other, null);
+
+        Assert.Equal(TimeGridLayout.MinItemHeight, TimeGridLayout.HeightFor(short_));
+    }
+
+    [Fact]
+    public void ALongItemIsNotAffectedByTheMinimumHeightFloor()
+    {
+        // Guards against a floor applied unconditionally to every item, not just short ones.
+        var hour = new CalendarItem(new DateOnly(2026, 7, 28), new TimeSpan(9, 0, 0),
+            new TimeSpan(10, 0, 0), "x", CalendarItemKind.Other, null);
+
+        Assert.Equal(TimeGridLayout.HourHeight, TimeGridLayout.HeightFor(hour));
+    }
+
+    [Fact]
     public void AFullDayIsTheWholeGridHeight()
     {
         Assert.Equal(TimeGridLayout.DayHeight, TimeGridLayout.TopFor(TimeSpan.FromHours(24)));
