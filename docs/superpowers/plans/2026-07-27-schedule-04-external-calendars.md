@@ -856,12 +856,39 @@ git commit -m "Add IExternalCalendarSource seam and ScheduleSyncService orchestr
 **Interfaces:**
 - Produces: `IcsFeedClient : IExternalCalendarSource` (`Provider => CalendarProvider.OutlookIcs`) plus a separately testable `static IReadOnlyList<ExternalEventDto> IcsFeedClient.Parse(string icsText, DateOnly from, DateOnly to)`.
 
-**API confidence, stated plainly.** `Ical.Net` 5.x changed its occurrence-expansion API from 4.x, and I have not verified 5.2.3's exact signatures. The code below is the expected shape; **treat the first compile as the source of truth**, not this document. Two facts are reliable: `Calendar.Load(string)` parses, and occurrences come back as objects carrying a `Period` with start and end. If the member names differ, find the real ones without guessing:
+**API facts, verified during implementation.** This section originally guessed at `Ical.Net` 5.2.3's
+surface and was wrong in four places. The corrections below were established by reflection against
+the shipped assembly and by running the fixture through the real parser, so treat them as facts, not
+expectations. Two of the four compile cleanly and fail only at the value level, which is why "it
+builds" is not evidence here.
 
-```bash
-# List the public types and members containing "Occurrence" or "Period"
-strings ~/.nuget/packages/ical.net/5.2.3/lib/net*/Ical.Net.dll | grep -iE 'occurrence|getoccurrences|period' | sort -u | head -40
+| The guess | The reality |
+| --- | --- |
+| `GetOccurrences(DateTime from, DateTime to)` | Takes a start `CalDateTime` plus an optional `EvaluationOptions` and is **unbounded above** — it expands RRULEs indefinitely. `CollectionExtensions.TakeWhileBefore(windowEnd)` is what caps the window. |
+| `Period.EndTime`, falling back to `start.AddHours(1)` | `Period.EndTime` is **null for every computed occurrence** in this version, even for events with an explicit `DTEND`. The fallback therefore fired every time and gave every event a one-hour end. The real value is `Period.EffectiveEndTime`. |
+| `Occurrence.Source` may need a cast | Correct — it is typed `IRecurrable` and needs a cast to `CalendarEvent`. |
+| *(not anticipated at all)* | An all-day (`VALUE=DATE`) value is **floating** — no time zone. `CalDateTime.AsUtc.ToLocalTime()` shifts it by the host's UTC offset and lands on the wrong calendar day: a `2026-07-09` all-day event became `2026-07-08 19:00` on a Central-time machine. Read `CalDateTime.Value` directly for all-day values, and reserve `AsUtc.ToLocalTime()` for timed events, which do carry a real TZID. |
+
+One further thing the original draft missed entirely: every occurrence of a recurring event carries
+the **same** ICS `UID`. Since `ExternalEvent` has a composite unique index on
+`(ExternalCalendarId, ExternalUid)`, using the bare UID collapses a whole weekly series into one row.
+Derive a per-occurrence identity — `$"{source.Uid}#{start:yyyyMMddTHHmmss}"` is what shipped.
+
+**If you need to check any other member, use reflection, not `strings`.** An earlier draft of this
+plan suggested `strings` on the DLL; that is unreliable for a .NET assembly, and in this project it
+reported a type member as absent that reflection proved was present, because managed metadata is not
+stored as plain ASCII:
+
+```powershell
+Add-Type -Path "$env:USERPROFILE\.nuget\packages\ical.net\5.2.3\lib\net8.0\Ical.Net.dll"
+[Ical.Net.Calendar].Assembly.GetTypes() |
+  Where-Object { $_.Name -match 'Calendar|Occurrence|Period' } |
+  ForEach-Object { $_.FullName; $_.GetMembers() | ForEach-Object { "    " + $_ } }
 ```
+
+Task 8 (Google Calendar) faces the same class of problem from a different library — in particular the
+same floating-versus-zoned distinction, since Google returns all-day events as a bare `date` and
+timed ones as a `dateTime`. Verify there too rather than trusting the shape written here.
 
 Then write the call and let the compiler error (`CS1061: 'X' does not contain a definition for 'Y'`) point at the wrong member. That loop resolves in seconds and beats reading release notes.
 
