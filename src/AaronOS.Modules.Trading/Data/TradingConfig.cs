@@ -59,6 +59,16 @@ public class TradingConfig
     /// </summary>
     public string Provider { get; set; } = "anthropic";
 
+    /// <summary>
+    /// Whether recent headlines are included in the brief.
+    ///
+    /// Exists as a switch so the question can be asked properly. Reading text and forming a view from it
+    /// is the one thing a language model is plausibly better at than a rule, and everything it could
+    /// derive from prices alone a rule computes better and identically every time. Running the same agent
+    /// over the same window with this on and off is what separates a news contribution from noise.
+    /// </summary>
+    public bool IncludeNews { get; set; }
+
     /// <summary>Free text appended to the agent's brief — the strategy in your own words.</summary>
     public string StrategyNotes { get; set; } =
         "Favour a small number of high-conviction positions. Do nothing when nothing looks compelling; " +

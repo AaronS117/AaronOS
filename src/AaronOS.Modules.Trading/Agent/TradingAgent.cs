@@ -28,7 +28,8 @@ public class TradingAgent(
     IDbContextFactory<AaronOsDbContext> dbContextFactory,
     AlpacaClient alpaca,
     AgentProviderRegistry providers,
-    TimeProvider time)
+    TimeProvider time,
+    INewsSource news)
 {
     /// <summary>Enough turns for the model to place a few orders and react to a refusal.</summary>
     private const int MaxToolTurns = 6;
@@ -82,7 +83,11 @@ public class TradingAgent(
 
             var state = new AccountState(account.Equity, account.Cash, true, positions, ordersToday);
 
-            var result = await ConverseAsync(db, provider, config, state, quotes, decision, token);
+            var headlines = config.IncludeNews
+                ? await news.AsOfAsync(watchlist, DateOnly.FromDateTime(time.GetUtcNow().UtcDateTime), token)
+                : [];
+
+            var result = await ConverseAsync(db, provider, config, state, quotes, headlines, decision, token);
 
             decision.ActionSummary = result;
             db.Add(decision);
@@ -145,11 +150,12 @@ public class TradingAgent(
         TradingConfig config,
         AccountState state,
         Dictionary<string, SymbolQuote> quotes,
+        IReadOnlyList<NewsHeadline> headlines,
         AgentDecision decision,
         CancellationToken token)
     {
         var conversation = provider.Start(
-            config.Model, SystemPrompt, BuildBrief(config, state, quotes), AgentTools.All);
+            config.Model, SystemPrompt, BuildBrief(config, state, quotes, headlines), AgentTools.All);
 
         var reasoning = new StringBuilder();
         var actions = new List<string>();
@@ -323,7 +329,10 @@ public class TradingAgent(
     }
 
     private static string BuildBrief(
-        TradingConfig config, AccountState state, Dictionary<string, SymbolQuote> quotes)
+        TradingConfig config,
+        AccountState state,
+        Dictionary<string, SymbolQuote> quotes,
+        IReadOnlyList<NewsHeadline> headlines)
     {
         var brief = new StringBuilder();
         brief.AppendLine(CultureInfo.InvariantCulture, $"Account equity: {state.Equity:C2}");
@@ -354,6 +363,23 @@ public class TradingAgent(
                 ? string.Create(CultureInfo.InvariantCulture,
                     $"  {symbol}: bid {quote.Bid:C2} / ask {quote.Ask:C2}")
                 : $"  {symbol}: no quote available");
+        }
+
+        if (headlines.Count > 0)
+        {
+            brief.AppendLine();
+            brief.AppendLine(CultureInfo.InvariantCulture,
+                $"Headlines from the last {NewsWindow.LookbackDays} days, oldest first:");
+            foreach (var headline in headlines)
+            {
+                brief.AppendLine(CultureInfo.InvariantCulture,
+                    $"  [{headline.CreatedUtc:MMM d}] {headline.Symbols}: {headline.Headline}");
+            }
+
+            brief.AppendLine();
+            brief.AppendLine("A headline is not a reason on its own. Most news is already in the price by " +
+                             "the time you read it, so act only where you can say what the market appears " +
+                             "to have missed.");
         }
 
         brief.AppendLine();

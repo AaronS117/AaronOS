@@ -46,6 +46,42 @@ if (!provider.IsConfigured)
 // The live configuration is the thing being graded, so it is read rather than re-declared. Only the
 // cadence differs: a replay decides once per session.
 var live = LoadLiveConfig();
+
+// A named variant overrides the live settings for this run only. Testing a variant by editing the live
+// row would change what the live paper run is doing as a side effect of a backtest, and the live run is
+// the only uncontaminated evidence there is.
+var variant = args.SkipWhile(a => a != "--variant").Skip(1).FirstOrDefault();
+if (variant is not null)
+{
+    switch (variant)
+    {
+        case "stockpicking":
+            // No index anywhere on the watchlist, so holding one is not an option and the agent has to
+            // express a view or hold cash. Ten names because the 10% per-company cap means ten is the
+            // fewest that still allows being fully invested — with fewer, "underperformed" would just be
+            // a cash ceiling wearing a strategy's clothes, which is the mistake the 80% cap already was.
+            live.Watchlist = "AAPL,MSFT,NVDA,AMZN,GOOGL,META,AVGO,TSLA,JPM,V";
+            live.BroadIndexSymbols = "";
+            live.StrategyNotes =
+                "There is no index available to you. Hold individual names you have a reason to hold, " +
+                "and remember that cash loses to a rising market. State each reason in one sentence.";
+            break;
+
+        case "news":
+            live.IncludeNews = true;
+            break;
+
+        case "news-off":
+            live.IncludeNews = false;
+            break;
+
+        default:
+            Console.WriteLine($"Unknown variant '{variant}'.");
+            return 1;
+    }
+
+    Console.WriteLine($"variant  {variant}");
+}
 Console.WriteLine($"window   {which}: {window.From} to {window.To}");
 Console.WriteLine($"label    {label}");
 Console.WriteLine($"model    {live.Provider}/{live.Model}");
@@ -134,8 +170,23 @@ var cadence = args.SkipWhile(a => a != "--cadence").Skip(1).FirstOrDefault() swi
 Console.WriteLine($"agent cadence: {cadence}");
 Console.WriteLine();
 
+// Fetched once for the whole window and filtered per session by publication time. Fetching per session
+// would be thousands of calls; filtering in memory is the same information and the filter is the part
+// that has to be right.
+INewsSource newsSource = new NoNewsSource();
+if (live.IncludeNews)
+{
+    Console.WriteLine("fetching headlines…");
+    var headlines = await FetchHeadlinesAsync(
+        credentials, TradingGuardrailsSymbols(live.Watchlist), window.From, window.To);
+    var replayNews = new ReplayNewsSource(headlines);
+    newsSource = replayNews;
+    Console.WriteLine($"  {replayNews.TotalAvailable} headlines across the window");
+    Console.WriteLine();
+}
+
 var dbPath = Path.Combine(Path.GetTempPath(), $"aaronos-backtest-{which}-{label}.db");
-var runner = new BacktestRunner(market, provider);
+var runner = new BacktestRunner(market, provider, newsSource);
 var started = DateTime.UtcNow;
 
 var result = await runner.RunAsync(
@@ -157,6 +208,60 @@ Console.WriteLine($"  verdict          {result.Performance.Verdict}");
 Console.WriteLine();
 Console.WriteLine($"  database         {dbPath}");
 return 0;
+
+/// <summary>
+/// Every headline for the window, paged to the end. Each carries its publication instant, which is what
+/// <see cref="ReplayNewsSource"/> filters on — the correctness of the whole news experiment rests on
+/// never showing the agent an article written after the session it is deciding.
+/// </summary>
+static async Task<List<NewsHeadline>> FetchHeadlinesAsync(
+    TradingCredentialStore store, IEnumerable<string> symbols, DateOnly from, DateOnly to)
+{
+    var credentials = store.Load()!;
+    using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+    http.DefaultRequestHeaders.Add("APCA-API-KEY-ID", credentials.AlpacaKeyId);
+    http.DefaultRequestHeaders.Add("APCA-API-SECRET-KEY", credentials.AlpacaSecret);
+
+    var list = string.Join(',', symbols);
+    var results = new List<NewsHeadline>();
+    string? page = null;
+
+    do
+    {
+        var url = $"https://data.alpaca.markets/v1beta1/news?symbols={list}" +
+                  $"&start={from.AddDays(-NewsWindow.LookbackDays):yyyy-MM-dd}T00:00:00Z" +
+                  $"&end={to:yyyy-MM-dd}T23:59:59Z&limit=50&sort=asc" +
+                  (page is null ? "" : $"&page_token={Uri.EscapeDataString(page)}");
+
+        using var response = await http.GetAsync(url);
+        if (!response.IsSuccessStatusCode)
+        {
+            Console.WriteLine($"  news fetch stopped: {(int)response.StatusCode}");
+            break;
+        }
+
+        var json = System.Text.Json.Nodes.JsonNode.Parse(await response.Content.ReadAsStringAsync());
+        foreach (var item in json?["news"]?.AsArray() ?? [])
+        {
+            var created = (DateTime?)item?["created_at"];
+            var headline = (string?)item?["headline"];
+            if (created is null || string.IsNullOrWhiteSpace(headline))
+            {
+                continue;
+            }
+
+            var tickers = string.Join(',',
+                (item!["symbols"]?.AsArray() ?? []).Select(s => (string?)s ?? "").Where(s => s.Length > 0));
+
+            results.Add(new NewsHeadline(created.Value.ToUniversalTime(), tickers, headline));
+        }
+
+        page = (string?)json?["next_page_token"];
+    }
+    while (!string.IsNullOrEmpty(page));
+
+    return results;
+}
 
 static IEnumerable<string> TradingGuardrailsSymbols(string watchlist) =>
     AaronOS.Modules.Trading.Trading.TradingGuardrails.ParseWatchlist(watchlist);

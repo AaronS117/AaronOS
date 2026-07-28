@@ -63,6 +63,7 @@ public class TradingModule : IAppModule
         services.AddSingleton<IAgentProvider, OpenAiCompatibleProvider>();
         services.AddSingleton<AgentProviderRegistry>();
 
+        services.AddSingleton<INewsSource, AlpacaNewsSource>();
         services.AddSingleton<SnapshotRecorder>();
         services.AddSingleton<TradingAgent>();
 

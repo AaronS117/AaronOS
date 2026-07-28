@@ -44,7 +44,7 @@ public enum DecisionCadence
     Monthly,
 }
 
-public sealed class BacktestRunner(ReplayMarket market, IAgentProvider provider)
+public sealed class BacktestRunner(ReplayMarket market, IAgentProvider provider, INewsSource? news = null)
 {
     public async Task<BacktestResult> RunAsync(
         string label,
@@ -83,7 +83,8 @@ public sealed class BacktestRunner(ReplayMarket market, IAgentProvider provider)
             await db.SaveChangesAsync(token);
         }
 
-        var agent = new TradingAgent(factory, broker, new AgentProviderRegistry([provider]), clock);
+        var agent = new TradingAgent(
+            factory, broker, new AgentProviderRegistry([provider]), clock, news ?? new NoNewsSource());
         var recorder = new SnapshotRecorder(factory, broker, clock);
 
         var decisions = 0;
@@ -155,6 +156,7 @@ public sealed class BacktestRunner(ReplayMarket market, IAgentProvider provider)
         StrategyNotes = source.StrategyNotes,
         MinTradesForStats = source.MinTradesForStats,
         BroadIndexSymbols = source.BroadIndexSymbols,
+        IncludeNews = source.IncludeNews,
     };
 
     private sealed class BacktestContextFactory(string path) : IDbContextFactory<AaronOsDbContext>

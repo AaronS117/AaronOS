@@ -62,7 +62,7 @@ public class BlockedCycleTests : IDisposable
     }
 
     private TradingAgent Agent(AlpacaClient broker, IAgentProvider provider) =>
-        new(new Factory(_dbPath), broker, new AgentProviderRegistry([provider]), TimeProvider.System);
+        new(new Factory(_dbPath), broker, new AgentProviderRegistry([provider]), TimeProvider.System, new NoNewsSource());
 
     private async Task<List<AgentDecision>> DecisionsAsync()
     {

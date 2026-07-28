@@ -10,6 +10,10 @@ public class TradingConfigConfiguration : IEntityTypeConfiguration<TradingConfig
         builder.HasKey(c => c.Id);
         builder.Property(c => c.Watchlist).HasMaxLength(500).IsRequired();
         builder.Property(c => c.BroadIndexSymbols).HasMaxLength(500).IsRequired();
+
+        // Nullable in the store even though the property is not, because SchemaBootstrapper adds columns
+        // without NOT NULL; declaring it required here and absent there is the mismatch that matters.
+        builder.Property(c => c.IncludeNews);
         builder.Property(c => c.Model).HasMaxLength(64).IsRequired();
         builder.Property(c => c.Provider).HasMaxLength(32).IsRequired();
         builder.Property(c => c.StrategyNotes).HasMaxLength(4000);
