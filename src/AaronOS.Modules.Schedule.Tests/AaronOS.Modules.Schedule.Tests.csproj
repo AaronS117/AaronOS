@@ -18,4 +18,7 @@
   <ItemGroup>
     <ProjectReference Include="..\AaronOS.Modules.Schedule\AaronOS.Modules.Schedule.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Update="Fixtures\sample-calendar.ics" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

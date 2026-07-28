@@ -19,5 +19,12 @@ public class ScheduleModule : IAppModule
         services.AddTransient<WeekViewModel>();
         services.AddTransient<RoutinesViewModel>();
         services.AddSingleton<ScheduleSyncService>();
+
+        services.AddHttpClient(nameof(IcsFeedClient), client =>
+        {
+            // A published feed that hangs must not hold up a sync pass.
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+        services.AddSingleton<IExternalCalendarSource, IcsFeedClient>();
     }
 }
