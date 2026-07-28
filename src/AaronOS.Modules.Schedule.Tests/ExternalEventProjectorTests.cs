@@ -78,6 +78,22 @@ public class ExternalEventProjectorTests
     }
 
     [Fact]
+    public void TimedEventEndingExactlyAtMidnight_IsNotBackDatedLikeAnAllDayEvent()
+    {
+        // DTEND-is-exclusive back-dating only applies to all-day events. A timed 22:00-00:00
+        // meeting really does run to the day boundary: applying the all-day adjustment here would
+        // set the end a tick short of 24:00 (spawning a spurious near-zero free gap) and also
+        // spawn a degenerate 00:00-00:00 second-day entry if not guarded.
+        var entries = ExternalEventProjector.ToAgendaEntries(
+            [Event(new DateTime(2026, 7, 6, 22, 0, 0), new DateTime(2026, 7, 7, 0, 0, 0), "Late shift")]);
+
+        var only = Assert.Single(entries);
+        Assert.Equal(new DateOnly(2026, 7, 6), only.Date);
+        Assert.Equal(new TimeSpan(22, 0, 0), only.Start);
+        Assert.Equal(new TimeSpan(24, 0, 0), only.End);
+    }
+
+    [Fact]
     public void AbsurdlyLongEvent_IsCappedRatherThanExpandingForever()
     {
         // A malformed feed can carry a decade-long event; expanding it per-day would allocate
