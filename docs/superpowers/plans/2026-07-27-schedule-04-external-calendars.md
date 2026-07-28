@@ -53,7 +53,29 @@
   fails, that is a real mapping bug the single-context pattern was hiding — report it; do not adjust
   the assertion to match what you observe.
 
-## Task 0 (do this before writing any code): confirm the Outlook path exists
+## Task 0 — SETTLED 2026-07-28: the gate PASSED. Do not re-run it.
+
+The `wemautomation.com` tenant **does** permit calendar publishing. The published ICS feed synced on
+the first attempt: 52 events cached, `LastError` null, date range matching the today-14..today+56
+window exactly. So the ICS path in Tasks 4 and 5 is in scope and **no Microsoft Graph app
+registration is needed.**
+
+Two things the real feed established that the fixture could not:
+
+- It contains **six recurring series, the largest with eleven occurrences**, all sharing one ICS
+  `UID` upstream. The per-occurrence identity Task 4 synthesises is therefore load-bearing, not
+  defensive: with the bare `UID` the composite unique index collapses each series to a single row.
+  This plan originally specified the bare `UID`.
+- A cancelled Outlook meeting arrives as `TRANSP:TRANSPARENT` and is correctly excluded from the
+  agenda rather than shown as a commitment.
+
+Still fixture-only, because the feed contains neither: **all-day events** and **multi-day events**.
+The window-straddle fix (overlap predicate instead of a `StartsAt` filter) is consequently
+pre-emptive — it will first matter the day a vacation or conference is booked.
+
+The original gate instructions are kept below for reference.
+
+## Task 0 (original, now settled): confirm the Outlook path exists
 
 **This is a gate, not a formality.** Phase 7's entire design assumes the `wemautomation.com` tenant permits publishing a calendar, and tenants frequently disable it. Find out first.
 
