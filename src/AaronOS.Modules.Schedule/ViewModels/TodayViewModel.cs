@@ -3,6 +3,7 @@ using AaronOS.Core;
 using AaronOS.Core.Data;
 using AaronOS.Modules.Schedule.Agenda;
 using AaronOS.Modules.Schedule.Data;
+using AaronOS.Modules.Schedule.External;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.EntityFrameworkCore;
@@ -40,7 +41,19 @@ public partial class TodayViewModel(IDbContextFactory<AaronOsDbContext> dbContex
                 .Where(e => e.Date == today || e.Date == today.AddDays(-1))
                 .ToListAsync();
 
-            var day = AgendaBuilder.Build(today, today, blocks, exceptions, []).Single();
+            // AgendaBuilder walks a warm-up day before `today` (see the exceptions query above), so
+            // the external-event window must start there too, or a meeting that started the night
+            // before and crosses midnight would vanish. This is an overlap test rather than a
+            // StartsAt-only filter so a multi-day event that began before the window but is still
+            // ongoing today is still picked up.
+            var windowStart = today.AddDays(-1).ToDateTime(TimeOnly.MinValue);
+            var windowEnd = today.AddDays(1).ToDateTime(TimeOnly.MinValue);
+            var externalRows = await db.Set<ExternalEvent>()
+                .Where(e => e.StartsAt < windowEnd && e.EndsAt > windowStart)
+                .ToListAsync();
+
+            var day = AgendaBuilder.Build(
+                today, today, blocks, exceptions, ExternalEventProjector.ToAgendaEntries(externalRows)).Single();
 
             Entries.Clear();
             foreach (var entry in day.Entries) Entries.Add(entry);

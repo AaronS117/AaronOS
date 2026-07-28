@@ -3,6 +3,7 @@ using AaronOS.Core;
 using AaronOS.Core.Data;
 using AaronOS.Modules.Schedule.Agenda;
 using AaronOS.Modules.Schedule.Data;
+using AaronOS.Modules.Schedule.External;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.EntityFrameworkCore;
@@ -82,11 +83,26 @@ public partial class WeekViewModel(IDbContextFactory<AaronOsDbContext> dbContext
                 .Where(e => e.Date >= WeekStart.AddDays(-1) && e.Date <= end)
                 .ToListAsync();
 
+            // AgendaBuilder walks a warm-up day before WeekStart (see the exceptions query above),
+            // so the external-event window must start there too, or a meeting that started the
+            // night before and crosses midnight would vanish. This is an overlap test rather than a
+            // StartsAt-only filter so a multi-day event that began before the window but is still
+            // ongoing during the week is still picked up.
+            var windowStart = WeekStart.AddDays(-1).ToDateTime(TimeOnly.MinValue);
+            var windowEnd = end.AddDays(1).ToDateTime(TimeOnly.MinValue);
+            var externalRows = await db.Set<ExternalEvent>()
+                .Where(e => e.StartsAt < windowEnd && e.EndsAt > windowStart)
+                .ToListAsync();
+
             Blocks.Clear();
             foreach (var block in blocks.OrderBy(b => b.StartTime)) Blocks.Add(block);
 
             Days.Clear();
-            foreach (var day in AgendaBuilder.Build(WeekStart, end, blocks, exceptions, [])) Days.Add(day);
+            foreach (var day in AgendaBuilder.Build(
+                WeekStart, end, blocks, exceptions, ExternalEventProjector.ToAgendaEntries(externalRows)))
+            {
+                Days.Add(day);
+            }
         }
         finally
         {
