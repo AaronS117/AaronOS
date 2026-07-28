@@ -13,11 +13,16 @@ public class ScheduleModule : IAppModule
     public string IconGlyph => "CalendarLtr24";
     public Type HomePageType => typeof(ScheduleShellPage);
 
+    /// <summary>Calendar configuration is one-time setup, so it belongs in Settings rather than in
+    /// this module's own sub-navigation — the same reasoning as Finance's bank linking.</summary>
+    public Type? SettingsContentType => typeof(ScheduleSettingsSection);
+
     public void RegisterServices(IServiceCollection services)
     {
         services.AddTransient<TodayViewModel>();
         services.AddTransient<WeekViewModel>();
         services.AddTransient<RoutinesViewModel>();
+        services.AddTransient<ScheduleSettingsViewModel>();
         services.AddSingleton<ScheduleSyncService>();
 
         services.AddHttpClient(nameof(IcsFeedClient), client =>

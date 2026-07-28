@@ -1,0 +1,56 @@
+<UserControl
+    x:Class="AaronOS.Modules.Schedule.Views.ScheduleSettingsSection"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    mc:Ignorable="d">
+
+    <StackPanel>
+        <ui:TextBlock Text="Calendars" FontTypography="BodyStrong" Margin="0,0,0,4" />
+        <TextBlock TextWrapping="Wrap" Opacity="0.75" Margin="0,0,0,8"
+                   Text="Read-only. AaronOS never writes to your calendars." />
+
+        <ItemsControl ItemsSource="{Binding Calendars}" Margin="0,0,0,8">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <ui:Card Margin="0,0,0,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <ui:TextBlock Text="{Binding DisplayName}" FontTypography="BodyStrong" />
+                                <TextBlock>
+                                    <Run Text="{Binding Provider, Mode=OneWay}" />
+                                    <Run Text="{Binding LastSyncedAt, StringFormat=' · last synced {0:g}', TargetNullValue=' · never synced', Mode=OneWay}" />
+                                </TextBlock>
+                                <TextBlock Text="{Binding LastError}" TextWrapping="Wrap"
+                                           Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+                            </StackPanel>
+                            <ui:Button Grid.Column="1" Content="Sync" Click="Sync_Click" Margin="0,0,8,0" />
+                            <ui:Button Grid.Column="2" Content="{Binding IsEnabled}" Click="Toggle_Click" Margin="0,0,8,0" />
+                            <ui:Button Grid.Column="3" Content="Remove" Click="Remove_Click" />
+                        </Grid>
+                    </ui:Card>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <ui:TextBlock Text="Add an Outlook published calendar" FontTypography="BodyStrong" Margin="0,8,0,4" />
+        <TextBlock TextWrapping="Wrap" Opacity="0.75" Margin="0,0,0,8"
+                   Text="In Outlook on the web: Settings → Calendar → Shared calendars → Publish a calendar. Choose 'Can view all details' and copy the ICS link." />
+        <ui:TextBox PlaceholderText="Name" Text="{Binding NewIcsName, Mode=TwoWay}" Margin="0,0,0,8" />
+        <ui:TextBox PlaceholderText="https://outlook.office365.com/owa/calendar/.../calendar.ics"
+                    Text="{Binding NewIcsUrl, Mode=TwoWay}" Margin="0,0,0,8" />
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+            <ui:Button Content="Add calendar" Appearance="Primary" Command="{Binding AddIcsCalendarCommand}" Margin="0,0,8,0" />
+            <ui:Button Content="Sync all now" Command="{Binding SyncAllCommand}" />
+        </StackPanel>
+        <ui:TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap" />
+    </StackPanel>
+</UserControl>
