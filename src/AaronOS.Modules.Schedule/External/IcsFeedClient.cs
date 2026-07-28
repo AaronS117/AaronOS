@@ -3,6 +3,7 @@ using Ical.Net;
 using Ical.Net.CalendarComponents;
 using Ical.Net.DataTypes;
 using System.Net.Http;
+using IcalCalendar = Ical.Net.Calendar;
 
 namespace AaronOS.Modules.Schedule.External;
 
@@ -46,7 +47,7 @@ public sealed class IcsFeedClient(IHttpClientFactory httpClientFactory) : IExter
         // Throws on input that isn't a calendar — which is the desired behaviour: a login redirect
         // or error page must surface as a failure, never as an empty calendar, because an empty
         // successful fetch legitimately deletes every cached event.
-        var calendar = Calendar.Load(icsText);
+        var calendar = IcalCalendar.Load(icsText);
 
         var windowStart = new CalDateTime(from.ToDateTime(TimeOnly.MinValue));
         // TimeOnly.MaxValue, not MinValue, is load-bearing here: TakeWhileBefore below is a strict
