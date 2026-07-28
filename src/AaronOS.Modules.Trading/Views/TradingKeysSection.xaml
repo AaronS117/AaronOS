@@ -9,7 +9,7 @@
 
     <StackPanel>
         <TextBlock
-            Text="Paper trading needs an Alpaca paper key, which is free and needs only an email — no funding and no identity check. The agent needs an Anthropic key. Both are stored encrypted for this Windows account and never enter the database or source control."
+            Text="Paper trading needs an Alpaca paper key, which is free and needs only an email — no funding and no identity check. The agent needs one model provider, either the Anthropic key below or the OpenAI-compatible endpoint beneath it. Everything here is stored encrypted for this Windows account and never enters the database or source control."
             Style="{DynamicResource CaptionText}"
             TextWrapping="Wrap"
             Margin="0,0,0,14" />
@@ -27,6 +27,25 @@
                 <TextBlock Text="Anthropic API key" Style="{DynamicResource CaptionText}" Margin="0,0,0,5" />
                 <ui:PasswordBox Password="{Binding AnthropicApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="sk-ant-…" />
             </StackPanel>
+        </WrapPanel>
+
+        <TextBlock
+            Text="Or run the agent for free. Any endpoint speaking the OpenAI chat-completions format works, then pick &quot;openai-compatible&quot; as the provider on the Trading page."
+            Style="{DynamicResource CaptionText}"
+            TextWrapping="Wrap"
+            Margin="0,10,0,10" />
+
+        <WrapPanel>
+            <StackPanel Width="330" Margin="0,0,12,10">
+                <TextBlock Text="OpenAI-compatible endpoint" Style="{DynamicResource CaptionText}" Margin="0,0,0,5" />
+                <ui:TextBox
+                    Text="{Binding OpenAiBaseUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    PlaceholderText="http://localhost:11434/v1" />
+            </StackPanel>
+            <StackPanel Width="240" Margin="0,0,12,10">
+                <TextBlock Text="Its API key (blank for a local server)" Style="{DynamicResource CaptionText}" Margin="0,0,0,5" />
+                <ui:PasswordBox Password="{Binding OpenAiApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="not needed for Ollama" />
+            </StackPanel>
             <ui:Button
                 Content="Save keys"
                 Command="{Binding SaveCommand}"
@@ -34,6 +53,16 @@
                 VerticalAlignment="Bottom"
                 Margin="0,0,0,10" />
         </WrapPanel>
+
+        <!-- Named explicitly because "find a free endpoint" is the hard part of this, not the wiring.
+             Ollama costs nothing at all; the hosted tiers have daily caps far above the roughly
+             thirteen cycles a trading day needs. -->
+        <TextBlock
+            Style="{DynamicResource CaptionText}"
+            Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+            TextWrapping="Wrap"
+            Margin="0,4,0,0"
+            Text="Ollama, local and free: http://localhost:11434/v1 with no key — use a model trained for tool calling, such as a recent Qwen or Llama. Groq free tier: https://api.groq.com/openai/v1, 30 requests a minute and 1,000 a day. Gemini free tier: https://generativelanguage.googleapis.com/v1beta/openai, Flash-Lite allows 1,000 a day, though Google may train on free-tier requests." />
 
         <TextBlock Text="{Binding StatusMessage}" Style="{DynamicResource CaptionText}" TextWrapping="Wrap" Margin="0,4,0,0" />
     </StackPanel>

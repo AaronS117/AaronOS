@@ -15,9 +15,10 @@ namespace AaronOS.Core.Data;
 /// data, including linked bank connections that can only be re-established by redoing an OAuth
 /// flow. This closes that gap by creating just the missing tables.
 ///
-/// Limitation, stated plainly: this adds tables that do not exist yet. It does not alter tables
-/// whose columns changed — that still needs real migrations. It covers the "new module added"
-/// case, which is the one the module architecture makes routine.
+/// Limitation, stated plainly: this adds tables and columns that do not exist yet. It does not
+/// rename, retype or drop anything, and it does not reproduce a NOT NULL constraint on a column it
+/// adds — those still need real migrations. It covers adding a module and adding a property, which
+/// are the two cases the module architecture makes routine.
 /// </summary>
 public static class SchemaBootstrapper
 {
@@ -42,21 +43,159 @@ public static class SchemaBootstrapper
             .Where(t => !existing.Contains(t))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        if (missing.Count == 0)
+        if (missing.Count > 0)
         {
-            return;
-        }
-
-        // GenerateCreateScript emits the whole model; run only the statements belonging to tables
-        // that are actually absent, so existing tables (and their data) are left untouched.
-        foreach (var statement in SplitStatements(db.Database.GenerateCreateScript()))
-        {
-            var target = TargetTableOf(statement);
-            if (target is not null && missing.Contains(target))
+            // GenerateCreateScript emits the whole model; run only the statements belonging to
+            // tables that are actually absent, so existing tables (and their data) are untouched.
+            foreach (var statement in SplitStatements(db.Database.GenerateCreateScript()))
             {
-                await db.Database.ExecuteSqlRawAsync(statement);
+                var target = TargetTableOf(statement);
+                if (target is not null && missing.Contains(target))
+                {
+                    await db.Database.ExecuteSqlRawAsync(statement);
+                }
             }
         }
+
+        await AddMissingColumnsAsync(db, missing);
+    }
+
+    /// <summary>
+    /// Adds columns that the model has and the table does not.
+    ///
+    /// This closes the other half of the gap. Adding a property to an existing module's entity used
+    /// to leave the column absent and every query on that table threw "no such column" on the next
+    /// start, with deleting the database as the only remedy — unacceptable when it holds a bank link
+    /// that can only be re-established through an OAuth flow.
+    ///
+    /// Columns are added without NOT NULL even when the model declares it, because SQLite refuses a
+    /// NOT NULL column on an existing table unless given a constant default, and inventing one per
+    /// type is guesswork. Existing rows are then filled with a type-appropriate value so nothing
+    /// reads back null into a non-nullable property. State the consequence plainly: a table upgraded
+    /// this way is slightly laxer than the same table created fresh. It accepts a null that a new
+    /// database would reject, which is a divergence rather than a corruption, and real migrations
+    /// remain the answer for anything beyond adding a column.
+    /// </summary>
+    private static async Task AddMissingColumnsAsync(AaronOsDbContext db, HashSet<string> justCreated)
+    {
+        foreach (var entityType in db.Model.GetEntityTypes())
+        {
+            var table = entityType.GetTableName();
+
+            // A table created a moment ago already matches the model exactly.
+            if (string.IsNullOrEmpty(table) || justCreated.Contains(table))
+            {
+                continue;
+            }
+
+            var existingColumns = await GetExistingColumnNamesAsync(db, table);
+            if (existingColumns.Count == 0)
+            {
+                // Not a real table (a view, or an entity mapped elsewhere) — nothing to alter.
+                continue;
+            }
+
+            foreach (var property in entityType.GetProperties())
+            {
+                var column = property.GetColumnName();
+                if (string.IsNullOrEmpty(column) || existingColumns.Contains(column))
+                {
+                    continue;
+                }
+
+                var columnType = property.GetColumnType() ?? "TEXT";
+                await db.Database.ExecuteSqlRawAsync(
+                    $"ALTER TABLE \"{table}\" ADD COLUMN \"{column}\" {columnType}");
+
+                if (!property.IsNullable)
+                {
+                    await db.Database.ExecuteSqlRawAsync(
+                        $"UPDATE \"{table}\" SET \"{column}\" = {DefaultLiteralFor(property.ClrType)} " +
+                        $"WHERE \"{column}\" IS NULL");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// A SQL literal safe to backfill a newly added non-nullable column with.
+    ///
+    /// These are placeholders, not meaningful values: a column that did not exist has no history, so
+    /// the only requirement is that the stored text parses back into the property's type. Dates get
+    /// the minimum value rather than today's, so a backfilled row is recognisable as one that was
+    /// never actually recorded.
+    /// </summary>
+    private static string DefaultLiteralFor(Type clrType)
+    {
+        var type = Nullable.GetUnderlyingType(clrType) ?? clrType;
+
+        if (type == typeof(bool))
+        {
+            return "0";
+        }
+
+        if (type.IsEnum)
+        {
+            // Enums are stored as text throughout this app (see the module configurations).
+            return $"'{Enum.GetNames(type).FirstOrDefault() ?? ""}'";
+        }
+
+        if (type == typeof(DateTime) || type == typeof(DateTimeOffset))
+        {
+            return "'0001-01-01 00:00:00'";
+        }
+
+        if (type == typeof(DateOnly))
+        {
+            return "'0001-01-01'";
+        }
+
+        if (type == typeof(TimeOnly) || type == typeof(TimeSpan))
+        {
+            return "'00:00:00'";
+        }
+
+        if (type == typeof(Guid))
+        {
+            return $"'{Guid.Empty}'";
+        }
+
+        if (type == typeof(string))
+        {
+            return "''";
+        }
+
+        // Numerics. Decimal reaches SQLite as text, so quoting a zero is correct for both storage
+        // shapes and parses back either way.
+        return type == typeof(decimal) ? "'0'" : "0";
+    }
+
+    private static async Task<HashSet<string>> GetExistingColumnNamesAsync(AaronOsDbContext db, string table)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        await using var command = db.Database.GetDbConnection().CreateCommand();
+        command.CommandText = "SELECT name FROM pragma_table_info($table)";
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = "$table";
+        parameter.Value = table;
+        command.Parameters.Add(parameter);
+
+        await db.Database.OpenConnectionAsync();
+        try
+        {
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                names.Add(reader.GetString(0));
+            }
+        }
+        finally
+        {
+            await db.Database.CloseConnectionAsync();
+        }
+
+        return names;
     }
 
     private static async Task<HashSet<string>> GetExistingTableNamesAsync(AaronOsDbContext db)

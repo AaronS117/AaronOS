@@ -28,6 +28,15 @@ public class TradingConfig
 
     public string Model { get; set; } = "claude-sonnet-5";
 
+    /// <summary>
+    /// Which model service to call: "anthropic", or "openai-compatible" for anything speaking the
+    /// OpenAI chat-completions format — a local Ollama server, or a hosted free tier.
+    ///
+    /// Stored as the provider's own <c>Name</c> rather than an enum so adding a third provider does
+    /// not need a schema change, and an unrecognised value falls back rather than crashing.
+    /// </summary>
+    public string Provider { get; set; } = "anthropic";
+
     /// <summary>Free text appended to the agent's brief — the strategy in your own words.</summary>
     public string StrategyNotes { get; set; } =
         "Favour a small number of high-conviction positions. Do nothing when nothing looks compelling; " +

@@ -22,7 +22,7 @@ public record PositionRow(string Symbol, int Quantity, decimal MarketValue);
 public partial class TradingViewModel(
     IDbContextFactory<AaronOsDbContext> dbContextFactory,
     AlpacaClient alpaca,
-    AnthropicClient anthropic,
+    AgentProviderRegistry providers,
     TradingScheduler scheduler,
     SnapshotRecorder recorder) : ViewModelBase
 {
@@ -89,6 +89,8 @@ public partial class TradingViewModel(
     public ObservableCollection<TradeOrder> Orders { get; } = [];
     public ObservableCollection<AgentDecision> Decisions { get; } = [];
 
+    public IReadOnlyList<string> ProviderNames => providers.Names;
+
     public List<ISeries> EquitySeries { get; } = [];
     public List<ICartesianAxis> EquityXAxes { get; } = [];
     public List<ICartesianAxis> EquityYAxes { get; } = [];
@@ -99,11 +101,11 @@ public partial class TradingViewModel(
         IsBusy = true;
         try
         {
-            HasKeys = alpaca.IsConfigured && anthropic.IsConfigured;
             IsSchedulerRunning = scheduler.IsRunning;
 
             await using var db = await dbContextFactory.CreateDbContextAsync();
             Config = await db.Set<TradingConfig>().FirstOrDefaultAsync() ?? new TradingConfig();
+            HasKeys = alpaca.IsConfigured && providers.Resolve(Config.Provider).IsConfigured;
             StartedOnDisplay = Config.StartedOn is { } started
                 ? started.ToString("d MMM yyyy")
                 : "not started";
@@ -278,6 +280,7 @@ public partial class TradingViewModel(
                 stored.MaxTradesPerDay = Config.MaxTradesPerDay;
                 stored.CycleIntervalMinutes = Config.CycleIntervalMinutes;
                 stored.Model = Config.Model;
+                stored.Provider = Config.Provider;
                 stored.StrategyNotes = Config.StrategyNotes;
                 stored.MinTradesForStats = Config.MinTradesForStats;
 

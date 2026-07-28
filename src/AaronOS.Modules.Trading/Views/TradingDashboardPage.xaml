@@ -91,7 +91,7 @@
                 </Style>
             </Border.Style>
             <TextBlock
-                Text="Add your Alpaca paper key and Anthropic key in Settings before this can run. An Alpaca paper account is free and needs only an email."
+                Text="Add your Alpaca paper key and a model provider in Settings before this can run. An Alpaca paper account is free and needs only an email, and the model can be a local Ollama server at no cost at all."
                 Style="{DynamicResource BodyText}"
                 FontSize="13"
                 TextWrapping="Wrap" />
@@ -243,6 +243,12 @@
                     <StackPanel Width="150" Margin="0,0,12,10">
                         <TextBlock Text="Trades before stats" Style="{StaticResource FieldLabel}" />
                         <ui:NumberBox Value="{Binding Config.MinTradesForStats, Mode=TwoWay}" Minimum="1" Maximum="500" MaxDecimalPlaces="0" />
+                    </StackPanel>
+                    <StackPanel Width="170" Margin="0,0,12,10">
+                        <TextBlock Text="Provider" Style="{StaticResource FieldLabel}" />
+                        <ComboBox
+                            ItemsSource="{Binding ProviderNames}"
+                            SelectedItem="{Binding Config.Provider, Mode=TwoWay}" />
                     </StackPanel>
                     <StackPanel Width="190" Margin="0,0,0,10">
                         <TextBlock Text="Model" Style="{StaticResource FieldLabel}" />

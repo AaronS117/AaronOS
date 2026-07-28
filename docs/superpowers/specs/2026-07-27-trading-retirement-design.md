@@ -120,6 +120,36 @@ systematically overstates performance. Four structural answers rather than optio
 - Round trips are counted only once closed. Marking open positions to market lets winners count
   while losers stay open, which is the easiest way to flatter a record.
 
+### Which model, and running it for nothing
+
+The provider is pluggable through `IAgentProvider`, with two implementations: Anthropic's Messages
+API, and one adapter for anything speaking the OpenAI chat-completions format. The second is one
+adapter rather than one integration per vendor because that format is the de facto standard — Ollama
+and LM Studio serve it locally at zero cost, and Groq, Gemini and OpenRouter all expose it on free
+tiers whose daily caps sit far above the roughly thirteen cycles a trading day needs. Switching is a
+base URL and a dropdown.
+
+Two findings from researching this are worth recording, because both cut against the intuition.
+
+First, a *dedicated* trading model does not help. There is a real category of finance-specific
+time-series foundation models — Chronos, TimesFM, Moirai, Kronos — free on Hugging Face and built for
+exactly this shape of problem. The evidence is discouraging: *Pretrained Time-Series Foundation
+Models for Financial Return Forecasting* (arXiv 2606.27100) finds they are "useful practical priors
+that reduce model-development costs in low-data financial forecasting, but are not universal engines
+for statistically reliable alpha generation", with gains over a random walk "small and sparse" —
+statistically significant in two of ten model-and-stock pairings, and profitability after costs not
+examined at all. A purpose-built model would be differently mediocre, not better.
+
+Second, the cost of a frontier model here is small. Logged cycles run about 1,900 tokens in and 250
+out; at thirty-minute intervals across a session that is roughly 30,000 tokens a day in total. The
+expense reputation comes from continuous coding workloads, not from thirteen small calls.
+
+Because a local model may emit malformed tool arguments — a well-documented weakness — argument
+reading goes through `ToolArguments`, which answers "absent" rather than throwing, and a bad call is
+refused and explained back to the model instead of ending the cycle. The tool surface is held at two
+for the same reason: local models degrade quickly past about three. The guardrail layer means a weak
+model is a nuisance rather than a hazard, which is what makes experimenting with one reasonable.
+
 ### On the model doing the trading
 
 Built at the account owner's explicit direction after the recommendation below was given and

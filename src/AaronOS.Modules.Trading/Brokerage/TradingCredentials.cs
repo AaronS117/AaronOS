@@ -13,7 +13,14 @@ public record TradingCredentials(
     string AlpacaKeyId,
     string AlpacaSecret,
     string AnthropicApiKey,
-    bool AlpacaLive = false);
+    bool AlpacaLive = false,
+    /// <summary>
+    /// Any endpoint speaking the OpenAI chat-completions format, which is how this runs for free:
+    /// http://localhost:11434/v1 for Ollama, or a hosted free tier such as Groq or Gemini.
+    /// </summary>
+    string OpenAiBaseUrl = "",
+    /// <summary>Empty for a local server, which accepts any key or none.</summary>
+    string OpenAiApiKey = "");
 
 /// <summary>
 /// DPAPI-protected key storage under %LocalAppData%\AaronOS\, mirroring the Plaid store.

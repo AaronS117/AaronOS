@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Text;
-using System.Text.Json.Nodes;
 using AaronOS.Core.Data;
 using AaronOS.Modules.Trading.Brokerage;
 using AaronOS.Modules.Trading.Data;
@@ -28,7 +27,7 @@ public readonly record struct CycleResult(bool Ran, string Summary, string? Erro
 public class TradingAgent(
     IDbContextFactory<AaronOsDbContext> dbContextFactory,
     AlpacaClient alpaca,
-    AnthropicClient anthropic)
+    AgentProviderRegistry providers)
 {
     /// <summary>Enough turns for the model to place a few orders and react to a refusal.</summary>
     private const int MaxToolTurns = 6;
@@ -43,12 +42,24 @@ public class TradingAgent(
             return CycleResult.Skipped("Trading is switched off.");
         }
 
-        if (!alpaca.IsConfigured || !anthropic.IsConfigured)
+        if (!alpaca.IsConfigured)
         {
-            return CycleResult.Skipped("Add your Alpaca and Anthropic keys in Settings first.");
+            return CycleResult.Skipped("Add your Alpaca paper keys in Settings first.");
         }
 
-        var decision = new AgentDecision { RanAtUtc = DateTime.UtcNow, Model = config.Model };
+        var provider = providers.Resolve(config.Provider);
+        if (!provider.IsConfigured)
+        {
+            return CycleResult.Skipped($"The {provider.Name} model provider is not configured yet.");
+        }
+
+        // Stamped with the provider as well as the model, so a run in the log can be traced to what
+        // actually produced it after the setting has been changed.
+        var decision = new AgentDecision
+        {
+            RanAtUtc = DateTime.UtcNow,
+            Model = $"{provider.Name}/{config.Model}",
+        };
 
         try
         {
@@ -69,7 +80,7 @@ public class TradingAgent(
 
             var state = new AccountState(account.Equity, account.Cash, true, positions, ordersToday);
 
-            var result = await ConverseAsync(db, config, state, quotes, decision, token);
+            var result = await ConverseAsync(db, provider, config, state, quotes, decision, token);
 
             decision.ActionSummary = result;
             db.Add(decision);
@@ -88,16 +99,22 @@ public class TradingAgent(
         }
     }
 
-    /// <summary>The tool-use loop. Returns a one-line summary of what actually happened.</summary>
+    /// <summary>
+    /// The tool-use loop, written against <see cref="IAgentConversation"/> so the same logic drives a
+    /// hosted model or a local one. Returns a one-line summary of what actually happened.
+    /// </summary>
     private async Task<string> ConverseAsync(
         AaronOsDbContext db,
+        IAgentProvider provider,
         TradingConfig config,
         AccountState state,
         Dictionary<string, SymbolQuote> quotes,
         AgentDecision decision,
         CancellationToken token)
     {
-        var messages = new JsonArray { UserMessage(BuildBrief(config, state, quotes)) };
+        var conversation = provider.Start(
+            config.Model, SystemPrompt, BuildBrief(config, state, quotes), AgentTools.All);
+
         var reasoning = new StringBuilder();
         var actions = new List<string>();
         var blocked = new List<string>();
@@ -105,45 +122,34 @@ public class TradingAgent(
 
         for (var turn = 0; turn < MaxToolTurns; turn++)
         {
-            var response = await anthropic.SendAsync(
-                config.Model, SystemPrompt, messages, Tools, token: token);
+            var reply = await conversation.NextAsync(token);
 
-            decision.InputTokens += (int?)response["usage"]?["input_tokens"] ?? 0;
-            decision.OutputTokens += (int?)response["usage"]?["output_tokens"] ?? 0;
+            decision.InputTokens += reply.InputTokens;
+            decision.OutputTokens += reply.OutputTokens;
 
-            var content = response["content"]?.AsArray() ?? [];
-            foreach (var block in content)
+            if (reply.Text.Length > 0)
             {
-                if ((string?)block?["type"] == "text" && (string?)block["text"] is { Length: > 0 } text)
-                {
-                    reasoning.AppendLine(text.Trim());
-                }
+                reasoning.AppendLine(reply.Text);
             }
 
-            var toolUses = content
-                .Where(b => (string?)b?["type"] == "tool_use")
-                .Select(b => b!)
-                .ToList();
-
-            if (toolUses.Count == 0)
+            if (reply.ToolCalls.Count == 0)
             {
                 break;
             }
 
-            // The assistant turn has to be echoed back verbatim before its tool results, or the
-            // conversation is malformed on the next request.
-            messages.Add(new JsonObject { ["role"] = "assistant", ["content"] = content.DeepClone() });
-
-            var results = new JsonArray();
-            foreach (var use in toolUses)
+            var results = new List<(string ToolCallId, string Content)>();
+            foreach (var call in reply.ToolCalls)
             {
                 var (outcome, wasPlaced, wasBlocked) =
-                    await ExecuteToolAsync(db, config, state, quotes, decision, use, token);
+                    await ExecuteToolAsync(db, config, state, quotes, decision, call, token);
 
                 if (wasPlaced is { } action)
                 {
                     actions.Add(action);
                     placed++;
+
+                    // The running count has to advance inside the loop, or several calls in one turn
+                    // would each be measured against the same stale total and slip past the daily cap.
                     state = state with { OrdersPlacedToday = state.OrdersPlacedToday + 1 };
                 }
 
@@ -152,15 +158,10 @@ public class TradingAgent(
                     blocked.Add(reason);
                 }
 
-                results.Add(new JsonObject
-                {
-                    ["type"] = "tool_result",
-                    ["tool_use_id"] = (string?)use["id"],
-                    ["content"] = outcome,
-                });
+                results.Add((call.Id, outcome));
             }
 
-            messages.Add(new JsonObject { ["role"] = "user", ["content"] = results });
+            conversation.AddToolResults(results);
         }
 
         decision.Reasoning = reasoning.ToString().Trim();
@@ -177,13 +178,22 @@ public class TradingAgent(
         AccountState state,
         Dictionary<string, SymbolQuote> quotes,
         AgentDecision decision,
-        JsonNode use,
+        AgentToolCall call,
         CancellationToken token)
     {
-        var name = (string?)use["name"] ?? "";
-        var input = use["input"];
-        var symbol = ((string?)input?["symbol"] ?? "").Trim().ToUpperInvariant();
-        var rationale = (string?)input?["rationale"];
+        // Null arguments mean the model emitted something that would not parse, which smaller local
+        // models do regularly. It is refused and explained rather than throwing, so one malformed
+        // call costs a tool result instead of the whole cycle.
+        if (call.Arguments is null)
+        {
+            return ($"Refused: arguments for {call.Name} were not valid JSON.", null,
+                $"{call.Name}: unparseable arguments");
+        }
+
+        var name = call.Name;
+        var input = call.Arguments;
+        var symbol = (ToolArguments.StringOf(input, "symbol") ?? "").Trim().ToUpperInvariant();
+        var rationale = ToolArguments.StringOf(input, "rationale");
 
         if (symbol.Length == 0)
         {
@@ -196,10 +206,10 @@ public class TradingAgent(
         switch (name)
         {
             case "place_order":
-                side = string.Equals((string?)input?["side"], "sell", StringComparison.OrdinalIgnoreCase)
+                side = string.Equals(ToolArguments.StringOf(input, "side"), "sell", StringComparison.OrdinalIgnoreCase)
                     ? OrderSide.Sell
                     : OrderSide.Buy;
-                quantity = (int?)input?["quantity"] ?? 0;
+                quantity = ToolArguments.IntOf(input, "quantity") ?? 0;
                 break;
 
             case "close_position":
@@ -265,9 +275,6 @@ public class TradingAgent(
             stored.StartedOn = DateOnly.FromDateTime(DateTime.Now);
         }
     }
-
-    private static JsonObject UserMessage(string text) =>
-        new() { ["role"] = "user", ["content"] = text };
 
     private static string BuildBrief(
         TradingConfig config, AccountState state, Dictionary<string, SymbolQuote> quotes)
@@ -340,50 +347,4 @@ public class TradingAgent(
         Give a brief, plain explanation of your reasoning each cycle, including when you hold. Do not
         express more confidence than the information supports.
         """;
-
-    private static JsonArray Tools =>
-    [
-        new JsonObject
-        {
-            ["name"] = "place_order",
-            ["description"] =
-                "Place a market order for a whole number of shares. Buying is limited by the "
-                + "position and exposure caps; selling may only reduce a position you already hold.",
-            ["input_schema"] = new JsonObject
-            {
-                ["type"] = "object",
-                ["properties"] = new JsonObject
-                {
-                    ["symbol"] = new JsonObject { ["type"] = "string", ["description"] = "Ticker, e.g. MSFT." },
-                    ["side"] = new JsonObject
-                    {
-                        ["type"] = "string",
-                        ["enum"] = new JsonArray { "buy", "sell" },
-                    },
-                    ["quantity"] = new JsonObject { ["type"] = "integer", ["minimum"] = 1 },
-                    ["rationale"] = new JsonObject
-                    {
-                        ["type"] = "string",
-                        ["description"] = "One sentence on why, stored with the order.",
-                    },
-                },
-                ["required"] = new JsonArray { "symbol", "side", "quantity", "rationale" },
-            },
-        },
-        new JsonObject
-        {
-            ["name"] = "close_position",
-            ["description"] = "Sell the entire holding in one symbol.",
-            ["input_schema"] = new JsonObject
-            {
-                ["type"] = "object",
-                ["properties"] = new JsonObject
-                {
-                    ["symbol"] = new JsonObject { ["type"] = "string" },
-                    ["rationale"] = new JsonObject { ["type"] = "string" },
-                },
-                ["required"] = new JsonArray { "symbol", "rationale" },
-            },
-        },
-    ];
 }

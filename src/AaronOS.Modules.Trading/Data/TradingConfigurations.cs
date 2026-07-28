@@ -10,6 +10,7 @@ public class TradingConfigConfiguration : IEntityTypeConfiguration<TradingConfig
         builder.HasKey(c => c.Id);
         builder.Property(c => c.Watchlist).HasMaxLength(500).IsRequired();
         builder.Property(c => c.Model).HasMaxLength(64).IsRequired();
+        builder.Property(c => c.Provider).HasMaxLength(32).IsRequired();
         builder.Property(c => c.StrategyNotes).HasMaxLength(4000);
         builder.Property(c => c.MaxPositionPercent).HasPrecision(6, 2);
         builder.Property(c => c.MaxInvestedPercent).HasPrecision(6, 2);

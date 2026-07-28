@@ -23,6 +23,13 @@ public class TradingModule : IAppModule
         services.AddSingleton<TradingCredentialStore>();
         services.AddSingleton<AlpacaClient>();
         services.AddSingleton<AnthropicClient>();
+
+        // Registration order is the fallback order: an unrecognised provider name in the config
+        // resolves to the first one listed.
+        services.AddSingleton<IAgentProvider, AnthropicProvider>();
+        services.AddSingleton<IAgentProvider, OpenAiCompatibleProvider>();
+        services.AddSingleton<AgentProviderRegistry>();
+
         services.AddSingleton<SnapshotRecorder>();
         services.AddSingleton<TradingAgent>();
 
