@@ -104,6 +104,14 @@ public static class SchemaBootstrapper
                 }
 
                 var columnType = property.GetColumnType() ?? "TEXT";
+
+                // EF1002 is suppressed rather than worked around, because it cannot be worked around:
+                // SQL has no parameter form for a table or column name, so DDL has to be composed as
+                // text. What makes it safe is the provenance of the values — table name, column name
+                // and store type all come from the compiled EF model, and the default literal comes
+                // from a fixed switch over CLR types. None of it originates from user input or from
+                // the database's own contents.
+#pragma warning disable EF1002
                 await db.Database.ExecuteSqlRawAsync(
                     $"ALTER TABLE \"{table}\" ADD COLUMN \"{column}\" {columnType}");
 
@@ -113,6 +121,7 @@ public static class SchemaBootstrapper
                         $"UPDATE \"{table}\" SET \"{column}\" = {DefaultLiteralFor(property.ClrType)} " +
                         $"WHERE \"{column}\" IS NULL");
                 }
+#pragma warning restore EF1002
             }
         }
     }

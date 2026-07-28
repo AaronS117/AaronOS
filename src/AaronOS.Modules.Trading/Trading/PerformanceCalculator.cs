@@ -24,15 +24,21 @@ public readonly record struct PerformanceSummary(
     /// <summary>
     /// The sentence the dashboard leads with. It names the benchmark comparison first because that
     /// is the only figure that distinguishes a strategy from a rising market.
+    ///
+    /// Switched on alpha alone rather than on the benchmark-and-alpha pair. Alpha is derived from the
+    /// benchmark, so the pair admits a combination that cannot occur — benchmark known, alpha
+    /// unknown — and a switch expression with an unreachable gap throws at runtime rather than
+    /// failing to compile. Deriving the branch from the one value that decides it removes the gap
+    /// instead of papering over it with an arm nobody can reach.
     /// </summary>
-    public string Verdict => (BenchmarkReturnPercent, AlphaPercent) switch
+    public string Verdict => AlphaPercent switch
     {
-        (null, _) => "No benchmark data yet, so there is nothing to compare against.",
+        null => "No benchmark data yet, so there is nothing to compare against.",
         // The count is not repeated here; it sits directly beneath this line on the dashboard.
-        (_, { } alpha) when !HasMeaningfulSample =>
+        { } alpha when !HasMeaningfulSample =>
             $"{alpha:+0.0;-0.0} points against SPY, on too few trades to mean anything yet.",
-        (_, { } alpha) when alpha >= 0 => $"Ahead of SPY by {alpha:0.0} points.",
-        (_, { } alpha) => $"Behind SPY by {Math.Abs(alpha):0.0} points.",
+        { } alpha when alpha >= 0 => $"Ahead of SPY by {alpha:0.0} points.",
+        { } alpha => $"Behind SPY by {Math.Abs(alpha):0.0} points.",
     };
 }
 
