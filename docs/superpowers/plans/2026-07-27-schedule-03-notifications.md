@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-07-27-schedule-module-design.md` — this plan covers phase 6.
 
-**Prerequisite:** Plans 1 and 2 complete — `SuggestionEngine`, `SleepPlanner`, `RoutineScheduler`, and `AgendaBuilder` all exist, and 58 tests pass.
+**Prerequisite:** Plans 1, 4 and 2 complete, in that execution order — `SuggestionEngine`, `SleepPlanner`, `RoutineScheduler`, `AgendaBuilder`, `ExternalEventProjector` and `ScheduleSyncService` all exist. Plan 4 (external calendars) was moved ahead of Plans 2 and 3, so this plan's background worker both projects cached external events into the agenda and owns their periodic refresh.
 
 ## Global Constraints
 
@@ -388,7 +388,7 @@ public static class NotificationPlanner
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 70`
+Expected: `Passed!` with 0 failures and 15 more passing tests than before this task.
 
 - [ ] **Step 5: Commit**
 
@@ -547,7 +547,7 @@ The `using Application = System.Windows.Application;` alias is load-bearing: `Sy
 - [ ] **Step 4: Run the tests**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 70`
+Expected: `Passed!` with 0 failures and the same test count as Step 2 — this task adds no tests.
 
 - [ ] **Step 5: Commit**
 
@@ -565,7 +565,8 @@ git commit -m "Add tray-icon notification sink"
 - Modify: `src/AaronOS.Modules.Schedule/ScheduleModule.cs`
 
 **Interfaces:**
-- Consumes: `NotificationPlanner.Decide`, `INotificationSink`, `SuggestionEngine.Build`, `SleepPlanner.RecommendedBedtime`, `RoutineScheduler.EvaluateAll`, `AgendaBuilder.Build`.
+- Consumes: `NotificationPlanner.Decide`, `INotificationSink`, `SuggestionEngine.Build`, `SleepPlanner.RecommendedBedtime`, `RoutineScheduler.EvaluateAll`, `AgendaBuilder.Build`, `ExternalEventProjector.ToAgendaEntries`, `ScheduleSyncService.SyncAllAsync`.
+- Needs `using AaronOS.Modules.Schedule.External;` for the projector and the sync service.
 - Produces: `ScheduleBackgroundWorker` with `void Start(CancellationToken)` and `IDisposable`. `ScheduleModule.StartAsync` calls `Start`.
 
 - [ ] **Step 1: Write the worker**
@@ -595,9 +596,15 @@ namespace AaronOS.Modules.Schedule.Notifications;
 /// </summary>
 public sealed class ScheduleBackgroundWorker(
     IDbContextFactory<AaronOsDbContext> dbContextFactory,
-    INotificationSink sink) : IDisposable
+    INotificationSink sink,
+    ScheduleSyncService syncService) : IDisposable
 {
     private static readonly TimeSpan TickInterval = TimeSpan.FromMinutes(1);
+
+    // External calendars (Plan 4) shipped before this plan, so the tick owns refreshing them.
+    // Half-hourly, which is well inside a published feed's own refresh lag.
+    private const int TicksPerSync = 30;
+    private int _ticksSinceSync = TicksPerSync; // sync on the first tick
 
     /// <summary>Keys delivered this session. In-memory only: a restart may re-notify about an
     /// overdue chore, which is a far better failure than a persisted flag suppressing a
@@ -644,6 +651,14 @@ public sealed class ScheduleBackgroundWorker(
     {
         try
         {
+            if (++_ticksSinceSync >= TicksPerSync)
+            {
+                _ticksSinceSync = 0;
+                // SyncAllAsync records its own per-calendar failures and never throws for them, so
+                // a dead feed cannot take down the notification tick.
+                await syncService.SyncAllAsync(cancellationToken);
+            }
+
             foreach (var notification in await PlanAsync(cancellationToken))
             {
                 sink.Show(notification);
@@ -675,7 +690,15 @@ public sealed class ScheduleBackgroundWorker(
             .Where(e => e.Date >= today.AddDays(-1) && e.Date <= tomorrowDate)
             .ToListAsync(cancellationToken);
 
-        var agenda = AgendaBuilder.Build(today, tomorrowDate, blocks, exceptions, []);
+        // Must include cached external events — an empty list here would notify about a free gap
+        // that a real meeting already occupies.
+        var externalRows = await db.Set<ExternalEvent>()
+            .Where(e => e.StartsAt >= today.AddDays(-1).ToDateTime(TimeOnly.MinValue)
+                        && e.StartsAt <= tomorrowDate.ToDateTime(TimeOnly.MaxValue))
+            .ToListAsync(cancellationToken);
+
+        var agenda = AgendaBuilder.Build(
+            today, tomorrowDate, blocks, exceptions, ExternalEventProjector.ToAgendaEntries(externalRows));
 
         var routines = await db.Set<Routine>().Where(r => r.IsActive).ToListAsync(cancellationToken);
         var completions = await db.Set<RoutineCompletion>().ToListAsync(cancellationToken);
@@ -732,7 +755,7 @@ Expected: `Build succeeded`.
 - [ ] **Step 4: Run the tests**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 70`
+Expected: `Passed!` with 0 failures and the same test count as Step 2 — this task adds no tests.
 
 - [ ] **Step 5: Commit**
 
@@ -804,7 +827,7 @@ Delete the `Notification test` routine from the Routines page. No code changed i
 ## Definition of done for Plan 3
 
 - `dotnet build AaronOS.slnx --nologo` succeeds.
-- `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo` reports 70 passing tests, 0 failing.
+- `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo` reports 0 failing tests, and 70 passing if the plans ran in their original order (the absolute number shifts with ordering and with any fix round — the per-task deltas above are what to check).
 - An overdue routine produces exactly one Windows notification per day while the app is open.
 - The wind-down reminder fires once inside its lead window.
 - The tray icon appears on first notification and disappears cleanly on exit.

@@ -10,7 +10,12 @@
 
 **Spec:** `docs/superpowers/specs/2026-07-27-schedule-module-design.md` — this plan covers phases 7 and 8.
 
-**Prerequisite:** Plans 1–3 complete. `AgendaBuilder.Build` already accepts an `IReadOnlyList<ExternalEventEntry>` parameter and merges busy events — that path is tested and unused until this plan fills it.
+**Prerequisite:** Plan 1 complete. `AgendaBuilder.Build` already accepts an `IReadOnlyList<ExternalEventEntry>` parameter and merges busy events — that path is tested and unused until this plan fills it.
+
+**This plan runs directly after Plan 1, ahead of Plans 2 and 3.** It was originally sequenced fourth, but its only real dependency is the `ExternalEventEntry` seam that Plan 1 already shipped; sleep, goals, suggestions and notifications are independent of it. Two consequences, both handled in Task 6:
+
+- `SleepViewModel` (Plan 2) and `ScheduleBackgroundWorker` (Plan 3) do not exist yet, so Task 6 does not modify them. Each of those plans wires external events in when it creates the file, and both now say so.
+- Task 5 contributes a Settings section, which needs no infrastructure from Plans 2 or 3.
 
 ## Global Constraints
 
@@ -296,7 +301,7 @@ public class ExternalEventConfiguration : IEntityTypeConfiguration<ExternalEvent
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 72`
+Expected: `Passed!` with 0 failures and 2 more passing tests than before this task.
 
 - [ ] **Step 5: Commit**
 
@@ -552,7 +557,7 @@ public static class ExternalEventMerger
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 79`
+Expected: `Passed!` with 0 failures and 7 more passing tests than before this task.
 
 - [ ] **Step 5: Commit**
 
@@ -790,7 +795,7 @@ Expected: `Build succeeded`.
 - [ ] **Step 4: Run the tests**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 79`
+Expected: `Passed!` with 0 failures and the same test count as Step 2 — this task adds no tests.
 
 - [ ] **Step 5: Commit**
 
@@ -1117,11 +1122,11 @@ Run `dotnet build` after each adjustment and let the compiler drive. The six tes
 - [ ] **Step 6: Run the tests to verify they pass**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 85`
+Expected: `Passed!` with 0 failures and 6 more passing tests than before this task.
 
 If `Parses_ASimpleEvent` reports a time offset by hours, the local-time conversion is wrong — the fixture is authored in `America/New_York` and converts to whatever this machine's zone is, so assert against the converted value rather than the literal `09:30` if the machine is not Eastern. Adjust the test to compute the expectation from the fixture's zone, and say so in a comment.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add src/AaronOS.Modules.Schedule src/AaronOS.Modules.Schedule.Tests
@@ -1450,8 +1455,11 @@ git commit -m "Add Schedule settings section with Outlook ICS calendar sync"
 - Test: `src/AaronOS.Modules.Schedule.Tests/ExternalEventProjectorTests.cs`
 - Modify: `src/AaronOS.Modules.Schedule/ViewModels/TodayViewModel.cs`
 - Modify: `src/AaronOS.Modules.Schedule/ViewModels/WeekViewModel.cs`
-- Modify: `src/AaronOS.Modules.Schedule/ViewModels/SleepViewModel.cs`
-- Modify: `src/AaronOS.Modules.Schedule/Notifications/ScheduleBackgroundWorker.cs`
+
+`SleepViewModel` and `ScheduleBackgroundWorker` are **deliberately not in that list.** This plan now
+runs before Plans 2 and 3, so neither file exists yet — do not create either one to satisfy this
+task. Plan 2 wires the projector into `SleepViewModel` when it writes it, and Plan 3 does the same
+for the worker. Both plans carry that instruction.
 
 **Interfaces:**
 - Produces: `static IReadOnlyList<ExternalEventEntry> ExternalEventProjector.ToAgendaEntries(IReadOnlyList<ExternalEvent> events)` — maps stored rows to the plain record `AgendaBuilder` already accepts, splitting any event that spans midnight.
@@ -1654,62 +1662,12 @@ There are four. In each, load the cached events for the same window already bein
             }
 ```
 
-**`SleepViewModel.LoadAsync`** — tomorrow's first commitment must account for a real meeting, which is the whole point of this integration:
+Add `using AaronOS.Modules.Schedule.External;` to both files.
 
-```csharp
-            var externalRows = await db.Set<ExternalEvent>()
-                .Where(e => e.StartsAt >= today.ToDateTime(TimeOnly.MinValue)
-                            && e.StartsAt <= tomorrowDate.ToDateTime(TimeOnly.MaxValue))
-                .ToListAsync();
-
-            var tomorrow = AgendaBuilder.Build(
-                tomorrowDate, tomorrowDate, blocks, exceptions,
-                ExternalEventProjector.ToAgendaEntries(externalRows)).Single();
-```
-
-**`ScheduleBackgroundWorker.PlanAsync`** — identical to `TodayViewModel`:
-
-```csharp
-        var externalRows = await db.Set<ExternalEvent>()
-            .Where(e => e.StartsAt >= today.AddDays(-1).ToDateTime(TimeOnly.MinValue)
-                        && e.StartsAt <= tomorrowDate.ToDateTime(TimeOnly.MaxValue))
-            .ToListAsync(cancellationToken);
-
-        var agenda = AgendaBuilder.Build(
-            today, tomorrowDate, blocks, exceptions, ExternalEventProjector.ToAgendaEntries(externalRows));
-```
-
-Add `using AaronOS.Modules.Schedule.External;` to each file.
-
-- [ ] **Step 5: Add a periodic sync to the background tick**
-
-In `ScheduleBackgroundWorker`, inject `ScheduleSyncService` and sync every 30 ticks (half-hourly), which is well inside a published feed's own refresh lag:
-
-```csharp
-public sealed class ScheduleBackgroundWorker(
-    IDbContextFactory<AaronOsDbContext> dbContextFactory,
-    INotificationSink sink,
-    ScheduleSyncService syncService) : IDisposable
-{
-    private const int TicksPerSync = 30;
-    private int _ticksSinceSync = TicksPerSync; // sync on the first tick
-```
-
-and at the top of `TickSafelyAsync`'s `try` block, before planning:
-
-```csharp
-            if (++_ticksSinceSync >= TicksPerSync)
-            {
-                _ticksSinceSync = 0;
-                // SyncAllAsync records its own per-calendar failures and never throws for them.
-                await syncService.SyncAllAsync(cancellationToken);
-            }
-```
-
-- [ ] **Step 6: Run the tests and verify in the app**
+- [ ] **Step 5: Run the tests and verify in the app**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 91`
+Expected: `Passed!` with 0 failures and 6 more passing tests than before this task.
 
 Run: `dotnet run --project src/AaronOS.App/AaronOS.App.csproj`
 
@@ -1717,12 +1675,11 @@ Confirm:
 1. Today shows real Outlook meetings interleaved with the template blocks, in start order.
 2. A meeting inside a free gap has split that gap — the "Free time" list no longer shows one long uninterrupted span where a meeting sits.
 3. Week shows meetings on the correct days.
-4. Sleep's recommended bedtime accounts for tomorrow's earliest meeting if it is earlier than the work block's start.
-5. A meeting you have declined or that is marked free does **not** appear (it arrives with `IsBusy = false` and `AgendaBuilder` filters it).
+4. A meeting you have declined or that is marked free does **not** appear (it arrives with `IsBusy = false` and `AgendaBuilder` filters it).
 
 Close the app.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add src/AaronOS.Modules.Schedule src/AaronOS.Modules.Schedule.Tests
@@ -1893,7 +1850,7 @@ public sealed class DpapiDataStore(
 - [ ] **Step 5: Run the tests and commit**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 93`
+Expected: `Passed!` with 0 failures and 2 more passing tests than before this task.
 
 ```bash
 git add src/AaronOS.Modules.Schedule src/AaronOS.Modules.Schedule.Tests
@@ -2213,7 +2170,7 @@ No code changed unless a step surfaced a fix. Commit any fix with a message nami
 ## Definition of done for Plan 4
 
 - `dotnet build AaronOS.slnx --nologo` succeeds.
-- `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo` reports 93 passing tests, 0 failing.
+- `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo` reports 0 failing tests, and 93 passing if the plans ran in their original order (the absolute number shifts with ordering and with any fix round — the per-task deltas above are what to check).
 - Outlook (if the Task 0 gate passed) and Google events appear on Today, Week, and in the bedtime calculation.
 - Re-syncing does not duplicate events; a cancelled event disappears; a declined or free event never consumes a free gap.
 - Every failure path in Task 9 leaves cached data intact and surfaces as row-level error text, never as a dialog or a crash.

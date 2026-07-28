@@ -16,7 +16,7 @@ The consequence, stated plainly because it drops a feature the spec originally l
 
 **Spec:** `docs/superpowers/specs/2026-07-27-schedule-module-design.md` — this plan covers phases 3, 4, and 5.
 
-**Prerequisite:** Plan 1 complete — `AaronOS.Modules.Schedule` exists and is registered, `AgendaBuilder.Build` and `RoutineScheduler.EvaluateAll` are in place, and 34 tests pass.
+**Prerequisite:** Plans 1 and 4 complete, in that order — `AaronOS.Modules.Schedule` exists and is registered, `AgendaBuilder.Build` and `RoutineScheduler.EvaluateAll` are in place, and `ExternalEventProjector` exists. Plan 4 (external calendars) was moved ahead of this one, so `SleepViewModel` must project cached external events into tomorrow's agenda when it computes a bedtime.
 
 ## Global Constraints
 
@@ -28,6 +28,7 @@ Every task's requirements implicitly include this section. These repeat Plan 1's
 - Pages have a public parameterless constructor, resolve their ViewModel via `AaronOS.Core.AppServices.Provider.GetRequiredService<T>()`, set `DataContext` explicitly, then `InitializeComponent()`, then hook `Loaded`.
 - `Frame.Navigate` takes an instance: `ContentFrame.Navigate(new SleepPage())`.
 - Never reference another module's entities. `Goal` here is unrelated to `BodyMeasurements` goals and must not read them.
+- **`Goal` must map to the table `ScheduleGoal`.** Every module shares one SQLite file, and BodyMeasurements already owns a `Goal` table. This does not fail loudly: `SchemaBootstrapper` creates only MISSING tables, so it would find `Goal` present, skip it, and every Schedule goal query would then run against BodyMeasurements' columns. `ToTable("ScheduleGoal")` in `GoalConfiguration`, plus the guard test in Task 4. Of the eight entities plans 2, 4 and 5 add, `Goal` is the only name that collides — checked against the live database — so the others keep their default table names.
 - WPF `Grid`/`StackPanel` have no `Spacing`/`Padding` — use explicit `Margin` on children.
 - `ui:NumberBox.Value` is declared `double?` on the installed WPF-UI 4.3.0; a cleared box reports `null`, not `double.NaN`. Bind it to a `double?`, use `null` as the not-entered sentinel, convert at save time, no value converter. A non-nullable `double` target silently fails to update on clear — WPF drops the `null`→`double` TwoWay conversion instead of throwing — so a `double.IsNaN` guard against it is unreachable.
 - `DatePicker.SelectedDate` is `DateTime?`.
@@ -202,7 +203,7 @@ public class SleepSettingsConfiguration : IEntityTypeConfiguration<SleepSettings
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 36`
+Expected: `Passed!` with 0 failures and 2 more passing tests than before this task.
 
 - [ ] **Step 5: Commit**
 
@@ -354,7 +355,7 @@ the result to `tonight`.
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 40`
+Expected: `Passed!` with 0 failures and 4 more passing tests than before this task.
 
 - [ ] **Step 5: Commit**
 
@@ -394,6 +395,7 @@ using AaronOS.Core;
 using AaronOS.Core.Data;
 using AaronOS.Modules.Schedule.Agenda;
 using AaronOS.Modules.Schedule.Data;
+using AaronOS.Modules.Schedule.External;
 using AaronOS.Modules.Schedule.Sleep;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -444,7 +446,17 @@ public partial class SleepViewModel(IDbContextFactory<AaronOsDbContext> dbContex
             var exceptions = await db.Set<ScheduleException>()
                 .Where(e => e.Date >= today && e.Date <= tomorrowDate)
                 .ToListAsync();
-            var tomorrow = AgendaBuilder.Build(tomorrowDate, tomorrowDate, blocks, exceptions, []).Single();
+            // External calendars (Plan 4) already shipped, so tomorrow's first commitment must
+            // account for a real meeting — that is the whole point of the integration, and an empty
+            // list here would silently recommend a bedtime based only on template blocks.
+            var externalRows = await db.Set<ExternalEvent>()
+                .Where(e => e.StartsAt >= today.ToDateTime(TimeOnly.MinValue)
+                            && e.StartsAt <= tomorrowDate.ToDateTime(TimeOnly.MaxValue))
+                .ToListAsync();
+
+            var tomorrow = AgendaBuilder.Build(
+                tomorrowDate, tomorrowDate, blocks, exceptions,
+                ExternalEventProjector.ToAgendaEntries(externalRows)).Single();
 
             var bedtime = SleepPlanner.RecommendedBedtime(today, tomorrow, settings);
 
@@ -610,7 +622,7 @@ Close the app.
 - [ ] **Step 4: Run the tests to confirm nothing regressed**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 40`
+Expected: `Passed!` with 0 failures and the same test count as Step 2 — this task adds no tests.
 
 - [ ] **Step 5: Commit**
 
@@ -643,6 +655,17 @@ Add to `ScheduleSchemaTests`:
 > ⚠️ **The test code below uses one `db` for both the write and the read. That is stale — restructure it before running.** EF Core's identity resolution returns the already-tracked entity, so asserting through the context that performed the insert checks the object the test constructed, not what SQLite stored: a broken value converter would pass. Write in one context, dispose it, then verify through a fresh `CreateContext()` against the same `_dbPath`. And where a test deletes to prove a cascade, the deleting context must not load or track the children — otherwise it proves EF's client-side cascade rather than the database foreign key. Use `ExecuteDeleteAsync` or a key-only attached stub there.
 
 ```csharp
+    [Fact]
+    public void Goal_MapsToScheduleGoal_NotTheTableBodyMeasurementsOwns()
+    {
+        // Not cosmetic. BodyMeasurements owns `Goal` in the same shared database, and
+        // SchemaBootstrapper only creates missing tables — so a default mapping here would silently
+        // bind to the wrong columns instead of failing. This test is the guard.
+        using var db = CreateContext();
+
+        Assert.Equal("ScheduleGoal", db.Model.FindEntityType(typeof(Goal))!.GetTableName());
+    }
+
     [Fact]
     public async Task Goal_CascadeDeletesItsMilestones()
     {
@@ -744,6 +767,14 @@ public class GoalConfiguration : IEntityTypeConfiguration<Goal>
 {
     public void Configure(EntityTypeBuilder<Goal> builder)
     {
+        // MUST be ToTable("ScheduleGoal"), not the default "Goal". BodyMeasurements already owns a
+        // `Goal` table (Metric, Direction, StartValue, TargetValue, ...) in the same shared SQLite
+        // database — verified against the live file. Leaving the default name would not throw:
+        // SchemaBootstrapper only creates MISSING tables, so it would find `Goal` already present,
+        // skip it, and every query here would then run against BodyMeasurements' columns and fail at
+        // runtime. Two modules cannot share a table name; see docs/MODULE_GUIDELINES.md.
+        builder.ToTable("ScheduleGoal");
+
         builder.HasKey(g => g.Id);
         builder.HasIndex(g => g.Status);
         builder.Property(g => g.Title).HasMaxLength(200).IsRequired();
@@ -846,7 +877,7 @@ public class ReleaseConfiguration : IEntityTypeConfiguration<Release>
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 42`
+Expected: `Passed!` with 0 failures and 3 more passing tests than before this task.
 
 - [ ] **Step 5: Commit**
 
@@ -1281,7 +1312,7 @@ public static class SuggestionEngine
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 54`
+Expected: `Passed!` with 0 failures and 12 more passing tests than before this task.
 
 - [ ] **Step 5: Commit**
 
@@ -1769,7 +1800,7 @@ Close the app.
 - [ ] **Step 4: Run the tests to confirm nothing regressed**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 54`
+Expected: `Passed!` with 0 failures and the same test count as Step 2 — this task adds no tests.
 
 - [ ] **Step 5: Commit**
 
@@ -1965,7 +1996,7 @@ Close the app.
 - [ ] **Step 5: Run the tests and commit**
 
 Run: `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`
-Expected: `Passed! - Failed: 0, Passed: 54`
+Expected: `Passed!` with 0 failures and the same test count as Step 2 — this task adds no tests.
 
 ```bash
 git add src/AaronOS.Modules.Schedule
@@ -1977,7 +2008,7 @@ git commit -m "Surface ranked suggestions on the Today page"
 ## Definition of done for Plan 2
 
 - `dotnet build AaronOS.slnx --nologo` succeeds.
-- `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo` reports 54 passing tests, 0 failing.
+- `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo` reports 0 failing tests, and 55 passing if the plans ran in their original order (the absolute number shifts with ordering and with any fix round — the per-task deltas above are what to check).
 - Sleep, Goals, and Today all load against the real database; Today ranks routines, releases, milestones, and bedtime in one list.
 - Sleep settings, goals, milestones, and releases persist across an app restart.
 - No `SleepLog` entity exists, nothing computes sleep debt, and nothing in this module reads Medical's `MoodEntry` or `SleepNight`.
