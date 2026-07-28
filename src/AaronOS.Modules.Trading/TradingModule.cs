@@ -47,6 +47,12 @@ public class TradingModule : IAppModule
 
     public void RegisterServices(IServiceCollection services)
     {
+        // The real clock for the live app. A backtest substitutes one that it advances itself, which
+        // is why the agent takes it rather than reading the wall clock: the daily order cap is
+        // measured against "today", so a replay reading real time counts as a single day and refuses
+        // every order after the first few.
+        services.AddSingleton(TimeProvider.System);
+
         services.AddSingleton<TradingCredentialStore>();
         services.AddSingleton<AlpacaClient>();
         services.AddSingleton<AnthropicClient>();

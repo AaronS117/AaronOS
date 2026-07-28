@@ -46,7 +46,12 @@ file record LatestQuotesDto(
 
 file record BarDto(
     [property: JsonPropertyName("c")] decimal Close,
+    [property: JsonPropertyName("o")] decimal Open,
     [property: JsonPropertyName("t")] DateTime Timestamp);
+
+file record PagedBarsDto(
+    [property: JsonPropertyName("bars")] Dictionary<string, List<BarDto>>? Bars,
+    [property: JsonPropertyName("next_page_token")] string? NextPageToken);
 
 file record BarsDto(
     [property: JsonPropertyName("bars")] Dictionary<string, List<BarDto>>? Bars);
@@ -144,6 +149,52 @@ public class AlpacaClient(TradingCredentialStore credentialStore)
         }
 
         return bars.OrderBy(b => b.Timestamp).Last().Close;
+    }
+
+    /// <summary>
+    /// Daily bars for several symbols over a window, following pagination to the end.
+    ///
+    /// Used by the backtest rather than the live run. The free feed is IEX-only, so these are IEX
+    /// prints rather than the consolidated tape — close enough to replay a strategy against, and a
+    /// reason not to read a replay's last decimal place as truth.
+    /// </summary>
+    public virtual async Task<Dictionary<string, List<(DateOnly Date, decimal Open, decimal Close)>>>
+        GetDailyBarsAsync(IEnumerable<string> symbols, DateOnly from, DateOnly to, CancellationToken token = default)
+    {
+        var list = symbols.Select(s => s.Trim().ToUpperInvariant()).Distinct().ToList();
+        var result = new Dictionary<string, List<(DateOnly, decimal, decimal)>>(StringComparer.OrdinalIgnoreCase);
+        string? pageToken = null;
+
+        do
+        {
+            var url = $"{DataHost}/v2/stocks/bars?symbols={string.Join(',', list)}&timeframe=1Day" +
+                      $"&start={from:yyyy-MM-dd}&end={to:yyyy-MM-dd}&limit=10000&feed=iex" +
+                      (pageToken is null ? "" : $"&page_token={Uri.EscapeDataString(pageToken)}");
+
+            var page = await GetAsync<PagedBarsDto>(url, token);
+
+            foreach (var (symbol, bars) in page.Bars ?? [])
+            {
+                if (!result.TryGetValue(symbol, out var series))
+                {
+                    series = [];
+                    result[symbol] = series;
+                }
+
+                series.AddRange(bars.Select(b =>
+                    (DateOnly.FromDateTime(b.Timestamp), b.Open, b.Close)));
+            }
+
+            pageToken = page.NextPageToken;
+        }
+        while (!string.IsNullOrEmpty(pageToken));
+
+        foreach (var series in result.Values)
+        {
+            series.Sort((a, b) => a.Item1.CompareTo(b.Item1));
+        }
+
+        return result;
     }
 
     public virtual async Task<SubmittedOrder> PlaceMarketOrderAsync(

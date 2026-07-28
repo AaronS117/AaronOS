@@ -27,7 +27,8 @@ public readonly record struct CycleResult(bool Ran, string Summary, string? Erro
 public class TradingAgent(
     IDbContextFactory<AaronOsDbContext> dbContextFactory,
     AlpacaClient alpaca,
-    AgentProviderRegistry providers)
+    AgentProviderRegistry providers,
+    TimeProvider time)
 {
     /// <summary>Enough turns for the model to place a few orders and react to a refusal.</summary>
     private const int MaxToolTurns = 6;
@@ -44,21 +45,21 @@ public class TradingAgent(
 
         if (!alpaca.IsConfigured)
         {
-            return await RecordBlockedAsync(db, "Add your Alpaca paper keys in Settings first.", token);
+            return await RecordBlockedAsync(db, "Add your Alpaca paper keys in Settings first.", time, token);
         }
 
         var provider = providers.Resolve(config.Provider);
         if (!provider.IsConfigured)
         {
             return await RecordBlockedAsync(
-                db, $"The {provider.Name} model provider is not configured yet.", token);
+                db, $"The {provider.Name} model provider is not configured yet.", time, token);
         }
 
         // Stamped with the provider as well as the model, so a run in the log can be traced to what
         // actually produced it after the setting has been changed.
         var decision = new AgentDecision
         {
-            RanAtUtc = DateTime.UtcNow,
+            RanAtUtc = time.GetUtcNow().UtcDateTime,
             Model = $"{provider.Name}/{config.Model}",
         };
 
@@ -76,7 +77,7 @@ public class TradingAgent(
             var watchlist = TradingGuardrails.ParseWatchlist(config.Watchlist);
             var quotes = await alpaca.GetQuotesAsync(watchlist, token);
 
-            var since = DateTime.UtcNow.Date;
+            var since = time.GetUtcNow().UtcDateTime.Date;
             var ordersToday = await db.Set<TradeOrder>().CountAsync(o => o.SubmittedAtUtc >= since, token);
 
             var state = new AccountState(account.Equity, account.Cash, true, positions, ordersToday);
@@ -85,7 +86,7 @@ public class TradingAgent(
 
             decision.ActionSummary = result;
             db.Add(decision);
-            await EnsureStartedOnAsync(db, config, token);
+            await EnsureStartedOnAsync(db, config, time, token);
             await db.SaveChangesAsync(token);
 
             return new CycleResult(true, result, null);
@@ -113,7 +114,7 @@ public class TradingAgent(
     /// the normal state for most of the day and carry no information.
     /// </summary>
     private static async Task<CycleResult> RecordBlockedAsync(
-        AaronOsDbContext db, string reason, CancellationToken token)
+        AaronOsDbContext db, string reason, TimeProvider time, CancellationToken token)
     {
         var latest = await db.Set<AgentDecision>()
             .OrderByDescending(d => d.RanAtUtc)
@@ -123,7 +124,7 @@ public class TradingAgent(
         {
             db.Add(new AgentDecision
             {
-                RanAtUtc = DateTime.UtcNow,
+                RanAtUtc = time.GetUtcNow().UtcDateTime,
                 Model = "—",
                 ActionSummary = "Blocked",
                 Error = reason,
@@ -293,7 +294,7 @@ public class TradingAgent(
             Symbol = symbol,
             Side = side,
             Quantity = quantity,
-            SubmittedAtUtc = DateTime.UtcNow,
+            SubmittedAtUtc = time.GetUtcNow().UtcDateTime,
             EstimatedPrice = quote.Mid,
             Status = submitted.Status,
             AgentDecisionId = decision.Id == 0 ? null : decision.Id,
@@ -307,7 +308,7 @@ public class TradingAgent(
 
     /// <summary>Stamps the start date on the first cycle that runs, and never touches it again.</summary>
     private static async Task EnsureStartedOnAsync(
-        AaronOsDbContext db, TradingConfig config, CancellationToken token)
+        AaronOsDbContext db, TradingConfig config, TimeProvider time, CancellationToken token)
     {
         if (config.StartedOn is not null || config.Id == 0)
         {
@@ -317,7 +318,7 @@ public class TradingAgent(
         var stored = await db.Set<TradingConfig>().FirstOrDefaultAsync(c => c.Id == config.Id, token);
         if (stored is not null)
         {
-            stored.StartedOn = DateOnly.FromDateTime(DateTime.Now);
+            stored.StartedOn = DateOnly.FromDateTime(time.GetLocalNow().DateTime);
         }
     }
 

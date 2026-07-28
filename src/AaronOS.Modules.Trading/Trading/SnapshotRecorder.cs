@@ -11,7 +11,8 @@ namespace AaronOS.Modules.Trading.Trading;
 /// </summary>
 public class SnapshotRecorder(
     IDbContextFactory<AaronOsDbContext> dbContextFactory,
-    AlpacaClient alpaca)
+    AlpacaClient alpaca,
+    TimeProvider time)
 {
     private static readonly string[] SettledStatuses = ["filled", "canceled", "cancelled", "rejected", "expired"];
 
@@ -42,7 +43,7 @@ public class SnapshotRecorder(
         }
 
         await using var db = await dbContextFactory.CreateDbContextAsync(token);
-        var today = DateOnly.FromDateTime(DateTime.Now);
+        var today = DateOnly.FromDateTime(time.GetLocalNow().DateTime);
         var snapshot = await db.Set<PortfolioSnapshot>().FirstOrDefaultAsync(s => s.Date == today, token);
 
         if (snapshot is null)

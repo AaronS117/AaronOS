@@ -130,7 +130,7 @@ public class TradingCycleEndToEndTests : IDisposable
         };
 
     private TradingAgent Agent(AlpacaClient broker, params AgentTurn[] turns) =>
-        new(Factory, broker, new AgentProviderRegistry([new ScriptedProvider(turns)]));
+        new(Factory, broker, new AgentProviderRegistry([new ScriptedProvider(turns)]), TimeProvider.System);
 
     [Fact]
     public async Task AnAllowedOrderReachesTheBrokerAndIsRecordedWithItsReasoning()
