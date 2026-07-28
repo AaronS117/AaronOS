@@ -272,6 +272,94 @@ enough that re-fetching on navigation would make the UI feel broken.
 Accepting an item creates a `Release`, a `ScheduleException`, or a `Goal` depending on `Kind`, and
 flips the item to `Accepted`. Nothing from mail reaches the schedule without that step.
 
+## Calendar views
+
+Revised 2026-07-28, after the first version shipped. The original design gave the module a Today
+list, a Week list and a Routines page. In use, the day-list layout turned out to be the wrong shape:
+every entry renders the same height regardless of duration, so a fifteen-minute check-in and a
+three-hour block look identical, and there is no sense of a day filling up. That is precisely what
+time blocking needs to convey. So the calendar becomes a **time grid modelled on Outlook's**, and the
+Today view is removed — week and month are the only views.
+
+### The two views
+
+**Week** is the default. A fixed time gutter on the left, seven day columns, hour lines across. Each
+item is positioned by its real start and sized by its real duration, so the shape of the day is
+visible at a glance. Opens scrolled to 07:00 rather than midnight, because otherwise the working day
+starts below the fold; the full 00:00–24:00 range remains reachable by scrolling.
+
+**Month** is a six-by-seven cell grid. No time positioning — Outlook does not do it either at this
+density and it would be illegible. Each cell lists its items in start order, capped, with a
+"+N more" affordance; clicking a day switches to Week focused on that week.
+
+### The all-day band
+
+Outlook puts all-day items in a separate strip above the grid, and copying that is not cosmetic — it
+is required. `ExternalEventProjector` maps an all-day event to `00:00`–`24:00`, which in a time grid
+is a block occupying the entire column height. A single all-day event would otherwise bury the whole
+day's real meetings behind it. So any item spanning the full day is lifted out of the grid into the
+band. This is the first design consequence of the projector's existing behaviour, and it applies
+equally to a `Sleep` block that wraps midnight — those already arrive pre-split per day by
+`AgendaBuilder`, so they sit in the grid, correctly, as two partial-day blocks.
+
+### Overlap layout is a pure function
+
+Two meetings at the same time must sit side by side, each at half width, exactly as Outlook does.
+The rule is interval-graph lane assignment, and it belongs in a pure service along
+`AgendaBuilder` — no `DbContext`, no visual types:
+
+`IReadOnlyList<PositionedItem> TimeGridLayout.Assign(IReadOnlyList<CalendarItem> itemsForOneDay)`
+
+returning each item with a `Lane` and the `LaneCount` of its overlap cluster. Sort by start; assign
+each item to the first lane whose previous item has already ended; the lane count is computed **per
+cluster of mutually overlapping items, not per day** — otherwise one overlapping pair at 09:00
+shrinks every unrelated block in the day to half width, which is wrong and looks broken. The view
+then derives geometry arithmetically: `Left = Lane / LaneCount * columnWidth`,
+`Width = columnWidth / LaneCount`, `Top = Start.TotalMinutes * pixelsPerMinute`.
+
+Keeping this pure is what makes the hard part testable. Lane assignment has genuine edge cases —
+identical spans, an item entirely enclosed by another, a chain where A overlaps B and B overlaps C
+but A and C do not touch — and none of them need a running application to verify.
+
+### Click a slot to add
+
+Clicking empty grid space opens the existing add-block form pre-filled with that day and a start time
+snapped to the nearest fifteen minutes. The pixel-to-time conversion is arithmetic and lives with the
+layout service, not in the code-behind, so it is testable too.
+
+Drag-to-create and drag-to-resize are deliberately **not** in this revision. They are most of the
+cost of a calendar control — hit-testing, snapping, live preview, undo — and the grid is what
+delivers the Outlook feel. They are the obvious next increment once the grid is in use.
+
+### `CalendarItem`: the seam for other modules
+
+The grid renders a plain record and knows nothing about this module's entities:
+
+```csharp
+public sealed record CalendarItem(
+    DateOnly Date, TimeSpan Start, TimeSpan End,
+    string Label, CalendarItemKind Kind, string? Detail);
+```
+
+The Schedule module maps its `AgendaEntry` values into this. The point is that a calendar is
+plausibly useful to other modules — Medical's appointments, Nutrition's meal times — and
+`MODULE_GUIDELINES.md` forbids one module reading another's entities, so the shared shape would have
+to live in `AaronOS.Core` with a contribution point beside `SettingsContentType`.
+
+That contribution point is **not** being built yet. Building it now would be guessing at what other
+modules need, and it changes a contract all five modules compile against. Rendering from
+`CalendarItem` rather than `AgendaEntry` is the whole preparation required: when a second module
+actually has something to show, the record moves to Core and an interface is added, without touching
+the grid. This is a deliberate YAGNI call, recorded so the next person knows it was a decision and
+not an oversight.
+
+### What this replaces
+
+The Today page is removed. Its content — today's remaining items, overdue routines, the free-time
+readout, and the ranked suggestion list that Plan 2 was going to put there — becomes a narrow rail on
+the right of the week view. `TodayViewModel` is largely reusable as that rail's ViewModel, so little
+of the shipped work is wasted. Plans 2 and 3 both reference the Today page and need amending.
+
 ## Services
 
 Five pure services — they take values and return values, touch no database, and are where the tests
