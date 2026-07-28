@@ -31,6 +31,10 @@ Every task's requirements implicitly include this section. These repeat earlier 
 - Database-backed tests write through one `DbContext` and read through a **separate** one. EF identity resolution returns the tracked instance, so a same-context read asserts against the object the test constructed.
 - Run tests with `dotnet test src/AaronOS.Modules.Schedule.Tests/AaronOS.Modules.Schedule.Tests.csproj --nologo`.
 - Test-count expectations in this plan are **deltas**, not totals. Absolute counts have gone stale three times in this project.
+- **`AaronOS.Modules.Schedule.Calendar` collides with `Ical.Net.Calendar`.** The new namespace shares
+  its name with a type in the ICS dependency, so any file that uses both needs an alias —
+  `using IcalCalendar = Ical.Net.Calendar;` is already in place in `IcsFeedClient.cs`, which is the
+  only such file. Do not "fix" this by renaming the namespace or removing the alias.
 
 ---
 
