@@ -87,7 +87,58 @@ in update mode, and it is unknown whether the relevant providers are reachable a
 scope: tax-aware withdrawal ordering, Social Security estimates, Roth conversion modelling, and a
 target-date picker on savings goals (the column exists; nothing computes from it yet).
 
-## Phase 2 — Wagering (not built)
+## Phase 2 — Paper trading with an autonomous agent (built)
+
+`AaronOS.Modules.Trading`, against Alpaca's paper environment. Paper and live differ only in the
+trading host, so proving a strategy out and then deciding about real money is a configuration change
+rather than a rewrite. Alpaca's free data tier serves IEX only, a few percent of total volume, so
+paper fills run slightly optimistic — fine for measuring a strategy, not exact.
+
+### Guardrails, enforced by the application
+
+Every order the model emits passes through `TradingGuardrails` before it reaches the broker: the
+symbol must be on the watchlist, no single position may exceed a percentage of equity, total
+exposure is capped so cash is always held back, there is a daily order limit, and both borrowing and
+short selling are refused outright. A refusal is returned to the model as a tool result so it can
+react within the cycle, and written to the decision log so it is visible afterwards.
+
+The distinction that matters: these are constraints, not instructions. A model asked to respect a
+position limit mostly will, and the exceptions are precisely the cases a risk control exists for.
+The rules are pure, synchronous functions with no clock, network or database, which is what makes
+them directly testable — the only way to know a safety layer works before the day it has to.
+
+### Measurement
+
+Placing paper trades is easy; knowing whether there is an edge is the hard part, and paper trading
+systematically overstates performance. Four structural answers rather than optional ones:
+
+- Return is always reported beside SPY over the identical window. Twelve percent against an index
+  that returned fifteen is a loss, and the dashboard says so in those words.
+- `StartedOn` is stamped by the first cycle and never rewritten, so a bad run cannot be restarted and
+  counted from the recovery.
+- The win rate is withheld entirely below a usable sample. A run of eight winners reads like skill.
+- Round trips are counted only once closed. Marking open positions to market lets winners count
+  while losers stay open, which is the easiest way to flatter a record.
+
+### On the model doing the trading
+
+Built at the account owner's explicit direction after the recommendation below was given and
+understood. The honest framing is that this is a research instrument rather than an edge: it produces
+a logged, benchmarked answer to "does an LLM trader beat holding the index", which is worth owning,
+and it is not a reason to fund the strategy. The system prompt says plainly that doing nothing is
+usually correct, because an agent asked every half hour what to trade will find something to trade,
+and churn is the most reliable way to lose to the index.
+
+Autonomy here means autonomous while AaronOS is open. It is a desktop application; closing the window
+stops the trading. Running overnight needs a server, which is separate work.
+
+### Verified
+
+41 tests, weighted towards the guardrails. Both pages were rendered offscreen with WPF's binding
+trace enabled, and the app was launched to confirm the four new tables are created against the live
+database without disturbing it.
+
+## Phase 3 — Wagering (not built)
 
 Its own module, because retirement planning and sports betting have nothing to do with each other
 and mixing them normalises exactly the failure mode worth designing against.
@@ -111,11 +162,12 @@ one real analytical edge available to a retail bettor.
 The trading data model separates a position held from an order placed, so Kalshi order placement can
 be added later without a rewrite.
 
-## Phase 3 — Live data (not built)
+## Phase 4 — Remaining live data (partly built)
 
-Medium difficulty and each piece needs an account or a key: market quotes from a rate-limited free
-tier with a local cache, Kalshi market data over its public REST API. PrizePicks has no public API
-and blocks scraping, so its projections stay manual.
+Equity quotes now come from Alpaca as part of Phase 2. Still outstanding: Kalshi market data over its
+public REST API, whose demo environment at `demo-api.kalshi.co` mirrors production with separate
+credentials and RSA-key auth. PrizePicks has no public API and blocks scraping, so its projections
+stay manual.
 
 WhatsApp stock tips have no read API for a personal account, and automating WhatsApp Web violates
 its terms. The workable route is WhatsApp's own **Export Chat** feature: an importer parses the

@@ -1,0 +1,40 @@
+<UserControl
+    x:Class="AaronOS.Modules.Trading.Views.TradingKeysSection"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    mc:Ignorable="d">
+
+    <StackPanel>
+        <TextBlock
+            Text="Paper trading needs an Alpaca paper key, which is free and needs only an email — no funding and no identity check. The agent needs an Anthropic key. Both are stored encrypted for this Windows account and never enter the database or source control."
+            Style="{DynamicResource CaptionText}"
+            TextWrapping="Wrap"
+            Margin="0,0,0,14" />
+
+        <WrapPanel>
+            <StackPanel Width="240" Margin="0,0,12,10">
+                <TextBlock Text="Alpaca key ID" Style="{DynamicResource CaptionText}" Margin="0,0,0,5" />
+                <ui:TextBox Text="{Binding AlpacaKeyId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="PK…" />
+            </StackPanel>
+            <StackPanel Width="240" Margin="0,0,12,10">
+                <TextBlock Text="Alpaca secret" Style="{DynamicResource CaptionText}" Margin="0,0,0,5" />
+                <ui:PasswordBox Password="{Binding AlpacaSecret, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="secret" />
+            </StackPanel>
+            <StackPanel Width="240" Margin="0,0,12,10">
+                <TextBlock Text="Anthropic API key" Style="{DynamicResource CaptionText}" Margin="0,0,0,5" />
+                <ui:PasswordBox Password="{Binding AnthropicApiKey, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" PlaceholderText="sk-ant-…" />
+            </StackPanel>
+            <ui:Button
+                Content="Save keys"
+                Command="{Binding SaveCommand}"
+                Appearance="Primary"
+                VerticalAlignment="Bottom"
+                Margin="0,0,0,10" />
+        </WrapPanel>
+
+        <TextBlock Text="{Binding StatusMessage}" Style="{DynamicResource CaptionText}" TextWrapping="Wrap" Margin="0,4,0,0" />
+    </StackPanel>
+</UserControl>
