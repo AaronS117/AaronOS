@@ -24,7 +24,11 @@ public static class CalendarItemMapper
                 entry.End,
                 entry.Label,
                 KindOf(entry.Kind, entry.Source),
-                entry.Source == AgendaEntrySource.External ? "from calendar" : null);
+                // Null until there is something worth a second line. "from calendar" was here and
+                // said nothing the Meeting colour does not already convey, while costing a line under
+                // every meeting label in a narrow column. A location would earn the space, but
+                // AgendaEntry does not carry one — ExternalEvent has it and the agenda type drops it.
+                Detail: null);
 
             (item.IsAllDay ? allDay : timed).Add(item);
         }
