@@ -26,9 +26,11 @@ public static class ExternalEventMerger
         IReadOnlyList<ExternalEventDto> fetched)
     {
         // This method plans one calendar's fetch at a time (see class doc). ExternalUid is only
-        // unique per calendar, so a mixed-calendar `existing` list would let two rows share a UID:
-        // ToDictionary below would then throw anyway, but this check turns that into a clear
-        // failure at the seam rather than a cryptic dictionary-collision exception.
+        // unique per calendar, so a mixed-calendar `existing` list is invalid input regardless of
+        // whether any UID actually collides: rows whose UIDs happen to differ would pass straight
+        // through ToDictionary and get planned as if they belonged to one calendar, silently wrong
+        // rather than failing loudly. This check rejects all mixed-calendar input at the seam,
+        // rather than relying on a UID collision to surface it as a dictionary exception.
         if (existing.DistinctBy(e => e.ExternalCalendarId).Count() > 1)
         {
             throw new ArgumentException(

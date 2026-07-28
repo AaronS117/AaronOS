@@ -28,6 +28,9 @@ public sealed class ScheduleSyncService(
         var succeeded = 0;
         foreach (var calendar in calendars)
         {
+            // Checked once per calendar so shutdown is deterministic regardless of what any inner
+            // catch below does — the guarantee doesn't depend on every future catch being correct.
+            cancellationToken.ThrowIfCancellationRequested();
             if (await SyncCalendarAsync(db, calendar, cancellationToken)) succeeded++;
         }
 
@@ -141,6 +144,10 @@ public sealed class ScheduleSyncService(
 
             fresh.LastError = message.Length > 2000 ? message[..2000] : message;
             await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw; // shutdown, not a failure to record a failure — let the caller observe it
         }
         catch (Exception ex)
         {

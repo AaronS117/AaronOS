@@ -53,9 +53,11 @@ public class ScheduleSyncServiceTests : IDisposable
         int calendarId;
         await using (var db = _factory.CreateDbContext())
         {
+            var priorSync = new DateTime(2026, 7, 1, 8, 0, 0);
             var calendar = new ExternalCalendar
             {
                 Provider = CalendarProvider.OutlookIcs, DisplayName = "Work", IcsUrl = "https://example/a.ics",
+                LastSyncedAt = priorSync,
             };
             db.Add(calendar);
             await db.SaveChangesAsync();
@@ -88,7 +90,9 @@ public class ScheduleSyncServiceTests : IDisposable
         var calendarAfter = await verify.Set<ExternalCalendar>().SingleAsync(c => c.Id == calendarId);
         Assert.NotNull(calendarAfter.LastError);
         Assert.Contains("feed unreachable", calendarAfter.LastError);
-        Assert.Null(calendarAfter.LastSyncedAt);
+        // Seeded with a known prior value (not just null) so this distinguishes "not advanced" from
+        // "never set".
+        Assert.Equal(new DateTime(2026, 7, 1, 8, 0, 0), calendarAfter.LastSyncedAt);
     }
 
     [Fact]
