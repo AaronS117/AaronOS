@@ -1,4 +1,5 @@
 using AaronOS.Core;
+using AaronOS.Modules.Schedule.External;
 using AaronOS.Modules.Schedule.ViewModels;
 using AaronOS.Modules.Schedule.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,5 +18,6 @@ public class ScheduleModule : IAppModule
         services.AddTransient<TodayViewModel>();
         services.AddTransient<WeekViewModel>();
         services.AddTransient<RoutinesViewModel>();
+        services.AddSingleton<ScheduleSyncService>();
     }
 }
