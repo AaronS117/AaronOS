@@ -79,5 +79,6 @@ public class PositionPeakConfiguration : IEntityTypeConfiguration<PositionPeak>
         builder.HasIndex(p => p.Symbol).IsUnique();
         builder.Property(p => p.Symbol).HasMaxLength(16).IsRequired();
         builder.Property(p => p.PeakPrice).HasPrecision(18, 4);
+        builder.Property(p => p.StoppedOutUtc);
     }
 }

@@ -365,6 +365,48 @@ public class TradingGuardrailsTests
     }
 
     [Fact]
+    public void AStoppedOutSymbolCannotBeBoughtBackDuringItsCooldown()
+    {
+        // Without this the stop sells and the model buys straight back on the next cycle, paying the
+        // spread twice and protecting nothing. Over six years, buying back immediately cost 18 points
+        // against holding and left the drawdown slightly WORSE than not having a stop at all.
+        var config = Config();
+        config.Watchlist = "SPY";
+        config.StopLossCooldownDays = 20;
+
+        var account = Account() with { CoolingOff = ["SPY"] };
+
+        var verdict = TradingGuardrails.Check(Buy("SPY", 10, 100m), account, config);
+
+        Assert.False(verdict.Allowed);
+        Assert.Contains("cooldown", verdict.Reason);
+    }
+
+    [Fact]
+    public void ACooldownNeverBlocksSelling()
+    {
+        // Getting out has to stay available at all times, whatever else is barred.
+        var config = Config();
+        config.Watchlist = "SPY";
+
+        var account = Account(positions: [new HeldPosition("SPY", 50, 5_000m)]) with
+        {
+            CoolingOff = ["SPY"],
+        };
+
+        Assert.True(TradingGuardrails.Check(Sell("SPY", 50, 100m), account, config).Allowed);
+    }
+
+    [Fact]
+    public void SymbolsOutsideTheCooldownAreUnaffected()
+    {
+        var config = Config();
+        var account = Account() with { CoolingOff = ["MSFT"] };
+
+        Assert.True(TradingGuardrails.Check(Buy("AAPL", 10, 100m), account, config).Allowed);
+    }
+
+    [Fact]
     public void ParseWatchlistDeduplicatesAndUppercases()
     {
         Assert.Equal(["AAPL", "MSFT"], TradingGuardrails.ParseWatchlist("aapl, AAPL , msft,"));

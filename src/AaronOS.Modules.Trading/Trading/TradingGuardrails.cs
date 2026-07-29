@@ -17,7 +17,9 @@ public readonly record struct AccountState(
     decimal Cash,
     bool MarketIsOpen,
     IReadOnlyList<HeldPosition> Positions,
-    int OrdersPlacedToday);
+    int OrdersPlacedToday,
+    /// <summary>Symbols the trailing stop sold recently, which may not be bought back yet.</summary>
+    IReadOnlyList<string>? CoolingOff = null);
 
 public readonly record struct GuardrailVerdict(bool Allowed, string Reason)
 {
@@ -70,6 +72,17 @@ public static class TradingGuardrails
         {
             return GuardrailVerdict.Block(
                 $"Already placed {account.OrdersPlacedToday} orders today, the limit is {config.MaxTradesPerDay}.");
+        }
+
+        // A stopped-out symbol is barred from repurchase for the cooldown. Without it the stop sells and
+        // the model buys straight back on the next cycle, which pays the spread twice and protects
+        // nothing. Sells are never barred — getting out must always stay available.
+        if (order.Side == OrderSide.Buy &&
+            account.CoolingOff?.Contains(order.Symbol, StringComparer.OrdinalIgnoreCase) == true)
+        {
+            return GuardrailVerdict.Block(
+                $"{order.Symbol} was stopped out recently and is in its {config.StopLossCooldownDays}-day " +
+                $"cooldown. Waiting is the only re-entry rule that reduced drawdown when tested.");
         }
 
         return order.Side == OrderSide.Buy

@@ -32,6 +32,29 @@ public readonly record struct StopLossSale(string Symbol, int Quantity, decimal 
 /// </summary>
 public class StopLossGuard(IDbContextFactory<AaronOsDbContext> dbContextFactory, AlpacaClient alpaca)
 {
+    /// <summary>
+    /// Symbols the stop sold recently enough that buying them again is still barred.
+    ///
+    /// Enforced in the guardrails rather than requested in the brief, for the same reason as every other
+    /// limit here: a cooldown the model can talk itself out of is not a cooldown.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> CoolingOffAsync(
+        TradingConfig config, CancellationToken token = default)
+    {
+        if (config.StopLossCooldownDays <= 0)
+        {
+            return [];
+        }
+
+        await using var db = await dbContextFactory.CreateDbContextAsync(token);
+        var cutoff = DateTime.UtcNow.AddDays(-config.StopLossCooldownDays);
+
+        return await db.Set<PositionPeak>()
+            .Where(p => p.StoppedOutUtc != null && p.StoppedOutUtc > cutoff)
+            .Select(p => p.Symbol)
+            .ToListAsync(token);
+    }
+
     public async Task<IReadOnlyList<StopLossSale>> ApplyAsync(
         TradingConfig config, IReadOnlyList<HeldPosition> positions,
         Dictionary<string, SymbolQuote> quotes, CancellationToken token = default)
@@ -50,9 +73,19 @@ public class StopLossGuard(IDbContextFactory<AaronOsDbContext> dbContextFactory,
             .Select(p => p.Symbol)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        // A peak for something no longer held would make a future re-entry trail from an old high.
+        // A peak for something no longer held would make a future re-entry trail from an old high — but
+        // a row whose cooldown is still running has to survive, because it is the only record that this
+        // symbol was stopped out and is not to be repurchased yet.
+        var now = DateTime.UtcNow;
         foreach (var stale in peaks.Values.Where(p => !heldSymbols.Contains(p.Symbol)).ToList())
         {
+            var coolingOff = stale.StoppedOutUtc is { } when &&
+                             (now - when).TotalDays < config.StopLossCooldownDays;
+            if (coolingOff)
+            {
+                continue;
+            }
+
             db.Remove(stale);
             peaks.Remove(stale.Symbol);
         }
@@ -90,8 +123,9 @@ public class StopLossGuard(IDbContextFactory<AaronOsDbContext> dbContextFactory,
             await alpaca.PlaceMarketOrderAsync(position.Symbol, OrderSide.Sell, position.Quantity, token);
             sales.Add(new StopLossSale(position.Symbol, position.Quantity, peak.PeakPrice, price));
 
-            db.Remove(peak);
-            peaks.Remove(position.Symbol);
+            // Kept, not deleted: the row is now the cooldown marker.
+            peak.PeakPrice = 0m;
+            peak.StoppedOutUtc = now;
         }
 
         await db.SaveChangesAsync(token);

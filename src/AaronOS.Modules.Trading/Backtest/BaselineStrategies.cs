@@ -291,35 +291,58 @@ public sealed class VolatilityTargetedBaseline(
     }
 }
 
+/// <summary>How a stopped-out position decides it is time to own the thing again.</summary>
+public enum ReentryRule
+{
+    /// <summary>Buy back on the next session. Included because it is what happens with no rule at all.</summary>
+    Immediate,
+
+    /// <summary>Wait a fixed number of sessions, then buy regardless of price.</summary>
+    FixedWait,
+
+    /// <summary>Wait until the price is back above its own moving average.</summary>
+    AboveMovingAverage,
+
+    /// <summary>Wait until the price sets a new high over a trailing window.</summary>
+    NewHigh,
+
+    /// <summary>Wait until the price has risen a set percentage off its low since the stop.</summary>
+    BounceOffLow,
+}
+
 /// <summary>
-/// Hold the index, but sell everything when it falls a set percentage from its peak, then buy back in
-/// after a waiting period.
+/// Hold the index, sell when it falls a set percentage from its peak, and buy back according to a stated
+/// rule.
 ///
-/// This is the rule people ask for by name — "if it drops ten percent, get me out" — and it is worth
-/// implementing precisely rather than arguing about, because it is testable. Two details decide whether
-/// it helps or hurts, and both are usually left unstated when the idea is described.
+/// The exit is the easy half and the half everyone specifies. The re-entry is the strategy: a stop with
+/// no rule for getting back in sells at the bottom and either buys straight back — paying the spread
+/// twice for nothing — or sits in cash through the recovery, which is the more expensive mistake.
 ///
-/// The trigger is measured from the peak since entry, not from the purchase price, so a position that
-/// has risen and then given back the gain triggers the same as one that fell immediately. That is what
-/// "down ten percent" means to someone watching a chart.
-///
-/// The re-entry rule is the part that matters most and the part nobody specifies. A stop with no way
-/// back is not risk management, it is a one-way exit to cash. The waiting period here is deliberate and
-/// its length is the whole experiment: too short and the position is sold and rebought inside the same
-/// dip, too long and the recovery is missed.
+/// <see cref="ReentryRule.Immediate"/> exists to make the null case measurable rather than assumed.
 /// </summary>
 public sealed class StopLossBaseline(
     string symbol = "SPY",
-    decimal stopPercent = 10m,
-    int reentryWaitSessions = 20) : IBaselineStrategy
+    decimal stopPercent = 7m,
+    ReentryRule reentry = ReentryRule.FixedWait,
+    int parameterSessions = 20,
+    decimal bouncePercent = 3m) : IBaselineStrategy
 {
     private decimal _peak;
     private int _waitRemaining;
+    private decimal _lowSinceStop;
+    private bool _outAfterStop;
     private int _stopsTriggered;
 
-    public string Name => $"stop-loss {stopPercent:0}% on {symbol}, back in after {reentryWaitSessions}d";
+    public string Name => reentry switch
+    {
+        ReentryRule.Immediate => $"stop {stopPercent:0}%, back in immediately",
+        ReentryRule.FixedWait => $"stop {stopPercent:0}%, back in after {parameterSessions}d",
+        ReentryRule.AboveMovingAverage => $"stop {stopPercent:0}%, back above {parameterSessions}d average",
+        ReentryRule.NewHigh => $"stop {stopPercent:0}%, back on {parameterSessions}d high",
+        ReentryRule.BounceOffLow => $"stop {stopPercent:0}%, back after +{bouncePercent:0}% off low",
+        _ => $"stop {stopPercent:0}%",
+    };
 
-    /// <summary>How often the stop fired, which is the cost side of the trade-off.</summary>
     public int StopsTriggered => _stopsTriggered;
 
     public IEnumerable<OrderRequest> Decide(BaselineContext context)
@@ -329,8 +352,8 @@ public sealed class StopLossBaseline(
             yield break;
         }
 
-        var held = context.HeldShares(symbol);
         var price = quote.Mid;
+        var held = context.HeldShares(symbol);
 
         if (held > 0)
         {
@@ -339,11 +362,13 @@ public sealed class StopLossBaseline(
                 _peak = price;
             }
 
-            var fallFromPeak = _peak <= 0 ? 0m : (_peak - price) / _peak * 100m;
-            if (fallFromPeak >= stopPercent)
+            var fall = _peak <= 0 ? 0m : (_peak - price) / _peak * 100m;
+            if (fall >= stopPercent)
             {
                 _stopsTriggered++;
-                _waitRemaining = reentryWaitSessions;
+                _waitRemaining = parameterSessions;
+                _lowSinceStop = price;
+                _outAfterStop = true;
                 _peak = 0m;
                 yield return new OrderRequest(symbol, OrderSide.Sell, held, price);
             }
@@ -351,18 +376,63 @@ public sealed class StopLossBaseline(
             yield break;
         }
 
-        // Out of the market: count down the wait, then buy back in with everything available.
-        if (_waitRemaining > 0)
+        if (_outAfterStop)
         {
-            _waitRemaining--;
-            yield break;
+            if (price < _lowSinceStop || _lowSinceStop <= 0)
+            {
+                _lowSinceStop = price;
+            }
+
+            if (!ReadyToReturn(context, price))
+            {
+                yield break;
+            }
         }
 
         var shares = context.SharesFor(symbol, context.PositionHeadroom(symbol));
         if (shares > 0)
         {
             _peak = price;
+            _outAfterStop = false;
             yield return new OrderRequest(symbol, OrderSide.Buy, shares, price);
+        }
+    }
+
+    private bool ReadyToReturn(BaselineContext context, decimal price)
+    {
+        switch (reentry)
+        {
+            case ReentryRule.Immediate:
+                return true;
+
+            case ReentryRule.FixedWait:
+                if (_waitRemaining > 0)
+                {
+                    _waitRemaining--;
+                    return false;
+                }
+
+                return true;
+
+            case ReentryRule.AboveMovingAverage:
+            {
+                var closes = context.Market.ClosesUpTo(symbol, context.Today, parameterSessions);
+                // Not enough history to judge is a reason to wait, not a reason to guess.
+                return closes.Count >= parameterSessions && price > closes.Average();
+            }
+
+            case ReentryRule.NewHigh:
+            {
+                var closes = context.Market.ClosesUpTo(symbol, context.Today, parameterSessions);
+                return closes.Count >= parameterSessions && price >= closes.Max();
+            }
+
+            case ReentryRule.BounceOffLow:
+                return _lowSinceStop > 0 &&
+                       (price - _lowSinceStop) / _lowSinceStop * 100m >= bouncePercent;
+
+            default:
+                return true;
         }
     }
 }

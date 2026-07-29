@@ -14,4 +14,13 @@ public class PositionPeak
     public string Symbol { get; set; } = "";
     public decimal PeakPrice { get; set; }
     public DateTime UpdatedUtc { get; set; }
+
+    /// <summary>
+    /// When the trailing stop last sold this symbol, or null if it never has.
+    ///
+    /// The row outlives the position on purpose. Without it a stop sells and the model, seeing no
+    /// holding and a brief that says to hold the index, buys straight back on the next cycle fifteen
+    /// minutes later — paying the spread twice and calling it risk management.
+    /// </summary>
+    public DateTime? StoppedOutUtc { get; set; }
 }

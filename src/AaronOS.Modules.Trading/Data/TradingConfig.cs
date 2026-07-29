@@ -64,6 +64,25 @@ public class TradingConfig
     /// </summary>
     public decimal MaxIndividualStocksPercent { get; set; } = 30m;
 
+    /// <summary>
+    /// Days a stopped-out symbol is off limits before it may be bought again. Zero disables the wait.
+    ///
+    /// Twenty, and the reason is the most counter-intuitive result this project produced. Eight re-entry
+    /// rules were replayed over six years: buying straight back, waiting five days, waiting twenty, and
+    /// five variants that waited for the price to confirm a recovery — above its 20 or 50 day average, at
+    /// a new 20-day high, or a few percent off the low.
+    ///
+    /// The rules that waited for confirmation were the worst by a distance, losing 70 to 92 points
+    /// against simply holding, and three of them ended with a DEEPER drawdown than holding because they
+    /// sold at the bottom, bought a failed bounce, and were stopped out again lower. By the time a chart
+    /// confirms a recovery the recovery has happened, and the same signal fires on every bounce that
+    /// does not hold.
+    ///
+    /// The plain wait was the only rule that meaningfully reduced the worst fall — 24% down to 15% — and
+    /// it does so by refusing to time anything. The dumbest rule won.
+    /// </summary>
+    public int StopLossCooldownDays { get; set; } = 20;
+
     public int MaxTradesPerDay { get; set; } = 6;
     public int CycleIntervalMinutes { get; set; } = 30;
 

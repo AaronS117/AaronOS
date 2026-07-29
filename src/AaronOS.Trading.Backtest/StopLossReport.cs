@@ -67,17 +67,31 @@ public static class StopLossReport
 
             var hold = new BaselineRunner(market)
                 .Run(new BuyAndHoldIndexBaseline(), config, from, to);
-            Console.WriteLine($"  {"hold through",-34} {hold.Performance.StrategyReturnPercent,8:+0.00;-0.00}%  "
+            Console.WriteLine($"  {"hold through",-40} {hold.Performance.StrategyReturnPercent,8:+0.00;-0.00}%  "
                               + $"worst drawdown −{hold.Performance.MaxDrawdownPercent,5:0.0}%   1 trade");
 
-            foreach (var (stop, wait) in new[] { (10m, 20), (10m, 5), (15m, 20), (7m, 20) })
+            // The exit is held fixed at 7% so the column being compared is the way back in, which is the
+            // half that decides whether a stop is risk management or an expensive habit.
+            var variants = new (ReentryRule Rule, int Param, decimal Bounce)[]
             {
-                var strategy = new StopLossBaseline("SPY", stop, wait);
+                (ReentryRule.Immediate, 0, 0m),
+                (ReentryRule.FixedWait, 5, 0m),
+                (ReentryRule.FixedWait, 20, 0m),
+                (ReentryRule.AboveMovingAverage, 50, 0m),
+                (ReentryRule.AboveMovingAverage, 20, 0m),
+                (ReentryRule.NewHigh, 20, 0m),
+                (ReentryRule.BounceOffLow, 0, 3m),
+                (ReentryRule.BounceOffLow, 0, 5m),
+            };
+
+            foreach (var (rule, param, bounce) in variants)
+            {
+                var strategy = new StopLossBaseline("SPY", 7m, rule, param, bounce);
                 var run = new BaselineRunner(market).Run(strategy, config, from, to);
                 var delta = run.Performance.StrategyReturnPercent - hold.Performance.StrategyReturnPercent;
 
                 Console.WriteLine(
-                    $"  {$"stop {stop:0}% / back in after {wait}d",-34} "
+                    $"  {strategy.Name,-40} "
                     + $"{run.Performance.StrategyReturnPercent,8:+0.00;-0.00}%  "
                     + $"worst drawdown −{run.Performance.MaxDrawdownPercent,5:0.0}%   "
                     + $"{run.OrdersFilled,2} trades   vs holding {delta,7:+0.0;-0.0} pts");

@@ -92,7 +92,9 @@ public class TradingAgent(
             var since = time.GetUtcNow().UtcDateTime.Date;
             var ordersToday = await db.Set<TradeOrder>().CountAsync(o => o.SubmittedAtUtc >= since, token);
 
-            var state = new AccountState(account.Equity, account.Cash, true, positions, ordersToday);
+            var coolingOff = await stopLoss.CoolingOffAsync(config, token);
+            var state = new AccountState(
+                account.Equity, account.Cash, true, positions, ordersToday, coolingOff);
 
             var headlines = config.IncludeNews
                 ? await news.AsOfAsync(watchlist, DateOnly.FromDateTime(time.GetUtcNow().UtcDateTime), token)
@@ -451,6 +453,15 @@ public class TradingAgent(
             $"Limits enforced by the application: no more than {config.MaxPositionPercent:0.#}% of equity in " +
             $"any one individual company, no more than {config.MaxInvestedPercent:0.#}% invested in total, " +
             $"{config.MaxTradesPerDay} orders a day, no borrowing and no short selling.");
+
+        if (state.CoolingOff is { Count: > 0 } cooling)
+        {
+            brief.AppendLine();
+            brief.AppendLine(CultureInfo.InvariantCulture,
+                $"Recently stopped out and barred from repurchase for now: {string.Join(", ", cooling)}. " +
+                $"Waiting out the cooldown was the only re-entry rule that reduced losses when tested; " +
+                $"buying back early reliably made things worse. Do not attempt to buy these.");
+        }
 
         if (indexSymbols.Count > 0)
         {
