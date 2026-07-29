@@ -27,8 +27,11 @@ public class ReplayBrokerTests
             new DailyBar(Day3, 300m, 310m)]),
     ], "SPY");
 
-    /// <summary>No spread and no slippage, for tests about mechanics rather than costs.</summary>
-    private static ReplayCosts Free => new(0m, 0m);
+    /// <summary>
+    /// No spread, no slippage, no cash yield — for tests about mechanics rather than costs. The yield
+    /// has to be zeroed too or every equity assertion drifts by a day of interest.
+    /// </summary>
+    private static ReplayCosts Free => new(0m, 0m, 0m);
 
     private static ReplayBroker Broker(ReplayCosts? costs = null, decimal cash = 100_000m) =>
         new(Market(), cash, costs ?? Free) { Today = Day1 };
@@ -100,6 +103,40 @@ public class ReplayBrokerTests
         // 10 shares valued at day 2's close of 210, plus the cash that survived a 2,000 purchase.
         Assert.Equal(98_000m, broker.Cash);
         Assert.Equal(98_000m + 2_100m, broker.Equity);
+    }
+
+    [Fact]
+    public void IdleCashEarnsInterestAsSessionsAdvance()
+    {
+        // Zero was a hidden thumb on the scale. Real cash earned about 4% over the replayed period, so
+        // charging nothing taxed every strategy that stepped aside for a cost that does not exist.
+        var broker = new ReplayBroker(Market(), 100_000m, new ReplayCosts(0m, 0m, 4m)) { Today = Day1 };
+
+        broker.Today = Day2;
+
+        var oneSession = 100_000m * (4m / 100m / 252m);
+        Assert.Equal(100_000m + oneSession, broker.Cash);
+    }
+
+    [Fact]
+    public void InterestAccruesOnlyGoingForwards()
+    {
+        // The runner always steps forward, but a rewind must not pay interest backwards.
+        var broker = new ReplayBroker(Market(), 100_000m, new ReplayCosts(0m, 0m, 4m)) { Today = Day3 };
+
+        broker.Today = Day1;
+
+        Assert.Equal(100_000m, broker.Cash);
+    }
+
+    [Fact]
+    public void ZeroYieldLeavesCashUntouched()
+    {
+        var broker = Broker();
+
+        broker.Today = Day2;
+
+        Assert.Equal(100_000m, broker.Cash);
     }
 
     [Fact]

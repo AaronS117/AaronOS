@@ -140,7 +140,8 @@ public class AlpacaClient(TradingCredentialStore credentialStore)
     public virtual async Task<decimal?> GetLatestDailyCloseAsync(string symbol, CancellationToken token = default)
     {
         var start = DateTime.UtcNow.AddDays(-10).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        var url = $"{DataHost}/v2/stocks/bars?symbols={symbol}&timeframe=1Day&start={start}&limit=10";
+        var url = $"{DataHost}/v2/stocks/bars?symbols={symbol}&timeframe=1Day&start={start}&limit=10" +
+                  "&adjustment=all";
         var dto = await GetAsync<BarsDto>(url, token);
 
         if (dto.Bars is null || !dto.Bars.TryGetValue(symbol, out var bars) || bars.Count == 0)
@@ -157,6 +158,11 @@ public class AlpacaClient(TradingCredentialStore credentialStore)
     /// Used by the backtest rather than the live run. The free feed is IEX-only, so these are IEX
     /// prints rather than the consolidated tape — close enough to replay a strategy against, and a
     /// reason not to read a replay's last decimal place as truth.
+    ///
+    /// adjustment=all is not optional. Alpaca defaults to raw, and raw bars are not split-adjusted: the
+    /// first split in the universe would appear to a trailing-return rule as a 75% collapse, and it
+    /// would act on that with complete confidence. It also folds in dividends, without which neither
+    /// the strategies nor the benchmark see the roughly 1.2% a year SPY pays out.
     /// </summary>
     public virtual async Task<Dictionary<string, List<(DateOnly Date, decimal Open, decimal Close)>>>
         GetDailyBarsAsync(IEnumerable<string> symbols, DateOnly from, DateOnly to, CancellationToken token = default)
@@ -168,7 +174,7 @@ public class AlpacaClient(TradingCredentialStore credentialStore)
         do
         {
             var url = $"{DataHost}/v2/stocks/bars?symbols={string.Join(',', list)}&timeframe=1Day" +
-                      $"&start={from:yyyy-MM-dd}&end={to:yyyy-MM-dd}&limit=10000&feed=iex" +
+                      $"&start={from:yyyy-MM-dd}&end={to:yyyy-MM-dd}&limit=10000&feed=iex&adjustment=all" +
                       (pageToken is null ? "" : $"&page_token={Uri.EscapeDataString(pageToken)}");
 
             var page = await GetAsync<PagedBarsDto>(url, token);

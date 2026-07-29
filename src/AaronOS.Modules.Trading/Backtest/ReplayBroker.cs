@@ -5,8 +5,19 @@ using AaronOS.Modules.Trading.Trading;
 namespace AaronOS.Modules.Trading.Backtest;
 
 /// <summary>Costs applied to every simulated fill. Defaults are deliberately pessimistic.</summary>
-public readonly record struct ReplayCosts(decimal HalfSpreadBps = 2m, decimal SlippageBps = 3m)
+public readonly record struct ReplayCosts(
+    decimal HalfSpreadBps = 2m,
+    decimal SlippageBps = 3m,
+    /// <summary>
+    /// Annual yield credited to idle cash. Zero was a hidden thumb on the scale: real cash earned about
+    /// 4% over this period, so every strategy that stepped aside — trend following on an exit, vol
+    /// targeting on a de-risk, an agent holding cash — was charged roughly two points per six months for
+    /// a cost that does not exist.
+    /// </summary>
+    decimal CashYieldPercent = 4m)
 {
+    public decimal DailyCashRate => CashYieldPercent / 100m / 252m;
+
     public decimal HalfSpread => HalfSpreadBps / 10_000m;
     public decimal Slippage => SlippageBps / 10_000m;
 }
@@ -34,8 +45,25 @@ public sealed class ReplayBroker(ReplayMarket market, decimal startingCash, Repl
 
     public decimal Cash { get; private set; } = startingCash;
 
-    /// <summary>The session being replayed. The runner advances this.</summary>
-    public DateOnly Today { get; set; }
+    /// <summary>
+    /// The session being replayed. Advancing it accrues one session of interest on idle cash, so the
+    /// runner setting the date is what moves the clock for the ledger too.
+    /// </summary>
+    public DateOnly Today
+    {
+        get => _today;
+        set
+        {
+            if (_today != default && value > _today)
+            {
+                Cash += Cash * costs.DailyCashRate;
+            }
+
+            _today = value;
+        }
+    }
+
+    private DateOnly _today;
 
     public override bool IsConfigured => true;
 
