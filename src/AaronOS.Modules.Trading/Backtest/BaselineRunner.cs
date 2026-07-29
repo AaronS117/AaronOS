@@ -116,6 +116,6 @@ public sealed class BaselineRunner(ReplayMarket market)
 
         return new BacktestResult(
             strategy.Name, sessions[0], sessions[^1], sessions.Count,
-            DecisionsMade: sessions.Count, orders.Count, refusedSessions, performance);
+            DecisionsMade: sessions.Count, orders.Count, refusedSessions, CyclesErrored: 0, performance);
     }
 }

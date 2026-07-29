@@ -16,8 +16,23 @@ public readonly record struct BacktestResult(
     int DecisionsMade,
     int OrdersFilled,
     int OrdersRefused,
+    int CyclesErrored,
     PerformanceSummary Performance)
 {
+    /// <summary>
+    /// True when enough cycles failed that the performance figures describe the harness rather than the
+    /// strategy.
+    ///
+    /// This exists because a run whose every cycle threw — the model server was down — reported
+    /// "+0.00%, alpha −11.27" with no indication anything had gone wrong. Four separate times in this
+    /// module a broken run has produced a plausible-looking number, and a number that cannot be
+    /// distinguished from a real one is worse than an error.
+    /// </summary>
+    public bool IsUntrustworthy => CyclesErrored > 0 && CyclesErrored * 10 >= Math.Max(1, DecisionsAttempted);
+
+    /// <summary>Cycles the agent was asked for, whether or not they succeeded.</summary>
+    public int DecisionsAttempted => DecisionsMade + CyclesErrored;
+
     public string Headline =>
         $"{Label}: {Performance.StrategyReturnPercent:+0.00;-0.00}% vs SPY " +
         $"{Performance.BenchmarkReturnPercent?.ToString("+0.00;-0.00") ?? "—"}%, " +
@@ -120,12 +135,15 @@ public sealed class BacktestRunner(ReplayMarket market, IAgentProvider provider,
         var orders = await final.Set<TradeOrder>().ToListAsync(token);
         var refused = await final.Set<AgentDecision>()
             .CountAsync(d => d.BlockedActions != null, token);
+        var errored = await final.Set<AgentDecision>()
+            .CountAsync(d => d.Error != null, token);
 
         var (closed, wins) = RoundTripCounter.Count(orders);
         var performance = PerformanceCalculator.Summarise(snapshots, closed, wins, config.MinTradesForStats);
 
         return new BacktestResult(
-            label, sessions[0], sessions[^1], sessions.Count, decisions, orders.Count, refused, performance);
+            label, sessions[0], sessions[^1], sessions.Count, decisions, orders.Count, refused, errored,
+            performance);
     }
 
     /// <summary>

@@ -112,6 +112,33 @@ cash-drag failure in milder form. That cap exists to limit exposure to a single 
 500-company fund is not one, so broad-index symbols are now exempt from it while remaining bound by
 the 80% total exposure cap and by available cash.
 
+## The recurring failure, and why it deserves its own section
+
+Four separate times in this module a broken run produced a plausible-looking number instead of an error.
+Each was found by accident, and each would have been believed if it had happened to land on a
+comfortable figure.
+
+1. **Buy-and-hold reported +0.00% with zero fills.** Sized to the invested cap, refused by the cash
+   margin. Read as a cautious strategy; was a blocked one.
+2. **Trend following reported +0.00%.** A 252-session lookback with thirty days of history, so it never
+   had enough data to act. Read as a finding about trend following; was a finding about a fetch window.
+3. **Three sells produced zero closed trades.** Orders arrived already filled, so reconciliation skipped
+   them and the fill price stayed null. Read as a strategy that never closed a position; was a counter
+   that could not see instant fills — and it would have kept the live run's thirty-trade gate shut
+   forever.
+4. **The news run reported +0.00% and alpha −11.27 with all 126 cycles errored.** The model server was
+   down. Nothing in the summary distinguished it from a strategy that had chosen to hold cash.
+
+The through-line is that a zero is ambiguous and every layer of this system was content to present one.
+Three fixes now exist because of it: sizing asks only for what the guardrails will permit, the runner
+names the first refusal, and a run with more than a tenth of its cycles errored refuses to report a
+performance figure at all and exits non-zero. There is also a reachability probe, because a configured
+endpoint is not a reachable one and the difference cost a full thirty-minute run.
+
+Stated plainly because it generalises: in a system where the output of a failure looks like the output of
+a decision, the failure will eventually be mistaken for a finding. The defence is not care, it is making
+the two shapes different.
+
 ## Validation looks spent
 
 | # | Date | Label | Reason | Outcome |

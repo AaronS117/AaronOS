@@ -43,6 +43,22 @@ if (!provider.IsConfigured)
     return 1;
 }
 
+// Reached out to before spending half an hour discovering it one cycle at a time. A configured endpoint
+// is not a reachable one, and the difference cost a full run.
+var endpoint = credentials.Load()!.OpenAiBaseUrl;
+try
+{
+    using var probe = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+    using var reply = await probe.GetAsync(endpoint.TrimEnd('/') + "/models");
+    Console.WriteLine($"endpoint {endpoint} reachable ({(int)reply.StatusCode})");
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"endpoint {endpoint} is NOT reachable: {ex.Message}");
+    Console.WriteLine("Start the model server before running a backtest.");
+    return 1;
+}
+
 // The live configuration is the thing being graded, so it is read rather than re-declared. Only the
 // cadence differs: a replay decides once per session.
 var live = LoadLiveConfig();
@@ -193,6 +209,19 @@ var result = await runner.RunAsync(
     label, live, window.From, window.To, dbPath, log: Console.WriteLine, cadence: cadence);
 
 Console.WriteLine();
+
+// Refuses to present a return figure for a run that mostly failed. A previous run had every one of its
+// 126 cycles error because the model server was down, and it reported "+0.00%, alpha −11.27" as though
+// that were a strategy result. A wrong number that looks right is worse than a crash.
+if (result.IsUntrustworthy)
+{
+    Console.WriteLine($"### RUN FAILED — {result.CyclesErrored} of {result.DecisionsAttempted} cycles errored ###");
+    Console.WriteLine("  No performance figure is reported, because it would describe the harness rather");
+    Console.WriteLine("  than the strategy. Check the decision log in the database for the error text.");
+    Console.WriteLine($"  database  {dbPath}");
+    return 2;
+}
+
 Console.WriteLine($"=== {which} / {label} ===");
 Console.WriteLine($"  elapsed          {(DateTime.UtcNow - started).TotalMinutes:F1} min");
 Console.WriteLine($"  sessions         {result.Sessions}");
