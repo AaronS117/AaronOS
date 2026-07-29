@@ -61,6 +61,31 @@ volatility stayed under target, so trend following never exited and vol targetin
 All three are buy-and-hold under other names here. Equal-weighting into individual megacaps was worse
 on both return and drawdown, which is a genuine result for this watchlist.
 
+| 2026-07-28 | tune | opt3-stockpicking | no index on the watchlist, 10 individual names | **−0.91%** | +11.27% | **−12.18** | 0.94% | 32 | 16 |
+| 2026-07-28 | tune | opt2-news | headlines in the brief, point-in-time filtered | +11.21% | +11.27% | −0.06 | 5.05% | 1 | 0 |
+
+### Forced stock picking: churn, not selection
+
+Removing the index did not produce stock selection. It produced a −0.91% return while the index gained
+11.27%, from repeatedly cycling one MSFT position on one- and two-day holds and buying single-share
+positions in META, AAPL and AMZN. Drawdown of 0.94% shows it never had real exposure, so it missed the
+market's rise and paid to churn. Sixteen closed round trips, mostly losses. The prediction that it would
+trade and underperform was recorded before the run.
+
+### News: delivered, read, and ignored
+
+The decisive check is the token count. With headlines the run used **190,071 input tokens against
+130,710 without** — about 470 extra per decision, exactly what ten headlines cost. The news reached the
+model.
+
+The result was identical to two decimal places: +11.21%, alpha −0.06, one order. The same order, in fact
+— 159 SPY on the first session — at the same price. Across 10,367 headlines the agent's behaviour did
+not change at all. Its rationale simply acquired the word "neutral": "Holding the index is neutral when
+no specific view on individual stocks exists."
+
+This is the cleanest negative result of the set, because the usual escape hatch is closed. It cannot be
+argued that the model never saw the news.
+
 ### The conclusion the tune window reached
 
 Given an honest brief and no handicap, the agent **became buy-and-hold**. One order on the first
