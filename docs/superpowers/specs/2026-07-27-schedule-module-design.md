@@ -8,7 +8,7 @@ The user wants a fourth module that holds the shape of their week: work hours, o
 recurring chores (gym, house cleaning, cat litter, trash), goals, and upcoming release dates — and
 that makes suggestions about what to do when, informed by their real calendars.
 
-Two calendars matter. Work lives in Outlook under a `wemautomation.com` account; everything personal
+Two calendars matter. Work lives in Outlook under a corporate Microsoft 365 account; everything personal
 lives in Google. The machine has only the new Outlook MSIX wrapper (no classic Outlook, no Outlook
 profiles, no local `.ost`) and is neither Entra-joined nor domain-joined, so there is no local
 Outlook data source to read. Work calendar data has to come over the network.

@@ -1588,7 +1588,7 @@ The credential stored in Plan 4 covers Calendar only. `GmailClient` requests Cal
 
 1. Run the app with the client secret variable set:
    ```bash
-   export AARONOS_GOOGLE_CLIENT_SECRET="/c/Users/aaron/secrets/google-oauth-desktop.json"
+   export AARONOS_GOOGLE_CLIENT_SECRET="$HOME/secrets/google-oauth-desktop.json"
    dotnet run --project src/AaronOS.App/AaronOS.App.csproj
    ```
 2. In your Google Cloud project, confirm the **Gmail API** is enabled alongside the Calendar API. If it is not, enable it — otherwise the scan fails with a "has not been used in project" error.

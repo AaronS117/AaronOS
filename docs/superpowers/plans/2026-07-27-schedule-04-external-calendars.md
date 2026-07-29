@@ -55,7 +55,7 @@
 
 ## Task 0 — SETTLED 2026-07-28: the gate PASSED. Do not re-run it.
 
-The `wemautomation.com` tenant **does** permit calendar publishing. The published ICS feed synced on
+The work tenant **does** permit calendar publishing. The published ICS feed synced on
 the first attempt: 52 events cached, `LastError` null, date range matching the today-14..today+56
 window exactly. So the ICS path in Tasks 4 and 5 is in scope and **no Microsoft Graph app
 registration is needed.**
@@ -77,7 +77,7 @@ The original gate instructions are kept below for reference.
 
 ## Task 0 (original, now settled): confirm the Outlook path exists
 
-**This is a gate, not a formality.** Phase 7's entire design assumes the `wemautomation.com` tenant permits publishing a calendar, and tenants frequently disable it. Find out first.
+**This is a gate, not a formality.** Phase 7's entire design assumes the work tenant permits publishing a calendar, and corporate tenants frequently disable it. Find out first.
 
 - [ ] In Outlook on the web, signed in with the work account, go to **Settings → Calendar → Shared calendars → Publish a calendar**.
 - [ ] Select the calendar, choose the **Can view all details** permission, and publish.
@@ -2202,7 +2202,7 @@ In `ScheduleSettingsSection.xaml`, add next to the existing buttons:
 Set the environment variable and launch — it must be set for the process, so set it in the same shell:
 
 ```bash
-export AARONOS_GOOGLE_CLIENT_SECRET="/c/Users/aaron/secrets/google-oauth-desktop.json"
+export AARONOS_GOOGLE_CLIENT_SECRET="$HOME/secrets/google-oauth-desktop.json"
 dotnet run --project src/AaronOS.App/AaronOS.App.csproj
 ```
 
