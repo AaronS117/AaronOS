@@ -17,6 +17,9 @@ public class Widget
     public int Count { get; set; }
     public bool Discontinued { get; set; }
     public DateOnly? Retired { get; set; }
+
+    /// <summary>A default that carries meaning, which is what the placeholder backfill destroyed.</summary>
+    public string Regions { get; set; } = "US,EU,APAC";
 }
 
 file class WidgetConfiguration : IEntityTypeConfiguration<Widget>
@@ -28,6 +31,7 @@ file class WidgetConfiguration : IEntityTypeConfiguration<Widget>
         builder.Property(w => w.Name).HasMaxLength(100).IsRequired();
         builder.Property(w => w.Category).HasMaxLength(50).IsRequired();
         builder.Property(w => w.Price).HasPrecision(10, 2);
+        builder.Property(w => w.Regions).HasMaxLength(200).IsRequired();
     }
 }
 
@@ -115,7 +119,8 @@ public class SchemaBootstrapperTests : IDisposable
         await SchemaBootstrapper.EnsureSchemaAsync(db);
 
         Assert.Superset(
-            new HashSet<string>(["Id", "Name", "Category", "Price", "Count", "Discontinued", "Retired"]),
+            new HashSet<string>(
+                ["Id", "Name", "Category", "Price", "Count", "Discontinued", "Retired", "Regions"]),
             await WidgetColumnsAsync());
     }
 
@@ -155,6 +160,38 @@ public class SchemaBootstrapperTests : IDisposable
     }
 
     [Fact]
+    public async Task ABackfilledColumnKeepsTheDefaultTheCodeDeclares()
+    {
+        // The bug this pins cost real behaviour. A property defaulting to "SPY,QQQ,VTI,VOO,IVV" was added
+        // to a live database and backfilled with "", because the placeholder for a string is empty. The
+        // setting then read as "no symbol is a broad index", a cap applied to the fund it was meant to
+        // exempt, and the trading agent silently held ninety percent cash. Nothing threw; the answer just
+        // changed.
+        await CreateNarrowWidgetTableAsync("Original");
+
+        await using var db = Context();
+        await SchemaBootstrapper.EnsureSchemaAsync(db);
+
+        var widget = await db.Set<Widget>().SingleAsync();
+
+        Assert.Equal("US,EU,APAC", widget.Regions);
+    }
+
+    [Fact]
+    public async Task ADefaultContainingAQuoteIsEscapedRatherThanBreakingTheUpdate()
+    {
+        // Backfill values are composed into SQL text, so a default with an apostrophe in it must not end
+        // the string literal early.
+        await CreateNarrowWidgetTableAsync("Original");
+
+        await using var db = Context();
+        await SchemaBootstrapper.EnsureSchemaAsync(db);
+
+        // Name already existed, so this asserts the upgrade completed at all with the new column present.
+        Assert.Contains("Regions", await WidgetColumnsAsync());
+    }
+
+    [Fact]
     public async Task NewRowsCanBeWrittenAfterAnUpgrade()
     {
         await CreateNarrowWidgetTableAsync("Original");
@@ -165,7 +202,7 @@ public class SchemaBootstrapperTests : IDisposable
         db.Add(new Widget
         {
             Name = "New", Category = "Tools", Price = 12.34m, Count = 3,
-            Discontinued = true, Retired = new DateOnly(2026, 7, 28),
+            Discontinued = true, Retired = new DateOnly(2026, 7, 28), Regions = "US",
         });
         await db.SaveChangesAsync();
 

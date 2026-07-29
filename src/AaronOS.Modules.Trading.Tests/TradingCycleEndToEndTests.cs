@@ -340,6 +340,58 @@ public class TradingCycleEndToEndTests : IDisposable
     }
 
     [Fact]
+    public async Task SeveralBuysInOneTurnCannotSpendTheSameCashTwice()
+    {
+        // The most expensive bug this project produced. Three buys in one turn were each measured
+        // against the balance at the top of the cycle, so a $100k paper account bought $188k of stock on
+        // margin and the no-borrowing guardrail never fired. Found by watching it happen live.
+        await SeedConfigAsync(c =>
+        {
+            c.Watchlist = "SPY";
+            c.BroadIndexSymbols = "SPY";
+            c.MaxInvestedPercent = 100m;
+        });
+        var broker = new ScriptedBroker(100_000m, 100_000m, true, []);
+
+        // Each order is affordable alone; together they are nearly double the account.
+        await Agent(
+            broker,
+            Turn(
+                "Going in.",
+                ("place_order", Order("SPY", "buy", 900)),
+                ("place_order", Order("SPY", "buy", 900)),
+                ("place_order", Order("SPY", "buy", 900))),
+            Turn("Done.")).RunCycleAsync();
+
+        var spent = broker.Submitted.Sum(o => o.Quantity) * 100m;
+        Assert.True(spent <= 100_000m, $"spent {spent:C0} of a {100_000m:C0} account");
+    }
+
+    [Fact]
+    public async Task ASellInOneTurnFreesCashForALaterBuyInTheSameTurn()
+    {
+        // The mirror of the bug: state must move both ways, or a legitimate rotation is wrongly refused.
+        await SeedConfigAsync(c =>
+        {
+            c.Watchlist = "SPY,MSFT";
+            c.BroadIndexSymbols = "SPY";
+            c.MaxInvestedPercent = 100m;
+        });
+        var broker = new ScriptedBroker(
+            100_000m, 1_000m, true, [new HeldPosition("SPY", 900, 90_000m)]);
+
+        await Agent(
+            broker,
+            Turn(
+                "Rotating.",
+                ("place_order", Order("SPY", "sell", 900)),
+                ("place_order", Order("SPY", "buy", 800))),
+            Turn("Done.")).RunCycleAsync();
+
+        Assert.Equal(2, broker.Submitted.Count);
+    }
+
+    [Fact]
     public async Task TheFirstCycleStampsTheStartDateAndLaterCyclesLeaveItAlone()
     {
         await SeedConfigAsync();

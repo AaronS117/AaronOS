@@ -107,6 +107,42 @@ public class TradingAgent(
     }
 
     /// <summary>
+    /// The account as it stands after an order fills, so the next order in the same turn is checked
+    /// against reality rather than against the balance at the top of the cycle.
+    /// </summary>
+    private static AccountState ApplyFill(AccountState state, OrderRequest filled)
+    {
+        var positions = state.Positions.ToList();
+        var index = positions.FindIndex(p =>
+            string.Equals(p.Symbol, filled.Symbol, StringComparison.OrdinalIgnoreCase));
+
+        var signedQuantity = filled.Side == OrderSide.Buy ? filled.Quantity : -filled.Quantity;
+        var existing = index >= 0 ? positions[index] : new HeldPosition(filled.Symbol, 0, 0m);
+        var updated = new HeldPosition(
+            filled.Symbol,
+            existing.Quantity + signedQuantity,
+            existing.MarketValue + (signedQuantity * filled.EstimatedPrice));
+
+        if (index >= 0)
+        {
+            positions[index] = updated;
+        }
+        else
+        {
+            positions.Add(updated);
+        }
+
+        // Equity is unchanged by a fill at the price it was sized from — cash becomes stock, or the
+        // reverse — so only cash and the holdings move.
+        return state with
+        {
+            Cash = state.Cash - (signedQuantity * filled.EstimatedPrice),
+            Positions = positions,
+            OrdersPlacedToday = state.OrdersPlacedToday + 1,
+        };
+    }
+
+    /// <summary>
     /// Writes a visible note that the loop is alive but cannot proceed, and returns the skip.
     ///
     /// Without this, a cycle blocked on a missing key leaves no trace at all, so a run that is ticking
@@ -185,14 +221,18 @@ public class TradingAgent(
                 var (outcome, wasPlaced, wasBlocked) =
                     await ExecuteToolAsync(db, config, state, quotes, decision, call, token);
 
-                if (wasPlaced is { } action)
+                if (wasPlaced is { } filled)
                 {
-                    actions.Add(action);
+                    actions.Add($"{(filled.Side == OrderSide.Buy ? "Bought" : "Sold")} " +
+                                $"{filled.Quantity} {filled.Symbol}");
                     placed++;
 
-                    // The running count has to advance inside the loop, or several calls in one turn
-                    // would each be measured against the same stale total and slip past the daily cap.
-                    state = state with { OrdersPlacedToday = state.OrdersPlacedToday + 1 };
+                    // The WHOLE effect of the fill is applied, not merely the order count. Advancing the
+                    // count alone was a real and expensive bug: the model emitted three buys in one turn,
+                    // each was measured against the original cash balance, and a $100k paper account
+                    // bought $188k of stock on margin with the no-borrowing guardrail never firing. A
+                    // guardrail that reads stale state is not a guardrail.
+                    state = ApplyFill(state, filled);
                 }
 
                 if (wasBlocked is { } reason)
@@ -214,7 +254,7 @@ public class TradingAgent(
             : string.Join("; ", actions);
     }
 
-    private async Task<(string Outcome, string? Placed, string? Blocked)> ExecuteToolAsync(
+    private async Task<(string Outcome, OrderRequest? Placed, string? Blocked)> ExecuteToolAsync(
         AaronOsDbContext db,
         TradingConfig config,
         AccountState state,
@@ -228,7 +268,7 @@ public class TradingAgent(
         // call costs a tool result instead of the whole cycle.
         if (call.Arguments is null)
         {
-            return ($"Refused: arguments for {call.Name} were not valid JSON.", null,
+            return ($"Refused: arguments for {call.Name} were not valid JSON.", (OrderRequest?)null,
                 $"{call.Name}: unparseable arguments");
         }
 
@@ -239,7 +279,7 @@ public class TradingAgent(
 
         if (symbol.Length == 0)
         {
-            return ("Refused: no symbol given.", null, "missing symbol");
+            return ("Refused: no symbol given.", (OrderRequest?)null, "missing symbol");
         }
 
         // Checked here, ahead of the price lookup, so the refusal states the real reason. Quotes are
@@ -248,7 +288,7 @@ public class TradingAgent(
         // may then retry, and a misleading line in the log afterwards.
         if (!TradingGuardrails.IsOnWatchlist(symbol, config.Watchlist))
         {
-            return ($"Refused: {symbol} is not on the watchlist.", null,
+            return ($"Refused: {symbol} is not on the watchlist.", (OrderRequest?)null,
                 $"{symbol}: not on the watchlist");
         }
 
@@ -271,25 +311,25 @@ public class TradingAgent(
                     .Quantity;
                 if (quantity <= 0)
                 {
-                    return ($"Refused: no {symbol} held.", null, $"{symbol}: nothing held to close");
+                    return ($"Refused: no {symbol} held.", (OrderRequest?)null, $"{symbol}: nothing held to close");
                 }
 
                 break;
 
             default:
-                return ($"Refused: unknown tool {name}.", null, $"unknown tool {name}");
+                return ($"Refused: unknown tool {name}.", (OrderRequest?)null, $"unknown tool {name}");
         }
 
         if (!quotes.TryGetValue(symbol, out var quote) || quote.Mid <= 0)
         {
-            return ($"Refused: no current price for {symbol}.", null, $"{symbol}: no price");
+            return ($"Refused: no current price for {symbol}.", (OrderRequest?)null, $"{symbol}: no price");
         }
 
         var request = new OrderRequest(symbol, side, quantity, quote.Mid);
         var verdict = TradingGuardrails.Check(request, state, config);
         if (!verdict.Allowed)
         {
-            return ($"Refused: {verdict.Reason}", null, $"{symbol}: {verdict.Reason}");
+            return ($"Refused: {verdict.Reason}", (OrderRequest?)null, $"{symbol}: {verdict.Reason}");
         }
 
         var submitted = await alpaca.PlaceMarketOrderAsync(symbol, side, quantity, token);
@@ -309,7 +349,7 @@ public class TradingAgent(
 
         var verb = side == OrderSide.Buy ? "Bought" : "Sold";
         var summary = $"{verb} {quantity} {symbol}";
-        return ($"Order accepted: {summary} at about {quote.Mid:C2}.", summary, null);
+        return ($"Order accepted: {summary} at about {quote.Mid:C2}.", request, null);
     }
 
     /// <summary>Stamps the start date on the first cycle that runs, and never touches it again.</summary>

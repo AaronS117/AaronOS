@@ -1,3 +1,6 @@
+using Microsoft.EntityFrameworkCore.Metadata;
+using System.Reflection;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 
@@ -118,13 +121,63 @@ public static class SchemaBootstrapper
                 if (!property.IsNullable)
                 {
                     await db.Database.ExecuteSqlRawAsync(
-                        $"UPDATE \"{table}\" SET \"{column}\" = {DefaultLiteralFor(property.ClrType)} " +
+                        $"UPDATE \"{table}\" SET \"{column}\" = {BackfillLiteralFor(entityType, property)} " +
                         $"WHERE \"{column}\" IS NULL");
                 }
 #pragma warning restore EF1002
             }
         }
     }
+
+    /// <summary>
+    /// The value a newly added non-nullable column should take on rows that predate it.
+    ///
+    /// It prefers the entity's own C# default — the value a freshly constructed instance carries — and
+    /// falls back to a type-generic placeholder only when that cannot be read.
+    ///
+    /// The distinction is not academic. A property declared as
+    /// <c>BroadIndexSymbols { get; set; } = "SPY,QQQ,VTI,VOO,IVV"</c> was added to a live database and
+    /// backfilled with an empty string, because the placeholder for a string is "". Nothing failed: the
+    /// setting simply read as "no symbol is a broad index", the per-position cap applied to the index
+    /// fund it was written to exempt, and the trading agent quietly held ninety percent cash — the exact
+    /// behaviour that exemption exists to prevent. A wrong default is worse than a missing column,
+    /// because a missing column throws and a wrong default just changes the answer.
+    /// </summary>
+    private static string BackfillLiteralFor(IEntityType entityType, IProperty property)
+    {
+        try
+        {
+            if (Activator.CreateInstance(entityType.ClrType) is { } fresh &&
+                property.PropertyInfo?.GetValue(fresh) is { } declared)
+            {
+                return SqlLiteral(declared);
+            }
+        }
+        catch (Exception e) when (e is MissingMethodException or TargetInvocationException
+                                     or NotSupportedException)
+        {
+            // No parameterless constructor, or constructing it has side effects. Fall through to the
+            // type-generic value rather than failing the upgrade.
+        }
+
+        return DefaultLiteralFor(property.ClrType);
+    }
+
+    /// <summary>A SQL literal for a concrete value, with quotes escaped.</summary>
+    private static string SqlLiteral(object value) => value switch
+    {
+        bool b => b ? "1" : "0",
+        string s => $"'{s.Replace("'", "''")}'",
+        DateTime d => $"'{d:yyyy-MM-dd HH:mm:ss}'",
+        DateOnly d => $"'{d:yyyy-MM-dd}'",
+        TimeOnly t => $"'{t:HH:mm:ss}'",
+        TimeSpan t => $"'{t:c}'",
+        Guid g => $"'{g}'",
+        Enum e => $"'{e}'",
+        decimal m => $"'{m.ToString(CultureInfo.InvariantCulture)}'",
+        IFormattable n => n.ToString(null, CultureInfo.InvariantCulture),
+        _ => $"'{value.ToString()?.Replace("'", "''")}'",
+    };
 
     /// <summary>
     /// A SQL literal safe to backfill a newly added non-nullable column with.

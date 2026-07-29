@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Timers;
 using AaronOS.Core.Data;
 using AaronOS.Modules.Trading.Agent;
@@ -25,6 +26,19 @@ public sealed class TradingScheduler(
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private Timer? _timer;
+    private Timer? _watchdog;
+    private DateTime _lastTickUtc = DateTime.UtcNow;
+    private int _intervalMinutes = 30;
+
+    /// <summary>
+    /// When a cycle last ran, for a health check to read.
+    ///
+    /// Externally visible because the failure that prompted it was invisible: the app sat running for
+    /// six hours with the market open and fired nothing, and the only symptom was a decision log whose
+    /// newest entry was from the previous day. A process being alive is not evidence that its work is
+    /// happening.
+    /// </summary>
+    public DateTime LastTickUtc => _lastTickUtc;
 
     public bool IsRunning => _timer is { Enabled: true };
 
@@ -47,9 +61,22 @@ public sealed class TradingScheduler(
         var config = await db.Set<TradingConfig>().FirstOrDefaultAsync();
         var minutes = Math.Clamp(config?.CycleIntervalMinutes ?? 30, 1, 24 * 60);
 
+        _intervalMinutes = minutes;
+        _lastTickUtc = DateTime.UtcNow;
+
         _timer = new Timer(TimeSpan.FromMinutes(minutes).TotalMilliseconds) { AutoReset = true };
         _timer.Elapsed += OnElapsed;
         _timer.Start();
+
+        // A second, slower timer that exists only to notice the first one has gone quiet and restart it.
+        // Belt and braces rather than a diagnosis: a schedule meant to run unattended for a week has to
+        // recover from a stall on its own, because nobody is watching it to press the button.
+        _watchdog = new Timer(TimeSpan.FromMinutes(Math.Max(2, minutes)).TotalMilliseconds)
+        {
+            AutoReset = true,
+        };
+        _watchdog.Elapsed += OnWatchdog;
+        _watchdog.Start();
 
         _ = Task.Run(async () =>
         {
@@ -64,6 +91,14 @@ public sealed class TradingScheduler(
 
     public void Stop()
     {
+        if (_watchdog is not null)
+        {
+            _watchdog.Elapsed -= OnWatchdog;
+            _watchdog.Stop();
+            _watchdog.Dispose();
+            _watchdog = null;
+        }
+
         if (_timer is null)
         {
             return;
@@ -75,7 +110,36 @@ public sealed class TradingScheduler(
         _timer = null;
     }
 
-    private void OnElapsed(object? sender, ElapsedEventArgs e) => _ = Task.Run(RunOnceAsync);
+    private void OnElapsed(object? sender, ElapsedEventArgs e)
+    {
+        _lastTickUtc = DateTime.UtcNow;
+        _ = Task.Run(RunOnceAsync);
+    }
+
+    /// <summary>Restarts the main timer if it has missed more than two intervals.</summary>
+    private void OnWatchdog(object? sender, ElapsedEventArgs e)
+    {
+        var silentFor = DateTime.UtcNow - _lastTickUtc;
+        if (silentFor <= TimeSpan.FromMinutes(_intervalMinutes * 2.5))
+        {
+            return;
+        }
+
+        Debug.WriteLine($"[trading] no tick for {silentFor.TotalMinutes:F0} min — re-arming");
+        _lastTickUtc = DateTime.UtcNow;
+
+        try
+        {
+            _timer?.Stop();
+            _timer?.Start();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Stopped while the watchdog was mid-check; nothing to recover.
+        }
+
+        _ = Task.Run(RunOnceAsync);
+    }
 
     public async Task<CycleResult> RunOnceAsync()
     {
@@ -100,6 +164,7 @@ public sealed class TradingScheduler(
                 return new CycleResult(result.Ran, result.Summary, ex.Message);
             }
 
+            _lastTickUtc = DateTime.UtcNow;
             CycleCompleted?.Invoke(result);
             return result;
         }
