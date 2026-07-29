@@ -36,6 +36,11 @@ if (!alpaca.IsConfigured)
     return 1;
 }
 
+if (args.Contains("--stoploss"))
+{
+    return await AaronOS.Trading.Backtest.StopLossReport.RunAsync(alpaca, LoadLiveConfig());
+}
+
 var provider = new OpenAiCompatibleProvider(credentials);
 if (!provider.IsConfigured)
 {

@@ -166,8 +166,9 @@ public class TradingGuardrailsTests
             new HeldPosition("SPY", 350, 35_000m),
         ]);
 
-        // Each position is inside its own cap; together with this order they breach the 80% total.
-        var verdict = TradingGuardrails.Check(Buy(quantity: 90, price: 100m), account, Config());
+        // Buys the index, which is exempt from both the per-company and the stock-sleeve caps, so total
+        // exposure is the only rule left that can refuse it.
+        var verdict = TradingGuardrails.Check(Buy("SPY", 90, 100m), account, Config());
 
         Assert.False(verdict.Allowed);
         Assert.Contains("total exposure", verdict.Reason, StringComparison.OrdinalIgnoreCase);
@@ -324,6 +325,43 @@ public class TradingGuardrailsTests
         // Deliberately perverse: whatever is listed is treated as an index, so the exemption is a
         // setting rather than a hardcoded opinion about which tickers are diversified.
         Assert.True(TradingGuardrails.Check(Buy("AAPL", 400, 100m), Account(), config).Allowed);
+    }
+
+    [Fact]
+    public void TheStockSleeveIsCappedSeparatelyFromTheIndex()
+    {
+        // Ten names at ten percent each satisfies every per-company cap and is a hundred percent in
+        // individual companies. The sleeve cap is what makes "index core, small stock sleeve" real.
+        var config = Config();
+        config.Watchlist = "SPY,AAPL,MSFT,NVDA,GOOGL";
+        config.MaxIndividualStocksPercent = 30m;
+
+        var account = Account(positions:
+        [
+            new HeldPosition("AAPL", 100, 10_000m),
+            new HeldPosition("MSFT", 100, 10_000m),
+            new HeldPosition("NVDA", 90, 9_000m),
+        ]);
+
+        // A name with plenty of its own headroom, so only the combined sleeve can refuse it: GOOGL would
+        // sit at 2,000 against a 10,000 per-company cap, while the sleeve goes to 31,000 against 30,000.
+        var verdict = TradingGuardrails.Check(Buy("GOOGL", 20, 100m), account, config);
+
+        Assert.False(verdict.Allowed);
+        Assert.Contains("stock-sleeve cap", verdict.Reason);
+    }
+
+    [Fact]
+    public void TheIndexIsNotChargedAgainstTheStockSleeve()
+    {
+        // The core has to be able to grow while the sleeve is full, or the split is not a split.
+        var config = Config();
+        config.Watchlist = "SPY,AAPL";
+        config.MaxIndividualStocksPercent = 30m;
+
+        var account = Account(positions: [new HeldPosition("AAPL", 300, 30_000m)]);
+
+        Assert.True(TradingGuardrails.Check(Buy("SPY", 400, 100m), account, config).Allowed);
     }
 
     [Fact]

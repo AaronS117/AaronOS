@@ -29,7 +29,8 @@ public class TradingAgent(
     AlpacaClient alpaca,
     AgentProviderRegistry providers,
     TimeProvider time,
-    INewsSource news)
+    INewsSource news,
+    StopLossGuard stopLoss)
 {
     /// <summary>Enough turns for the model to place a few orders and react to a refusal.</summary>
     private const int MaxToolTurns = 6;
@@ -78,6 +79,16 @@ public class TradingAgent(
             var watchlist = TradingGuardrails.ParseWatchlist(config.Watchlist);
             var quotes = await alpaca.GetQuotesAsync(watchlist, token);
 
+            // The stop runs BEFORE the model and independently of it. That is the whole point: a stop
+            // that depends on a language model noticing and deciding correctly on the day is not a stop.
+            var stopped = await stopLoss.ApplyAsync(config, positions, quotes, token);
+            if (stopped.Count > 0)
+            {
+                positions = await alpaca.GetPositionsAsync(token);
+                account = await alpaca.GetAccountAsync(token);
+                decision.StopLossSales = string.Join("; ", stopped.Select(x => x.ToString()));
+            }
+
             var since = time.GetUtcNow().UtcDateTime.Date;
             var ordersToday = await db.Set<TradeOrder>().CountAsync(o => o.SubmittedAtUtc >= since, token);
 
@@ -89,7 +100,10 @@ public class TradingAgent(
 
             var result = await ConverseAsync(db, provider, config, state, quotes, headlines, decision, token);
 
-            decision.ActionSummary = result;
+            decision.ActionSummary = stopped.Count > 0
+                ? $"STOP-LOSS: {string.Join("; ", stopped.Select(x => $"sold {x.Quantity} {x.Symbol}"))}"
+                  + (result == "No action" ? "" : $"; then {result}")
+                : result;
             db.Add(decision);
             await EnsureStartedOnAsync(db, config, time, token);
             await db.SaveChangesAsync(token);

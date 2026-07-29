@@ -77,9 +77,23 @@ public sealed class BaselineRunner(ReplayMarket market)
                     continue;
                 }
 
-                var submitted = broker
-                    .PlaceMarketOrderAsync(request.Symbol, request.Side, request.Quantity)
-                    .GetAwaiter().GetResult();
+                Brokerage.SubmittedOrder submitted;
+                try
+                {
+                    submitted = broker
+                        .PlaceMarketOrderAsync(request.Symbol, request.Side, request.Quantity)
+                        .GetAwaiter().GetResult();
+                }
+                catch (Brokerage.AlpacaApiException ex)
+                {
+                    // Sizing happens at today's close and the fill lands at tomorrow's open, so an
+                    // overnight gap can push a correctly sized order past the cash it reserved. That is a
+                    // refusal to record and move on from, not a reason to abandon eight years of replay.
+                    refusedHere = true;
+                    FirstRefusal ??= $"{session:yyyy-MM-dd} {request.Symbol}: {ex.Message}";
+                    continue;
+                }
+
                 placedToday++;
 
                 var fill = broker.Fills[^1];

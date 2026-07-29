@@ -19,6 +19,8 @@ public class TradingConfigConfiguration : IEntityTypeConfiguration<TradingConfig
         builder.Property(c => c.StrategyNotes).HasMaxLength(4000);
         builder.Property(c => c.MaxPositionPercent).HasPrecision(6, 2);
         builder.Property(c => c.MaxInvestedPercent).HasPrecision(6, 2);
+        builder.Property(c => c.StopLossPercent).HasPrecision(6, 2);
+        builder.Property(c => c.MaxIndividualStocksPercent).HasPrecision(6, 2);
     }
 }
 
@@ -65,5 +67,17 @@ public class AgentDecisionConfiguration : IEntityTypeConfiguration<AgentDecision
         builder.Property(d => d.ActionSummary).HasMaxLength(500).IsRequired();
         builder.Property(d => d.BlockedActions).HasMaxLength(2000);
         builder.Property(d => d.Error).HasMaxLength(2000);
+        builder.Property(d => d.StopLossSales).HasMaxLength(2000);
+    }
+}
+
+public class PositionPeakConfiguration : IEntityTypeConfiguration<PositionPeak>
+{
+    public void Configure(EntityTypeBuilder<PositionPeak> builder)
+    {
+        builder.HasKey(p => p.Id);
+        builder.HasIndex(p => p.Symbol).IsUnique();
+        builder.Property(p => p.Symbol).HasMaxLength(16).IsRequired();
+        builder.Property(p => p.PeakPrice).HasPrecision(18, 4);
     }
 }

@@ -45,6 +45,25 @@ public class TradingConfig
     /// </summary>
     public decimal MaxInvestedPercent { get; set; } = 100m;
 
+    /// <summary>
+    /// Trailing stop, as a percent below a position's peak. Zero disables it.
+    ///
+    /// Seven by choice, on evidence rather than instinct: over six years of SPY a 7% trailing stop cut
+    /// the worst peak-to-trough fall from 24% to 15% and cost about 21 points of return. Wider stops
+    /// tested here reduced return without reducing the fall, because they sold near the bottom and bought
+    /// back higher. This is a deliberate trade of return for a smoother ride, not an edge.
+    /// </summary>
+    public decimal StopLossPercent { get; set; } = 7m;
+
+    /// <summary>
+    /// Ceiling on everything that is not a broad index fund, combined, as a percent of equity.
+    ///
+    /// The per-company cap limits any single name; this limits the whole risky sleeve. Without it, ten
+    /// names at ten percent each is a hundred percent in individual companies while every individual cap
+    /// is satisfied — technically compliant and the opposite of an index core.
+    /// </summary>
+    public decimal MaxIndividualStocksPercent { get; set; } = 30m;
+
     public int MaxTradesPerDay { get; set; } = 6;
     public int CycleIntervalMinutes { get; set; } = 30;
 

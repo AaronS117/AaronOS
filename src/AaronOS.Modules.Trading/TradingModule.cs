@@ -64,6 +64,7 @@ public class TradingModule : IAppModule
         services.AddSingleton<AgentProviderRegistry>();
 
         services.AddSingleton<INewsSource, AlpacaNewsSource>();
+        services.AddSingleton<StopLossGuard>();
         services.AddSingleton<SnapshotRecorder>();
         services.AddSingleton<TradingAgent>();
 

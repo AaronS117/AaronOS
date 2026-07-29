@@ -99,7 +99,8 @@ public sealed class BacktestRunner(ReplayMarket market, IAgentProvider provider,
         }
 
         var agent = new TradingAgent(
-            factory, broker, new AgentProviderRegistry([provider]), clock, news ?? new NoNewsSource());
+            factory, broker, new AgentProviderRegistry([provider]), clock, news ?? new NoNewsSource(),
+            new StopLossGuard(factory, broker));
         var recorder = new SnapshotRecorder(factory, broker, clock);
 
         var decisions = 0;

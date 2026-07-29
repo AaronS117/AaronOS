@@ -118,6 +118,26 @@ public static class TradingGuardrails
                 $"{capName} cap of {positionCap:C0}.");
         }
 
+        // The risky sleeve, checked separately from total exposure. Ten names each inside a 10%
+        // per-company cap is 100% in individual companies with every individual cap satisfied, which is
+        // compliant and is not an index core.
+        if (!isBroadIndex && config.MaxIndividualStocksPercent > 0)
+        {
+            var individualNow = account.Positions
+                .Where(p => !IsBroadIndex(p.Symbol, config.BroadIndexSymbols))
+                .Sum(p => p.MarketValue);
+            var individualAfter = individualNow + order.Notional;
+            var sleeveCap = account.Equity * config.MaxIndividualStocksPercent / 100m;
+
+            if (individualAfter > sleeveCap)
+            {
+                return GuardrailVerdict.Block(
+                    $"Would take individual stocks to {individualAfter:C0}, above the " +
+                    $"{config.MaxIndividualStocksPercent:0.#}% stock-sleeve cap of {sleeveCap:C0}. " +
+                    $"The index is not subject to this cap.");
+            }
+        }
+
         var invested = account.Positions.Sum(p => p.MarketValue) + order.Notional;
         var investedCap = account.Equity * config.MaxInvestedPercent / 100m;
         if (invested > investedCap)

@@ -162,7 +162,7 @@ public class BaselineStrategyTests
 
         var shares = context.SharesFor("SPY", 100_000m);
 
-        Assert.Equal(247, shares);   // 99,000 spendable at 400 a share
+        Assert.Equal(242, shares);   // 97,000 spendable at 400 a share
         Assert.True(shares * 400m <= 100_000m * BaselineContext.SpendableCashFraction);
     }
 

@@ -22,6 +22,9 @@ public class AgentDecision
     /// <summary>Anything the guardrails refused, so a blocked order is visible rather than silent.</summary>
     public string? BlockedActions { get; set; }
 
+    /// <summary>Positions the trailing stop sold this cycle, before the model was consulted.</summary>
+    public string? StopLossSales { get; set; }
+
     public string? Error { get; set; }
     public int InputTokens { get; set; }
     public int OutputTokens { get; set; }

@@ -35,8 +35,15 @@ public readonly record struct BaselineContext(
         return affordable <= 0 ? 0 : (int)Math.Floor(affordable / quote.Ask);
     }
 
-    /// <summary>Mirrors the margin the cash guardrail applies, so sizing and enforcement agree.</summary>
-    public const decimal SpendableCashFraction = 0.99m;
+    /// <summary>
+    /// How much of the cash balance an order may be sized against.
+    ///
+    /// Below one because an order is sized at today's close and fills at tomorrow's open: an overnight
+    /// gap up turns an order costing 99% of cash into one costing 101%, and the broker rejects it. Three
+    /// percent absorbs an ordinary gap. It is a real cost — that cash sits idle — and the alternative is
+    /// an order that is occasionally refused for a reason the strategy could not have known.
+    /// </summary>
+    public const decimal SpendableCashFraction = 0.97m;
 
     /// <summary>
     /// Dollars a symbol can still take before its own cap binds, honouring the broad-index exemption.
@@ -281,5 +288,81 @@ public sealed class VolatilityTargetedBaseline(
         var mean = returns.Average();
         var variance = returns.Sum(r => (r - mean) * (r - mean)) / (returns.Count - 1);
         return Math.Sqrt(variance) * Math.Sqrt(252) * 100;
+    }
+}
+
+/// <summary>
+/// Hold the index, but sell everything when it falls a set percentage from its peak, then buy back in
+/// after a waiting period.
+///
+/// This is the rule people ask for by name — "if it drops ten percent, get me out" — and it is worth
+/// implementing precisely rather than arguing about, because it is testable. Two details decide whether
+/// it helps or hurts, and both are usually left unstated when the idea is described.
+///
+/// The trigger is measured from the peak since entry, not from the purchase price, so a position that
+/// has risen and then given back the gain triggers the same as one that fell immediately. That is what
+/// "down ten percent" means to someone watching a chart.
+///
+/// The re-entry rule is the part that matters most and the part nobody specifies. A stop with no way
+/// back is not risk management, it is a one-way exit to cash. The waiting period here is deliberate and
+/// its length is the whole experiment: too short and the position is sold and rebought inside the same
+/// dip, too long and the recovery is missed.
+/// </summary>
+public sealed class StopLossBaseline(
+    string symbol = "SPY",
+    decimal stopPercent = 10m,
+    int reentryWaitSessions = 20) : IBaselineStrategy
+{
+    private decimal _peak;
+    private int _waitRemaining;
+    private int _stopsTriggered;
+
+    public string Name => $"stop-loss {stopPercent:0}% on {symbol}, back in after {reentryWaitSessions}d";
+
+    /// <summary>How often the stop fired, which is the cost side of the trade-off.</summary>
+    public int StopsTriggered => _stopsTriggered;
+
+    public IEnumerable<OrderRequest> Decide(BaselineContext context)
+    {
+        if (!context.Quotes.TryGetValue(symbol, out var quote) || quote.Mid <= 0)
+        {
+            yield break;
+        }
+
+        var held = context.HeldShares(symbol);
+        var price = quote.Mid;
+
+        if (held > 0)
+        {
+            if (price > _peak)
+            {
+                _peak = price;
+            }
+
+            var fallFromPeak = _peak <= 0 ? 0m : (_peak - price) / _peak * 100m;
+            if (fallFromPeak >= stopPercent)
+            {
+                _stopsTriggered++;
+                _waitRemaining = reentryWaitSessions;
+                _peak = 0m;
+                yield return new OrderRequest(symbol, OrderSide.Sell, held, price);
+            }
+
+            yield break;
+        }
+
+        // Out of the market: count down the wait, then buy back in with everything available.
+        if (_waitRemaining > 0)
+        {
+            _waitRemaining--;
+            yield break;
+        }
+
+        var shares = context.SharesFor(symbol, context.PositionHeadroom(symbol));
+        if (shares > 0)
+        {
+            _peak = price;
+            yield return new OrderRequest(symbol, OrderSide.Buy, shares, price);
+        }
     }
 }

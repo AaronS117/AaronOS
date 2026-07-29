@@ -3,6 +3,7 @@ using AaronOS.Core.Data;
 using AaronOS.Modules.Trading.Agent;
 using AaronOS.Modules.Trading.Brokerage;
 using AaronOS.Modules.Trading.Data;
+using AaronOS.Modules.Trading.Trading;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -62,7 +63,8 @@ public class BlockedCycleTests : IDisposable
     }
 
     private TradingAgent Agent(AlpacaClient broker, IAgentProvider provider) =>
-        new(new Factory(_dbPath), broker, new AgentProviderRegistry([provider]), TimeProvider.System, new NoNewsSource());
+        new(new Factory(_dbPath), broker, new AgentProviderRegistry([provider]), TimeProvider.System, new NoNewsSource(),
+            new StopLossGuard(new Factory(_dbPath), broker));
 
     private async Task<List<AgentDecision>> DecisionsAsync()
     {
